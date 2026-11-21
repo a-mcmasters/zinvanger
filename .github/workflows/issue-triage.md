@@ -20,13 +20,11 @@ max-ai-credits: 10000 # AWF's per-run hard cap; -1 fails AWF config validation
 engine:
     id: codex
     env:
-        OPENAI_BASE_URL: https://opencode.ai/zen/go/v1
-        OPENAI_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.ISSUE_TRIAGE_CODEX_API_KEY }}
 
 network:
     allowed:
         - defaults
-        - opencode.ai
 
 permissions: read-all
 
