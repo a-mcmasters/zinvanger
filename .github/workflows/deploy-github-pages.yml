@@ -1,0 +1,50 @@
+name: Deploy app to GitHub Pages
+
+# Serves the Zinvanger web app at https://<owner>.github.io/zinvanger/ (project.json urls.app).
+# Needs Settings → Pages → Source: "GitHub Actions" on the repository.
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    pages: write
+    id-token: write
+
+concurrency:
+    group: github-pages
+    cancel-in-progress: false
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Setup Node.js and pnpm
+              uses: ./.github/actions/setup-node-pnpm
+
+            - run: pnpm install --frozen-lockfile --filter @project/common --filter @project/client --filter @project/ffmpeg
+
+            - name: Build web app
+              env:
+                  VITE_APP_BASE_PATH: /${{ github.event.repository.name }}/
+              run: pnpm --filter @project/client run buildFast
+
+            - uses: actions/upload-pages-artifact@v3
+              with:
+                  path: client/dist
+
+    deploy:
+        needs: build
+        runs-on: ubuntu-latest
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - id: deployment
+              uses: actions/deploy-pages@v4

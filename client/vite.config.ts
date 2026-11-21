@@ -10,7 +10,6 @@ export default defineConfig(async ({ mode, isPreview }) => {
     const env = loadEnv(mode, process.cwd());
     const appUrl = new URL(project.urls.app);
     if (env.VITE_APP_DOMAIN) appUrl.host = env.VITE_APP_DOMAIN;
-    const domain = appUrl.host;
     const base = env.VITE_APP_BASE_PATH || '/';
     const candidate = ['1', 'true'].includes(env.VITE_FFMPEG_CANDIDATE?.toLowerCase());
     const ffmpeg = await createFfmpegBuildConfig({ candidate, base, prepare: !isPreview });
@@ -30,10 +29,6 @@ export default defineConfig(async ({ mode, isPreview }) => {
                     data: {
                         projectName: project.names.short,
                         defaultLanguage: project.defaultLanguage,
-                        plausible:
-                            mode === 'production'
-                                ? `<script defer data-domain="${domain}" src="https://plausible.io/js/script.js"></script>`
-                                : '',
                         url: new URL(base, appUrl).href,
                     },
                 },
