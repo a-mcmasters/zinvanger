@@ -35,7 +35,7 @@ Install asbplayer from the <a href={project.extension.firefoxAndroid.storeUrl}>A
 Edge Canary is another Chromium-based mobile browser that can run extensions. As of this writing, asbplayer on Edge Canary does not support audio recording.
 To install asbplayer on Edge Canary:
 
-1. Download the asbplayer `crx` file from the <a href={`${project.urls.repo}/releases/latest`}>releases page</a>.
+1. Download the asbplayer `crx` file from the <a href={`${project.urls.upstreamReleases}/latest`}>upstream asbplayer release</a>.
 2. If not already, enable developer mode from the Edge Canary settings by going to "about Microsoft Edge" and tapping on the build version string several times.
 3. From **Developer Options** tap **Extension install by crx** and select the `crx` file you just downloaded.
 

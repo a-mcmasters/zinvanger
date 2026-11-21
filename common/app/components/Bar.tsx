@@ -303,7 +303,7 @@ export default function Bar({
                             </ListItemButton>
                         </ListItem>
                     </Link>
-                    <Link href={`${project.urls.repo}/issues`}>
+                    <Link href={`${project.urls.repo}/issues/new/choose`}>
                         <ListItem disablePadding>
                             <ListItemButton>
                                 <ListItemIcon>

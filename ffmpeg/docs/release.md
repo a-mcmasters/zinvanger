@@ -25,7 +25,7 @@ Authenticate with access to the release repository, temporarily select the draft
 
 ```sh
 gh auth login
-pnpm --filter @project/ffmpeg run select:runtime --version 0.2.0 --repo asbplayer/asbplayer
+pnpm --filter @project/ffmpeg run select:runtime --version 0.2.0 --repo a-mcmasters/zinvanger
 pnpm --filter @project/client run start
 ```
 

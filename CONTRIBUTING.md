@@ -1,12 +1,12 @@
 # Contributing
 
-Contributions to the project are always welcome. asbplayer will never be complete, and there are a ton of [issues](https://github.com/asbplayer/asbplayer/issues) to work on. [Many contributions](https://github.com/asbplayer/asbplayer/pulls?q=is%3Apr+is%3Aclosed) have already been made, including some very large features.
+Contributions to Zinvanger are welcome. Browse [open issues](https://github.com/a-mcmasters/zinvanger/issues) or start a discussion by [opening an issue](https://github.com/a-mcmasters/zinvanger/issues/new/choose).
 
 ## AI-assisted contributions
 
 ### Large contributions
 
-While it is possible to make large and valuable contributions using AI very quickly, reviewing those contributions still takes enormous amounts of time. Therefore, **it is highly recommended that you discuss feature and implementation details with maintainers before opening a large PR.** Maintainers can be easily reached on a [GitHub issue](https://github.com/asbplayer/asbplayer/issues) or [Discord](https://discord.gg/ad7VAQru7m).
+While it is possible to make large and valuable contributions using AI very quickly, reviewing those contributions still takes enormous amounts of time. Therefore, **it is highly recommended that you discuss feature and implementation details with maintainers before opening a large PR.** Reach the Zinvanger maintainers by [opening an issue](https://github.com/a-mcmasters/zinvanger/issues/new/choose).
 
 ### Commit messages
 
@@ -36,7 +36,7 @@ Make sure the pre-merge checks are passing:
 pnpm run verify
 ```
 
-Then open a pull request on the [GitHub repository](https://github.com/asbplayer/asbplayer).
+Then open a pull request on the [GitHub repository](https://github.com/a-mcmasters/zinvanger).
 
 ## Documentation
 
@@ -116,9 +116,9 @@ Enable new target languages separately in Crowdin's project settings and add a m
 
 [Crowdin](https://crowdin.com/project/asbplayer) is the source of truth for asbplayer localization.
 
-[Push loc](https://github.com/asbplayer/asbplayer/actions/workflows/push-loc.yml) pushes localization changes found in `en.json` to Crowdin, allowing new or changed strings become available on Crowdin for localization into other languages.
+[Push loc](https://github.com/a-mcmasters/zinvanger/actions/workflows/push-loc.yml) pushes localization changes found in `en.json` to Crowdin, allowing new or changed strings become available on Crowdin for localization into other languages.
 
-[Pull loc](https://github.com/asbplayer/asbplayer/actions/workflows/pull-loc.yml) pulls new translations from Crowdin and creates a PR with updated translations.
+[Pull loc](https://github.com/a-mcmasters/zinvanger/actions/workflows/pull-loc.yml) pulls new translations from Crowdin and creates a PR with updated translations.
 
 ## Release process
 
@@ -126,18 +126,18 @@ Enable new target languages separately in Crowdin's project settings and add a m
 
 In general, the webapp can be deployed at any time. Webapp-facing changes are written to be backwards compatible with older extensions.
 
-1. Use the [action](https://github.com/asbplayer/asbplayer/actions/workflows/deploy-cf-pages.lock.yml) to create a deploy PR against `cf-pages`. 
-2. Review the PR and merge once ready. Any change to `cf-pages` is automatically deployed to [https://app.asbplayer.dev](https://app.asbplayer.dev). The PWA's service worker will pick up the new changes and prompt users to update.
+1. Use the [action](https://github.com/a-mcmasters/zinvanger/actions/workflows/deploy-cf-pages.lock.yml) to create a deploy PR against `cf-pages`.
+2. Review the PR and merge once ready. In upstream asbplayer, changes to `cf-pages` are automatically deployed to [https://app.asbplayer.dev](https://app.asbplayer.dev). The PWA's service worker will pick up the new changes and prompt users to update.
 
 ### Extension
 
 
 1. If a webapp deploy is required for new loc keys, features, and settings shared by both the webapp and extension, deploy the webapp first. If there are new loc keys, ensure that `project.json` loc versions are incremented on `main` before deploying by running `pnpm bump:loc`.
-2. Use the snapshot [action](https://github.com/asbplayer/asbplayer/actions/workflows/release-snapshot-build.yml) to distribute release candidate snapshots on Discord a few days prior to releasing. This gives users an opportunity to test the new build before it's released. It is a known issue that this process is unreliable because only a few users pay attention to snapshots.
-3. Use the [action](https://github.com/asbplayer/asbplayer/actions/workflows/draft-extension-release.lock.yml) to draft a GitHub release.
+2. Use the snapshot [action](https://github.com/a-mcmasters/zinvanger/actions/workflows/release-snapshot-build.yml) to distribute release candidate snapshots on Discord a few days prior to releasing. This gives users an opportunity to test the new build before it's released. It is a known issue that this process is unreliable because only a few users pay attention to snapshots.
+3. Use the [action](https://github.com/a-mcmasters/zinvanger/actions/workflows/draft-extension-release.lock.yml) to draft a GitHub release.
 4. The drafted text will be incomplete, so fill in any blanks and edit as necessary.
 5. Checkout the release tag and create a new Chromium build locally using `pnpm --filter @project/extension run zip`.
 6. Publish the build through the Chrome store dev console.
 7. Confirm that the new build is released on the Chrome store. This can take hours to days.
-8. Deploy the Firefox builds using the [Firefox action](https://github.com/asbplayer/asbplayer/actions/workflows/release-firefox-build.yml) and the [Firefox for Android action](https://github.com/asbplayer/asbplayer/actions/workflows/release-firefox-android-build.yml).
+8. Deploy the Firefox builds using the [Firefox action](https://github.com/a-mcmasters/zinvanger/actions/workflows/release-firefox-build.yml) and the [Firefox for Android action](https://github.com/a-mcmasters/zinvanger/actions/workflows/release-firefox-android-build.yml).
 9. Publish all extension artifacts (`crx` for the Chrome build and `xpi` for Firefox builds) on the release page.

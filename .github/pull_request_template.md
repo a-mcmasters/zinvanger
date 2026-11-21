@@ -1,1 +1,1 @@
-- [ ] I have read the [contribution guidelines](https://github.com/asbplayer/asbplayer/blob/main/CONTRIBUTING.md).
+- [ ] I have read the [contribution guidelines](https://github.com/a-mcmasters/zinvanger/blob/main/CONTRIBUTING.md).

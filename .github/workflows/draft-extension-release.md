@@ -287,10 +287,10 @@ has no entries.
 
 The web app deploys continuously. The section starts with one line listing the app
 versions released since the previous extension release, oldest first, each linked to
-its tag:
+its tag in the current workflow repository:
 
 ```text
-- Released web app versions [app-v26.10.13](https://github.com/asbplayer/asbplayer/releases/tag/app-v26.10.13), [app-v26.10.20](https://github.com/asbplayer/asbplayer/releases/tag/app-v26.10.20), and [app-v26.10.30](https://github.com/asbplayer/asbplayer/releases/tag/app-v26.10.30)
+- Released web app versions [app-v26.10.13](<repository URL>/releases/tag/app-v26.10.13), [app-v26.10.20](<repository URL>/releases/tag/app-v26.10.20), and [app-v26.10.30](<repository URL>/releases/tag/app-v26.10.30)
 ```
 
 Read the tags from `app_versions` in `release-meta.json`. Write "Released web app
@@ -302,7 +302,7 @@ with the tag that first released it, from the pull request's `first_app_release`
 field:
 
 ```text
-- <description> by @<author> in <pull request link> ([app-v26.10.20](https://github.com/asbplayer/asbplayer/releases/tag/app-v26.10.20))
+- <description> by @<author> in <pull request link> ([app-v26.10.20](<repository URL>/releases/tag/app-v26.10.20))
 ```
 
 Omit the tag suffix when `first_app_release` is `none`. Webapp-only items appear only
@@ -324,10 +324,10 @@ Classify every milestone pull request as webapp-only or extension-affecting:
 
 ## Formatting
 
-Every bullet must match the existing release style exactly:
+Use the current workflow repository URL and format each bullet as follows:
 
 ```text
-- <concise user-facing description> by @<author> in https://github.com/asbplayer/asbplayer/pull/<number>
+- <concise user-facing description> by @<author> in <repository URL>/pull/<number>
 ```
 
 - Rephrase unclear pull request titles into short, user-facing descriptions. Do not
@@ -376,7 +376,7 @@ Ignore bots. Omit the whole section when you can determine no new contributors.
 - ...
 
 ### Webapp-only changes since v1.22.0
-- Released web app versions [app-v26.10.13](https://github.com/asbplayer/asbplayer/releases/tag/app-v26.10.13) and [app-v26.10.20](https://github.com/asbplayer/asbplayer/releases/tag/app-v26.10.20)
+- Released web app versions [app-v26.10.13](<repository URL>/releases/tag/app-v26.10.13) and [app-v26.10.20](<repository URL>/releases/tag/app-v26.10.20)
 - ...
 - ...
 

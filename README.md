@@ -1,19 +1,21 @@
 <p align="center">
-    <img src="https://raw.githubusercontent.com/asbplayer/asbplayer/main/extension/public/icon/icon128.png" width="75" height="75" style="border-radius: 16px" alt="asbplayer" />
+    <img src="./extension/public/icon/icon128.png" width="75" height="75" style="border-radius: 16px" alt="Zinvanger" />
 </p>
 
 <div align="center">
 
-[![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/asbplayer/asbplayer/verify.yml)](https://github.com/asbplayer/asbplayer/actions/workflows/verify.yml)
-[![Github All Releases](https://img.shields.io/github/downloads/asbplayer/asbplayer/total.svg)](https://github.com/asbplayer/asbplayer/releases)
-[![GitHub License](https://img.shields.io/github/license/asbplayer/asbplayer)](LICENSE)
+[![GitHub Workflow Status (with event)](https://img.shields.io/github/actions/workflow/status/a-mcmasters/zinvanger/verify.yml)](https://github.com/a-mcmasters/zinvanger/actions/workflows/verify.yml)
+[![Github All Releases](https://img.shields.io/github/downloads/a-mcmasters/zinvanger/total.svg)](https://github.com/a-mcmasters/zinvanger/releases)
+[![GitHub License](https://img.shields.io/github/license/a-mcmasters/zinvanger)](LICENSE)
 [![Discord](https://img.shields.io/discord/962412001810849814?color=%237785cc)](https://discord.gg/ad7VAQru7m)
 
 </div>
 
-# asbplayer
+# Zinvanger
 
-**asbplayer** is a browser-based media player and Chrome extension developed for language learners who learn their target language through subtitled media. With asbplayer, you can:
+Zinvanger is a fork of [asbplayer](https://github.com/asbplayer/asbplayer).
+
+**Zinvanger** is a browser-based media player and Chrome extension for language learners who use subtitled media. With Zinvanger, you can:
 
 - **Easily create high-quality, multimedia flashcards** out of subtitled videos.
 - **Load text-selectable subtitles onto most video sources**, including streaming sources. You can use **auto-detected subtitles** on popular streaming services like Netflix and YouTube, or your own **subtitle files**. A generic fallback subtitle detection algorithm allows asbplayer to detect subtitles on 85% of all other streaming services.
@@ -184,15 +186,21 @@ Thank you to all those who have translated asbplayer:
 **[@yaaacha](https://github.com/yaaacha)** (Indonesian),
 **[@NeriSal](https://github.com/nerisal)** (Italian)
 
-If you are a non-English native, and would like to help translate asbplayer, join the [Crowdin project](https://crowdin.com/project/asbplayer). If your language isn't there, feel free to create an issue to add it on the [issues page](https://github.com/asbplayer/asbplayer/issues).
+If you are a non-English native, and would like to help translate asbplayer, join the [Crowdin project](https://crowdin.com/project/asbplayer). If your language isn't there, feel free to create an issue to add it on the [issues page](https://github.com/a-mcmasters/zinvanger/issues).
 
 ## Contributing
 
-Before contributing, please read the [contribution guidelines](https://github.com/asbplayer/asbplayer/blob/main/CONTRIBUTING.md).
+Before contributing, please read the [contribution guidelines](CONTRIBUTING.md).
 
 ## User guide
 
 asbplayer's complete user guide is [here](https://docs.asbplayer.dev/docs/intro).
+
+## Install the Chrome extension
+
+1. Clone this repository and run `pnpm install` using the Node.js and pnpm versions in [project.json](project.json).
+2. Run `pnpm --filter @project/extension build` from the repository root.
+3. In Chrome, open `chrome://extensions`, turn on **Developer mode**, and choose **Load unpacked**. Select `extension/.output/chrome-mv3`.
 
 ## Getting Started
 
@@ -202,9 +210,9 @@ asbplayer's complete user guide is [here](https://docs.asbplayer.dev/docs/intro)
 1. Install and set up a dictionary tool for your target language that allows you to do instant lookups such as [Yomitan](https://chromewebstore.google.com/detail/yomitan/likgccmbimhjbgkjambclfkhldnlhbnn).
 2. Install [Anki](https://apps.ankiweb.net/), and create a deck and note type. More details on [Refold's guide](https://refold.la/roadmap/stage-1/a/anki-setup).
 3. Install the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) plugin for Anki.
-4. [Configure](https://app.asbplayer.dev/?view=settings) asbplayer to create cards via AnkiConnect using your deck and note type.
+4. In Zinvanger’s extension settings, configure AnkiConnect with your deck and note type.
 5. Enhance a video using asbplayer and subtitle files.
-    - **For streaming video:** After installing the [browser extension](https://github.com/asbplayer/asbplayer/releases/latest), drag-and-drop a subtitle file into the streaming video you want to mine.
+    - **For streaming video:** After [loading the Zinvanger extension](#install-the-chrome-extension), drag-and-drop a subtitle file into the streaming video you want to mine.
     - **For local files:** Drag-and-drop media/subtitle files into the [asbplayer website](https://app.asbplayer.dev).
 
     You may have to [adjust the subtitle offset](https://docs.asbplayer.dev/docs/guides/subtitle-timing) to get the subtitles in sync.
@@ -214,7 +222,7 @@ asbplayer's complete user guide is [here](https://docs.asbplayer.dev/docs/intro)
 
 ## Contact
 
-Submit bugs or feature requests from the [issues page](https://github.com/asbplayer/asbplayer/issues). Join the [Discord](https://discord.gg/ad7VAQru7m) server to talk with me and other language learners.
+[Report a bug or request a feature](https://github.com/a-mcmasters/zinvanger/issues/new/choose) in the Zinvanger repository. For asbplayer community discussion, join the [upstream Discord](https://discord.gg/ad7VAQru7m).
 
 ## Notes for AMO source code reviewers
 
