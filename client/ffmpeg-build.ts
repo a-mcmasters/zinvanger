@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { normalizePath } from 'vite';
 import { selectedRuntimeMetadata } from '@project/ffmpeg/selected-runtime';
 import type { FfmpegRuntimeArchive } from '@project/ffmpeg/metadata';
 import artifactLock from '@project/ffmpeg/artifact-lock.json' with { type: 'json' };
@@ -61,6 +62,7 @@ export const createFfmpegBuildConfig = async ({
     return {
         define: runtimeDefines(metadata),
         // Vite treats *.gz as Content-Encoding: gzip; .tgz preserves the archive bytes for hashing.
-        copyTargets: [{ src: archivePath, dest: 'ffmpeg', rename: 'runtime.tgz' }],
+        // static-copy treats src as a glob, so Windows backslashes must become forward slashes
+        copyTargets: [{ src: normalizePath(archivePath), dest: 'ffmpeg', rename: 'runtime.tgz' }],
     };
 };
