@@ -1,0 +1,2 @@
+- **A** catches a speech bubble inside a tilted net. The thick loop, short handle, and bright bubble stay distinct at 16 px.
+- **B** scoops up a speech bubble midair. The open curve and larger bubble leave a clear gap at 16 px.

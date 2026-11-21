@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
+  <title>Zinvanger — Folded Prism</title>
+  <defs>
+    <linearGradient id="base" x1="13" y1="15" x2="111" y2="113" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#463069"/>
+      <stop offset=".49" stop-color="#251440"/>
+      <stop offset="1" stop-color="#1e0f3b"/>
+    </linearGradient>
+    <radialGradient id="ambient" cx="109" cy="88" r="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8b3fff" stop-opacity=".58"/>
+      <stop offset="1" stop-color="#8b3fff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="silhouette" d="M27 44L51 22Q64 10 77 22L101 44Q112 54 112 64Q112 74 101 84L77 106Q64 118 51 106L27 84Q16 74 16 64Q16 54 27 44Z"/>
+    <clipPath id="prism">
+      <use href="#silhouette"/>
+    </clipPath>
+    <radialGradient id="depth" cx="64" cy="64" r="46" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#672c9c"/>
+      <stop offset=".68" stop-color="#35135b"/>
+      <stop offset="1" stop-color="#221033"/>
+    </radialGradient>
+    <linearGradient id="top" x1="30" y1="23" x2="90" y2="73" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f1dcff"/>
+      <stop offset=".42" stop-color="#b78aff"/>
+      <stop offset="1" stop-color="#8245e9" stop-opacity=".51"/>
+    </linearGradient>
+    <linearGradient id="bottom" x1="36" y1="65" x2="96" y2="106" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8548eb" stop-opacity=".56"/>
+      <stop offset=".49" stop-color="#9f65ff"/>
+      <stop offset="1" stop-color="#eec9ff"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="36" y1="28" x2="89" y2="101" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff6ff" stop-opacity=".88"/>
+      <stop offset=".52" stop-color="#d6b6ff" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#f2d6ff" stop-opacity=".72"/>
+    </linearGradient>
+    <linearGradient id="light" x1="45" y1="59" x2="82" y2="69" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d798ff"/>
+      <stop offset=".54" stop-color="#fff2f7"/>
+      <stop offset="1" stop-color="#fff4d9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="128" height="128" rx="29" fill="url(#base)"/>
+  <rect width="128" height="128" rx="29" fill="url(#ambient)"/>
+  <rect x="1" y="1" width="126" height="126" rx="28" fill="none" stroke="#dbc4ff" stroke-opacity=".19"/>
+
+  <g clip-path="url(#prism)">
+    <rect x="16" y="16" width="96" height="96" fill="url(#depth)"/>
+    <path d="M8 11H118V59C91 46 70 42 54 49C40 55 31 67 24 82L8 75Z"
+          fill="url(#top)" stroke="url(#edge)" stroke-width="1.4"/>
+    <path d="M120 117H10V69C36 82 58 86 74 79C88 73 97 61 104 46L120 53Z"
+          fill="url(#bottom)" stroke="url(#edge)" stroke-width="1.4"/>
+    <path d="M15 54C35 43 54 36 75 39C92 41 105 49 118 59C91 46 70 42 54 49C40 55 31 67 24 82Z"
+          fill="#e2bcff" fill-opacity=".23"/>
+    <path d="M113 74C93 85 74 92 53 89C36 87 23 79 10 69C36 82 58 86 74 79C88 73 97 61 104 46Z"
+          fill="#e9caff" fill-opacity=".25"/>
+  </g>
+  <use href="#silhouette" fill="none" stroke="url(#edge)" stroke-width="1.6"/>
+  <rect x="44" y="56" width="40" height="16" rx="8" fill="url(#light)"/>
+</svg>

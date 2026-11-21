@@ -1,0 +1,2 @@
+- **A. Sentence to Flashcard.** A subtitle comes out of a video as an Anki card. The play triangle, bright flashcard, and two thick caption lines give each part a distinct shape at 16 px.
+- **B. Replay the Line.** A looping arrow wraps around a subtitled speech bubble. The broad arrowhead and high-contrast bubble stay distinct at 16 px.

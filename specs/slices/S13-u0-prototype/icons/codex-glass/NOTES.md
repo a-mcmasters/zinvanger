@@ -1,0 +1,2 @@
+- **A · Glass Lens** catches a glowing pearl in a violet lens. At 16 px, the bright ring, dark center and pearl stay distinct.
+- **B · Folded Prism** catches a short beam between two violet glass panes. At 16 px, the rounded diamond and bright horizontal beam define the mark.

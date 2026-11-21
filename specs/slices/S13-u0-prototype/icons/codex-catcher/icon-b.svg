@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="glass" x1="9" y1="4" x2="119" y2="127" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6b35c5"/>
+      <stop offset=".49" stop-color="#471b93"/>
+      <stop offset="1" stop-color="#200f4e"/>
+    </linearGradient>
+    <radialGradient id="light" cx="30" cy="9" r="91" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e5a2ff" stop-opacity=".63"/>
+      <stop offset="1" stop-color="#a85eff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="net" x1="30" y1="43" x2="94" y2="109" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2d8ff"/>
+      <stop offset=".54" stop-color="#c296ff"/>
+      <stop offset="1" stop-color="#916dfa"/>
+    </linearGradient>
+    <linearGradient id="caption" x1="59" y1="25" x2="59" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#eedaff"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="29" fill="url(#glass)"/>
+  <rect x="1" y="1" width="126" height="126" rx="28" fill="url(#light)" stroke="#f2d3ff" stroke-opacity=".22" stroke-width="2"/>
+  <path fill="url(#net)" d="
+    M35 54 C30 63 32 72 41 77 C52 84 69 80 81 70 C89 63 93 55 91 47
+    C90 43 92 39 96 38 C100 37 104 39 105 44 C109 56 103 70 92 81
+    L107 97 C114 105 103 116 96 108 L79 91 C62 101 41 101 29 91
+    C16 82 14 64 22 49 C27 40 40 45 35 54 Z"/>
+  <path fill="url(#caption)" d="
+    M45 26 H74 A10 10 0 0 1 74 46 H59 L48 56 V46 H45
+    A10 10 0 0 1 45 26 Z"/>
+</svg>

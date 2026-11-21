@@ -1,6 +1,6 @@
 # S13: Redesign the UI around watch, replay, look up, mine
 
-Status: Specced (2026-11-21)
+Status: In progress (U0 and U1 complete)
 Branch: `slice/13-ui-redesign` (one branch per sub-slice: `slice/13a-…`, `slice/13b-…`)
 
 ## Problem
@@ -47,34 +47,42 @@ Target: **one screen, 20 or fewer controls, no tabs.**
 | U2 | **One settings screen.** A new single-screen settings form with the table above. The old tabs are no longer routed to. | Fixes option overload |
 | U3 | **Video UI.** The chosen in-video interaction (living subtitle, or whatever U0 picked) replaces the hover controls. | Fixes clunky menus over the video |
 | U4 | **Menus.** The popup and the subtitle picker are folded into the chosen menu pattern (command bar, or whatever U0 picked). | Fixes the remaining clunky menus |
+| U5 | **Anki dialog.** The mining dialog is redesigned in the chosen direction (sentence, word, translation and audio at a glance, one Mine button). S2–S4 keep only the behavior this doesn't cover. | Fixes the last clunky screen |
 
 U2 and U3 are independent after U1, so they can run in either order.
 
 ## Acceptance criteria
 
-- [ ] U0: three mocks exist, a direction is chosen and recorded here with the reason.
-- [ ] U1: popup, settings, the Anki dialog and the subtitle picker all render with the new tokens in light and dark mode, with no leftover `#ff3f78` pink.
+- [x] U0: three mocks exist, a direction is chosen and recorded here with the reason.
+- [x] U1: popup, settings, the Anki dialog and the subtitle picker all render with the new tokens in light and dark mode, with no leftover `#ff3f78` pink.
 - [ ] U2: the settings screen has no tabs and 20 or fewer controls, and an existing install keeps its Anki deck, fields and shortcuts after upgrading.
 - [ ] U3: on NPO Start you can replay a line, look up a word, show the translation and mine the sentence without opening any menu.
 - [ ] U4: loading a subtitle file, starting a Whisper transcription and shifting the offset each take one entry point, reachable by the keyboard.
 - [ ] Every interactive element is keyboard reachable and meets WCAG AA contrast in both modes.
 - [ ] `pnpm run verify` passes (see the S1 note on Windows), and the manual smoke test passes on NPO Start and YouTube.
 
-## Open questions
+## Answered questions (2026-11-21)
 
-1. Which menus feel clunkiest: the toolbar popup, the subtitle picker, or the right-click and hover controls on the video? This sets the order of U3 and U4.
-2. Should a translation line show by default (as an A1–A2 learner), or only on demand?
-3. Is there an app whose look you like (Linear, Arc, Duolingo, Language Reactor, Apple TV)? It's useful input for U0, not a template to copy.
-4. The S2–S4 Anki dialog work overlaps U1–U4. Should the dialog be restyled in this slice, or keep S2–S4 as they are and just inherit the U1 tokens?
+1. Clunkiest menus: all three (video controls, subtitle picker, toolbar popup). Order stays U3 then U4.
+2. Translation line: **on demand**. Dutch only by default, and a key or hover shows the English.
+3. Look: **Arc / Apple TV**, so soft, glassy surfaces with lots of space. The mocks lean that way without copying either.
+4. Anki dialog: **restyled in this slice** as U5. S2–S4 shrink to the behavior changes that U5 doesn't cover.
 
 ## Plan
+
+U1 uses the shared MUI theme for the violet palette, typography, focus rings, and translucent dialog surfaces. The popup and legacy brand accents use the same palette. The iframe background stays transparent so the video remains visible around the dialogs.
 
 Filled in per sub-slice before building. Known entry points: `common/theme/theme.ts` (all MUI theming), `common/components/SettingsForm.tsx` + `*SettingsTab.tsx`, `extension/src/ui/components/Popup.tsx`, `common/components/VideoDataSyncDialog.tsx`, `extension/src/entrypoints/video.content/` (overlay and controls).
 
 ## Chosen direction
 
-_Filled in after U0._
+Use the **living subtitle** for replay, word lookup, translation, and mining. Use the **command bar** for loading subtitles, transcribing an episode, shifting timing, and opening settings. This keeps the actions for the current sentence beside the line and the occasional actions within keyboard reach.
+
+The initial extension icon is [Dutch A, Sentence to Flashcard](S13-u0-prototype/icons/codex-dutch/icon-a.svg). [Glass B, Folded Prism](S13-u0-prototype/icons/codex-glass/icon-b.svg) is saved as an alternate.
 
 ## Verification log
+
+- U1: the built popup, settings, subtitle picker, and Anki dialog rendered with the new palette in both modes in Chromium. The tested text color pairs passed 4.5:1 contrast, and input borders passed 3:1.
+- Common typecheck, client and extension compile, 32 focused tests, and lint and formatting for the touched code passed. Full `pnpm run verify` stopped at the Windows generated-file line-ending issue recorded in S1.
 
 ## Retro

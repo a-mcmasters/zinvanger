@@ -26,7 +26,7 @@ This fork is a personal hard fork of asbplayer. It is reshaped in small vertical
 
 | # | Slice | Status |
 |---|---|---|
-| S13 | UI redesign (top priority) | Specced |
+| S13 | UI redesign (top priority) | In progress (U0 and U1 complete) |
 | S0 | Baseline and fork conventions | Specced |
 | S1 | Land NPO Start (branch `feat/npo-start-subtitles`) | Done |
 | S2 | Lean Anki dialog | Planned |
