@@ -3,12 +3,39 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="dark" />
         <title>__PROJECT_NAME__ - Popup</title>
+        <style>
+            html {
+                /* Match the default dark theme until the saved theme loads. */
+                background-color: #211a2e;
+                color-scheme: dark;
+            }
+
+            body {
+                margin: 0;
+                --popup-desktop-width: 600px;
+                --popup-desktop-min-height: 390px;
+            }
+
+            /* Chrome measures the popup before the settings UI mounts. */
+            #root:empty {
+                width: var(--popup-desktop-width);
+                min-height: var(--popup-desktop-min-height);
+            }
+
+            @media (hover: none) and (pointer: coarse) {
+                #root:empty {
+                    width: auto;
+                    min-height: 0;
+                }
+            }
+        </style>
         <style>
             @import url('/fonts/fonts.css');
         </style>
     </head>
-    <body style="background: rgba(0, 0, 0, 0)">
+    <body>
         <div id="root"></div>
         <script type="module" src="popup-ui.ts"></script>
     </body>

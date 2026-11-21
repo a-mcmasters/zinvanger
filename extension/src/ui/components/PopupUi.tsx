@@ -1,7 +1,7 @@
 import project from '@project/common/project';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import CssBaseline from '@mui/material/CssBaseline';
-import ThemeProvider from '@mui/material/styles/ThemeProvider';
+import GlobalStyles from '@mui/material/GlobalStyles';
 import type {
     ExtensionToVideoCommand,
     GrantedActiveTabPermissionMessage,
@@ -19,7 +19,7 @@ import Popup from '@project/extension/src/ui/components/Popup';
 import { useRequestingActiveTabPermission } from '@project/extension/src/ui/hooks/use-requesting-active-tab-permission';
 import { isMobile } from 'react-device-detect';
 import { useSettingsProfileContext } from '@project/common/hooks/use-settings-profile-context';
-import { alpha, StyledEngineProvider } from '@mui/material/styles';
+import { alpha, StyledEngineProvider, ThemeProvider } from '@mui/material/styles';
 import { DictionaryProvider } from '@project/common/dictionary-db';
 import { ExtensionDictionaryStorage } from '@/services/extension-dictionary-storage';
 import { isFirefoxBuild } from '@/services/build-flags';
@@ -27,6 +27,7 @@ import { openExtensionShortcuts } from '@/services/extension-shortcuts';
 import { extensionLogProvider } from '@/services/extension-log-provider';
 
 interface Props {
+    initialSettings: AsbplayerSettings;
     commands: any;
 }
 
@@ -44,22 +45,15 @@ const notifySettingsUpdated = () => {
         .catch((error) => asbError('settings', 'Failed to notify the extension about updated settings:', error));
 };
 
-export function PopupUi({ commands }: Props) {
+export function PopupUi({ initialSettings, commands }: Props) {
     const dictionaryProvider = useMemo(() => new DictionaryProvider(new ExtensionDictionaryStorage()), []);
     const settingsProvider = useMemo(() => new SettingsProvider(new ExtensionSettingsStorage()), []);
-    const [settings, setSettings] = useState<AsbplayerSettings>();
-    const theme = useMemo(() => settings && createTheme(settings.themeType), [settings]);
-
-    useEffect(() => {
-        void settingsProvider
-            .getAll()
-            .then(setSettings)
-            .catch((error) => asbError('settings', 'Failed to load extension settings:', error));
-    }, [settingsProvider]);
+    const [settings, setSettings] = useState(initialSettings);
+    const theme = useMemo(() => createTheme(settings.themeType), [settings.themeType]);
 
     const handleSettingsChanged = useCallback(
         async (changed: Partial<AsbplayerSettings>) => {
-            setSettings((old: any) => ({ ...old, ...changed }));
+            setSettings((old) => ({ ...old, ...changed }));
             try {
                 await settingsProvider.set(changed);
                 notifySettingsUpdated();
@@ -71,7 +65,7 @@ export function PopupUi({ commands }: Props) {
     );
 
     const handleOpenApp = useCallback(() => {
-        if (settings?.streamingAppUrl) {
+        if (settings.streamingAppUrl) {
             void browser.tabs.create({ active: true, url: settings.streamingAppUrl });
             window.close();
         }
@@ -125,7 +119,7 @@ export function PopupUi({ commands }: Props) {
         onProfileChanged: handleProfileChanged,
     });
 
-    if (!settings || !theme || requestingActiveTabPermission === undefined) {
+    if (requestingActiveTabPermission === undefined) {
         return null;
     }
 
@@ -133,11 +127,17 @@ export function PopupUi({ commands }: Props) {
         <StyledEngineProvider injectFirst>
             <ThemeProvider theme={theme}>
                 <CssBaseline />
+                <GlobalStyles
+                    styles={{
+                        ':root': { backgroundColor: theme.palette.background.paper, colorScheme: theme.palette.mode },
+                    }}
+                />
                 <Paper
                     square
                     sx={{
                         backgroundImage: `linear-gradient(145deg, ${alpha(theme.palette.primary.main, 0.09)}, transparent 55%)`,
-                        width: isMobile ? '100%' : 600,
+                        width: isMobile ? '100%' : 'var(--popup-desktop-width)',
+                        minHeight: isMobile ? undefined : 'var(--popup-desktop-min-height)',
                     }}
                 >
                     <Box>

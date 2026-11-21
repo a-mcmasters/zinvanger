@@ -7,6 +7,6 @@ export interface PopupUiParameters {
     commands: any;
 }
 
-export async function renderPopupUi(element: Element, { commands }: PopupUiParameters) {
-    createRoot(element).render(<PopupUi commands={commands} />);
+export async function renderPopupUi(element: Element, { currentSettings, commands }: PopupUiParameters) {
+    createRoot(element).render(<PopupUi initialSettings={currentSettings} commands={commands} />);
 }
