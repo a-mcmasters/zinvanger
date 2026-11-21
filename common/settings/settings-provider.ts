@@ -220,8 +220,6 @@ export const defaultSettings: AsbplayerSettings = {
     showSubtitleListMiningButton: true,
     subtitleListTimestampDisplay: SubtitleListTimestampDisplay.startAndEnd,
     copyToClipboardOnMine: false,
-    rememberSubtitleOffset: true,
-    lastSubtitleOffset: 0,
     autoCopyCurrentSubtitle: false,
     alwaysPlayOnSubtitleRepeat: true,
     subtitleRegexFilter: '',

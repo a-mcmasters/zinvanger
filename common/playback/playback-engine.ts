@@ -50,10 +50,10 @@ import type { VideoPlaybackEvent, VideoPlaybackState } from '@project/common/pla
 import type { TokenSelectionControllerCallbacks } from '@project/common/playback/controllers/token-selection-controller';
 
 import type { TimingDriver } from '@project/common/playback/media/timing-driver';
-import { CachedLocalStorage } from '@project/common/app/services/cached-local-storage';
+import { localSubtitleOffsetStorage } from '@project/common/playback/subtitle-offset-storage';
+import type { SubtitleOffsetStorage } from '@project/common/playback/subtitle-offset-storage';
 
 const internalSeekWatchdogMs = 10_000;
-const subtitleOffsetStorageKey = 'offset';
 const initialPlaybackSettingsAutoHideDurationMs = 6000;
 const playbackRateMismatchTolerance = 0.01;
 const subtitleOffsetNotificationKey = 'subtitle-offset';
@@ -108,6 +108,7 @@ export const formatRecipeSettingLockedNotification = (settingLocKey: string) => 
 
 export interface SubtitleOffsetOptions {
     readonly notifyPlayer: boolean;
+    readonly restored?: boolean;
 }
 
 export interface InitialPlaybackSettings {
@@ -163,7 +164,7 @@ export interface PlaybackEngineCallbacks {
 
 export interface PlaybackEngineOptions<T extends IndexedSubtitleModel> {
     readonly settingsProvider: SettingsProvider;
-    readonly appIntegration: boolean;
+    readonly subtitleOffsetStorage?: SubtitleOffsetStorage;
     readonly autoPauseCorrectionDisabled: boolean;
     readonly subtitles: readonly T[];
     readonly sources: readonly SubtitleSourceState[];
@@ -206,9 +207,12 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
     private settings: AsbplayerSettings;
     private underlyingSettings: AsbplayerSettings = defaultSettings;
     private underlyingPlaybackModes?: Set<PlayMode>;
-    private readonly appIntegration: boolean;
     private readonly autoPauseCorrectionDisabled: boolean;
-    private readonly subtitleOffsetStorage = new CachedLocalStorage();
+    private readonly subtitleOffsetStorage: SubtitleOffsetStorage;
+    private subtitleOffsetKey?: string;
+    private subtitleOffsetRevision = 0;
+    private subtitleOffsetLoading = false;
+    private subtitleOffsetBindPending = false;
     private subtitleOffset = 0;
     private subtitles: readonly T[];
     private lastSubtitleEndMs?: number;
@@ -243,7 +247,7 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
 
     constructor({
         settingsProvider,
-        appIntegration,
+        subtitleOffsetStorage = localSubtitleOffsetStorage,
         autoPauseCorrectionDisabled,
         subtitles,
         sources,
@@ -254,7 +258,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
         timingDriver,
     }: PlaybackEngineOptions<T>) {
         asbTrace('playback/lifecycle', 'Creating playback engine', {
-            appIntegration,
             autoPauseCorrectionDisabled,
             playbackModesDisabled,
             playbackModesSuppressed,
@@ -262,7 +265,7 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
             subtitleCount: subtitles.length,
         });
         this.settings = defaultSettings;
-        this.appIntegration = appIntegration;
+        this.subtitleOffsetStorage = subtitleOffsetStorage;
         this.autoPauseCorrectionDisabled = autoPauseCorrectionDisabled;
         this.settingsProvider = settingsProvider;
         this.subtitles = subtitles;
@@ -551,16 +554,50 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
         }
     }
 
-    /** Uses the live offset during playback and the startup preference before subtitles are bound. */
     get currentSubtitleOffset(): number {
-        return this.timingDriver.bound ? this.subtitleOffset : this.lastSubtitleOffset;
+        return this.subtitleOffset;
     }
 
-    get lastSubtitleOffset(): number {
-        if (!this.settings.rememberSubtitleOffset) return 0;
-        if (this.appIntegration) return this.settings.lastSubtitleOffset;
-        const value = this.subtitleOffsetStorage.get(subtitleOffsetStorageKey);
-        return value === null ? 0 : Number(value);
+    subtitleOffsetKeyChanged(key: string | undefined): void | Promise<void> {
+        if (this.subtitleOffsetKey === key) return;
+        this.subtitleOffsetKey = key;
+        const revision = ++this.subtitleOffsetRevision;
+        const restoreOffset = (offset: number | undefined) => {
+            if (revision !== this.subtitleOffsetRevision) return;
+            this.subtitleOffsetLoading = false;
+            this.applyRestoredSubtitleOffset(offset !== undefined && Number.isFinite(offset) ? offset : 0);
+            if (this.subtitleOffsetBindPending) {
+                this.subtitleOffsetBindPending = false;
+                this.bind();
+            }
+        };
+        try {
+            const saved = key === undefined ? undefined : this.subtitleOffsetStorage.get(key);
+            if (typeof saved === 'object') {
+                this.subtitleOffsetLoading = true;
+                this.applyRestoredSubtitleOffset(0);
+                return saved.then(restoreOffset, (error: unknown) => {
+                    restoreOffset(undefined);
+                    this.callbacks.onError(error);
+                });
+            }
+            restoreOffset(saved);
+        } catch (error) {
+            restoreOffset(undefined);
+            this.callbacks.onError(error);
+        }
+    }
+
+    private applyRestoredSubtitleOffset(offset: number) {
+        if (this.subtitleOffset === offset) return;
+        this.subtitleOffset = offset;
+        if (this.timingDriver.bound) {
+            this.callbacks.setSubtitleOffset(
+                offset,
+                { notifyPlayer: false, restored: true },
+                subtitleOffsetNotificationKey
+            );
+        }
     }
 
     get playbackModes(): Set<PlayMode> {
@@ -607,6 +644,10 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
             asbTrace('playback/lifecycle', 'Deferring playback engine bind until subtitles are available');
             return;
         }
+        if (this.subtitleOffsetLoading) {
+            this.subtitleOffsetBindPending = true;
+            return;
+        }
 
         this.playbackStateController.bind();
         this.timingDriver.bind();
@@ -616,8 +657,7 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
         this.timingDriver.onDurationChange();
         this.rebuildPlan({ initializePlaybackRate: true });
 
-        const subtitleOffset = this.lastSubtitleOffset;
-        this.subtitleOffset = subtitleOffset;
+        const subtitleOffset = this.subtitleOffset;
         this.callbacks.setSubtitleOffset(subtitleOffset, { notifyPlayer: false }, subtitleOffsetNotificationKey);
         const fastForwarding = this.executor.isFastForwarding;
         const playbackRate = this.executor.playbackRate;
@@ -681,6 +721,7 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
             wasBound,
         });
         ++this.unbindOperationId;
+        this.subtitleOffsetBindPending = false;
         this.tokenSelectionController.cancel('teardown');
         this.clearAutoPauseTimestamp();
         this.autoPauseController.cancel();
@@ -700,7 +741,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
         // lastPlaybackPositions are managed by the playbackPositionController and should not be explicitly saved here.
         this.callbacks.saveSettings({
             ...(!activeRecipe(this.settings) ? { lastPlaybackModes: this.settings.lastPlaybackModes } : {}),
-            ...(this.appIntegration ? { lastSubtitleOffset: this.settings.lastSubtitleOffset } : {}),
             rememberPlaybackRate: this.underlyingSettings.rememberPlaybackRate, // This is done to ensure everyone is notified as its not in saveOnlySettings
             ...(this.settings.rememberPlaybackRate && !activeRecipe(this.settings)
                 ? {
@@ -747,7 +787,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
             playbackRate: this.underlyingSettings.playbackRate,
             fastForwardModePlaybackRate: this.underlyingSettings.fastForwardModePlaybackRate,
             lastPlaybackModes: this.underlyingSettings.lastPlaybackModes,
-            ...(this.appIntegration ? { lastSubtitleOffset: this.settings.lastSubtitleOffset } : {}),
         };
         this.settings = effectiveSettings(this.underlyingSettings);
         const recipe = activeRecipe(this.settings);
@@ -1006,16 +1045,20 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
             return;
         }
         asbTrace('playback/subtitles', 'Subtitle offset changed', {
-            appIntegration: this.appIntegration,
             notifyPlayer: options.notifyPlayer,
             offset,
         });
         this.subtitleOffset = offset;
-        if (this.appIntegration) {
-            this.settings = { ...this.settings, lastSubtitleOffset: offset };
-            this.callbacks.saveSettings({ lastSubtitleOffset: offset });
-        } else {
-            this.subtitleOffsetStorage.set(subtitleOffsetStorageKey, String(offset));
+        if (this.subtitleOffsetKey !== undefined) {
+            ++this.subtitleOffsetRevision;
+            this.subtitleOffsetLoading = false;
+            try {
+                void Promise.resolve(this.subtitleOffsetStorage.set(this.subtitleOffsetKey, offset)).catch(
+                    this.callbacks.onError
+                );
+            } catch (error) {
+                this.callbacks.onError(error);
+            }
         }
         this.callbacks.setSubtitleOffset(offset, options, subtitleOffsetNotificationKey);
         this.playbackStateController.notify(this.timingDriver.currentTimeMs(), { force: true });

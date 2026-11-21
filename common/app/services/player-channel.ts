@@ -54,7 +54,7 @@ import type {
 
 export default class PlayerChannel {
     private channel?: BroadcastChannel;
-    private readyCallbacks: ((duration: number, videoFileName?: string) => void)[];
+    private readyCallbacks: ((duration: number, videoFileName?: string, videoOffsetIdentity?: string) => void)[];
     private playCallbacks: (() => void)[];
     private pauseCallbacks: (() => void)[];
     private playbackStateCallbacks: ((state: PlaybackStateFromVideoMessage) => void)[];
@@ -63,7 +63,11 @@ export default class PlayerChannel {
     private audioTrackSelectedCallbacks: ((id: string) => void)[];
     private transcodedAudioCallbacks: ((audio: TranscodedAudioPayload) => void)[];
     private closeCallbacks: (() => void)[];
-    private subtitlesCallbacks: ((subtitles: SubtitleModel[], subtitleFileName: string) => void)[];
+    private subtitlesCallbacks: ((
+        subtitles: SubtitleModel[],
+        subtitleFileNames: string[],
+        mainTrackOffsetIdentity?: string
+    ) => void)[];
     private subtitleSourceCallbacks: ((update: SubtitleSourceUpdate) => void)[] = [];
     private subtitlesUpdatedCallbacks: ((updatedSubtitles: readonly IndexedSubtitleModel[]) => void)[];
     private saveTokenLocalCallbacks: ((
@@ -125,7 +129,7 @@ export default class PlayerChannel {
                     const readyMessage = event.data as ReadyToVideoMessage;
 
                     for (const callback of this.readyCallbacks) {
-                        callback(readyMessage.duration, readyMessage.videoFileName);
+                        callback(readyMessage.duration, readyMessage.videoFileName, readyMessage.videoOffsetIdentity);
                     }
                     break;
                 }
@@ -180,12 +184,10 @@ export default class PlayerChannel {
                     break;
                 case 'subtitles': {
                     const subtitlesMessage = event.data as SubtitlesToVideoMessage;
+                    const names = subtitlesMessage.names ?? (subtitlesMessage.name ? [subtitlesMessage.name] : []);
 
                     for (const callback of this.subtitlesCallbacks) {
-                        callback(
-                            subtitlesMessage.value,
-                            subtitlesMessage.names.length > 0 ? subtitlesMessage.names[0] : ''
-                        );
+                        callback(subtitlesMessage.value, names, subtitlesMessage.mainTrackOffsetIdentity);
                     }
                     break;
                 }
@@ -362,12 +364,14 @@ export default class PlayerChannel {
         return () => this._remove(callback, this.closeCallbacks);
     }
 
-    onReady(callback: (duration: number, videoFileName?: string) => void) {
+    onReady(callback: (duration: number, videoFileName?: string, videoOffsetIdentity?: string) => void) {
         this.readyCallbacks.push(callback);
         return () => this._remove(callback, this.readyCallbacks);
     }
 
-    onSubtitles(callback: (subtitles: SubtitleModel[], subtitleFileName: string) => void) {
+    onSubtitles(
+        callback: (subtitles: SubtitleModel[], subtitleFileNames: string[], mainTrackOffsetIdentity?: string) => void
+    ) {
         this.subtitlesCallbacks.push(callback);
         return () => this._remove(callback, this.subtitlesCallbacks);
     }

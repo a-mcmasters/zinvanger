@@ -6,6 +6,8 @@ sidebar_position: 2
 
 Subtitle files will very often not be aligned to the video source you load them into. To work around this, asbplayer provides ways to manually adjust subtitle timing.
 
+The player saves the offset for each video and main subtitle track. Reopening a video with the same main track restores its saved offset. Each new video and main track combination starts at `0 ms`.
+
 ## Keyboard shortcuts {#keyboard-shortcuts}
 
 The fastest way to fix subtitle timing is with the [Subtitle offset keyboard shortcuts](../reference/settings.md#subtitle-offset-keyboard-shortcuts). There are two sets of shortcuts for adjusting subtitle offset:

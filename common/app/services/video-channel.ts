@@ -549,8 +549,8 @@ export default class VideoChannel {
         return () => this._remove(callback, this.cardExportedDialogCallbacks);
     }
 
-    ready(duration: number, videoFileName?: string) {
-        const message: ReadyToVideoMessage = { command: 'ready', duration, videoFileName };
+    ready(duration: number, videoFileName?: string, videoOffsetIdentity?: string) {
+        const message: ReadyToVideoMessage = { command: 'ready', duration, videoFileName, videoOffsetIdentity };
         this.protocol.postMessage(message);
     }
 
@@ -584,12 +584,13 @@ export default class VideoChannel {
         this.protocol.postMessage(message);
     }
 
-    subtitles(subtitles: SubtitleModel[], subtitleFileNames: string[]) {
+    subtitles(subtitles: SubtitleModel[], subtitleFileNames: string[], mainTrackOffsetIdentity?: string) {
         this.protocol.postMessage({
             command: 'subtitles',
             value: subtitles,
             name: subtitleFileNames.length > 0 ? subtitleFileNames[0] : null,
             names: subtitleFileNames,
+            ...(mainTrackOffsetIdentity === undefined ? {} : { mainTrackOffsetIdentity }),
         } as SubtitlesToVideoMessage);
     }
 
@@ -809,7 +810,6 @@ export default class VideoChannel {
             lastPlaybackModes,
             lastPlaybackPositions,
             keyBindSet,
-            rememberSubtitleOffset,
             autoCopyCurrentSubtitle,
             alwaysPlayOnSubtitleRepeat,
             subtitleRegexFilter,
@@ -820,7 +820,6 @@ export default class VideoChannel {
             clickToMineDefaultAction,
             postMiningPlaybackState,
             language,
-            lastSubtitleOffset,
             tabName,
             pauseOnHoverMode,
             lastSelectedAnkiExportMode,
@@ -865,7 +864,6 @@ export default class VideoChannel {
                 lastPlaybackModes,
                 lastPlaybackPositions,
                 keyBindSet,
-                rememberSubtitleOffset,
                 autoCopyCurrentSubtitle,
                 alwaysPlayOnSubtitleRepeat,
                 subtitleRegexFilter,
@@ -876,7 +874,6 @@ export default class VideoChannel {
                 clickToMineDefaultAction,
                 postMiningPlaybackState,
                 language,
-                lastSubtitleOffset,
                 tabName,
                 pauseOnHoverMode,
                 lastSelectedAnkiExportMode,

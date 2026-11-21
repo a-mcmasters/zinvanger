@@ -907,10 +907,6 @@ Controls how timestamps are displayed in the subtitle list.
 - **Start**: Shows subtitle's start timestamp only.
 - **Start and end**: Shows both start and end timestamps of the subtitle.
 
-### Remember subtitle offset {#remember-subtitle-offset}
-
-When enabled, timing offset is "sticky." Subtitles are loaded with the last-used offset.
-
 ### Remember last playback rate {#remember-last-playback-rate}
 
 Updates the playback rate setting when the rate is changed on a video. When disabled, playback still starts at the configured playback rate, but changes made while watching remain temporary.

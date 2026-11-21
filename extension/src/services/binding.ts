@@ -148,7 +148,13 @@ import { debounced } from '@project/extension/src/services/debounced';
 
 import VideoFrameTimingDriver from '@project/common/playback/media/video-frame-timing-driver';
 import InterpolatedContentClock from '@project/extension/src/services/interpolated-content-clock';
-import { mediaSourceIdentity } from '@project/extension/src/pages/util';
+import { mediaSourceIdentity, mediaSourceUrl } from '@project/extension/src/pages/util';
+import {
+    mainSubtitleOffsetIdentity,
+    subtitleOffsetKey,
+    subtitleOffsetPageIdentity,
+    subtitleOffsetTitleIdentity,
+} from '@project/common/playback/subtitle-offset-storage';
 import { isFirefoxBuild } from '@project/extension/src/services/build-flags';
 
 let netflix = false;
@@ -236,6 +242,7 @@ export default class Binding {
     private _lastLoadedMetadataMediaIdentity: unknown;
     private readonly _videoSrcChangesIndicateNewVideo: boolean;
     private readonly _durationChangesIndicateNewVideo: boolean;
+    private _offsetKeyDuration?: number;
 
     private _recordingState: RecordingState = RecordingState.notRecording;
     recordingPostMineAction?: PostMineAction;
@@ -551,7 +558,14 @@ export default class Binding {
         });
         return new PlaybackEngine({
             settingsProvider: this.settings,
-            appIntegration: true,
+            subtitleOffsetStorage: {
+                get: async (key) => {
+                    const value = (await browser.storage.local.get(key))[key];
+                    return typeof value === 'number' ? value : undefined;
+                },
+                set: (key, offset) =>
+                    offset === 0 ? browser.storage.local.remove(key) : browser.storage.local.set({ [key]: offset }),
+            },
             autoPauseCorrectionDisabled: disneyPlus,
             subtitles,
             sources: this.subtitleStream.sourceStates(),
@@ -640,7 +654,10 @@ export default class Binding {
                 setPlaybackRate: (playbackRate) => {
                     if (this.video.playbackRate !== playbackRate) this.video.playbackRate = playbackRate;
                 },
-                setSubtitleOffset: (offset, options) => this.subtitleController.offset(offset, !options.notifyPlayer),
+                setSubtitleOffset: (offset, options) => {
+                    this.subtitleController.offset(offset, !options.notifyPlayer);
+                    if (options.restored) this._notifySubtitleOffset(offset);
+                },
                 playbackStateChanged: (state) => {
                     this.subtitleController.setPlaybackPaused(state.paused);
                     this.subtitleController.playbackStateChanged(state);
@@ -1045,7 +1062,18 @@ export default class Binding {
             this.video.addEventListener('loadedmetadata', this.videoChangeListener);
             // e.g. Prime autoplays the next episode in the same player, URL and blob src: only the duration changes.
             this.durationChangeListener = () => {
-                if (this._episodeDurationChanged()) onMediaChange(true);
+                if (this._episodeDurationChanged()) {
+                    this._offsetKeyDuration = undefined;
+                    onMediaChange(true);
+                }
+                // Subtitles can load before the duration is known; rekey so the offset isn't saved under a duration-less key.
+                else if (
+                    this._synced &&
+                    this._durationChangesIndicateNewVideo &&
+                    this._offsetKeyDuration === undefined
+                ) {
+                    void this._pinOffsetKeyDuration();
+                }
             };
             this.video.addEventListener('durationchange', this.durationChangeListener);
         }
@@ -1143,8 +1171,9 @@ export default class Binding {
                         this._subtitleSource = undefined;
                         const subtitlesMessage = request.message as SubtitlesToVideoMessage;
                         const subtitles: SubtitleModel[] = subtitlesMessage.value;
-                        this._updateSubtitles(
+                        void this._updateSubtitles(
                             subtitles.map((s, index) => ({ ...s, index })),
+                            // Keyed by name like the page's own loads; mainTrackOffsetIdentity (name+size) is for the web app player.
                             subtitlesMessage.names || [subtitlesMessage.name]
                         );
                         break;
@@ -2254,7 +2283,7 @@ export default class Binding {
                         subtitleHtml,
                         convertNetflixRuby,
                     },
-                    offset: this.playbackEngine.lastSubtitleOffset,
+                    offset: 0,
                 };
                 const subtitles = await this._parseSubtitles(source);
 
@@ -2275,7 +2304,7 @@ export default class Binding {
 
                 signal?.throwIfAborted();
                 this._subtitleSource = source;
-                this._updateSubtitles(
+                await this._updateSubtitles(
                     subtitles,
                     tracks.map(({ fileParts }) => {
                         const firstFilePart = fileParts[0];
@@ -2303,7 +2332,7 @@ export default class Binding {
         const subtitles = await this._parseSubtitles({
             tracks,
             settings,
-            offset: this.playbackEngine.lastSubtitleOffset,
+            offset: 0,
         });
         signal.throwIfAborted();
         const source = new SubtitleStream();
@@ -2369,7 +2398,11 @@ export default class Binding {
                 (_, track) => subtitles.filter((subtitle) => subtitle.track === track).length
             ),
         });
-        this.subtitleStream.replace(subtitles, subtitleFileNames);
+        this.subtitleStream.replace(
+            subtitles,
+            subtitleFileNames,
+            mainSubtitleOffsetIdentity(this.subtitleStream.sourceStates())
+        );
         this.subtitleController.subtitles = [...this.subtitleStream.snapshot().subtitles];
         this.subtitleController.cacheHtml();
         this.subtitleController.refreshCurrentSubtitle = true;
@@ -2414,6 +2447,8 @@ export default class Binding {
         if (!this.subtitleStream.update(update)) return false;
         this._subtitleSource = undefined;
         const snapshot = this.subtitleStream.snapshot();
+        const initialized = update.type === 'start' || update.type === 'snapshot';
+        if (initialized) void this._selectSubtitleOffset();
         const subtitles = displaySubtitleSnapshot(
             snapshot,
             this.subtitleController.subtitles,
@@ -2422,7 +2457,6 @@ export default class Binding {
         this.subtitleController.setSourceSubtitles(subtitles, snapshot.tracks);
         const names = subtitleSourceNames(snapshot.tracks);
         this.subtitleController.subtitleFileNames = names;
-        const initialized = update.type === 'start' || update.type === 'snapshot';
         if (initialized && isNewSource) this.playbackEngine.dismissPlaybackPosition(); // Cancel the previous resume before new cues can satisfy it, then evaluate the new source's bounds
         this.subtitlesChanged();
         if (initialized) {
@@ -2452,7 +2486,14 @@ export default class Binding {
 
     private _updateSubtitles(subtitles: IndexedSubtitleModel[], subtitleFileNames: string[]) {
         this.subtitleStream.replace(subtitles, subtitleFileNames);
-        subtitles = [...this.subtitleStream.snapshot().subtitles];
+        const offsetRestore = this._selectSubtitleOffset();
+        const offset = this.playbackEngine.currentSubtitleOffset;
+        if (this._subtitleSource) this._subtitleSource.offset = offset;
+        subtitles = this.subtitleStream.snapshot().subtitles.map((subtitle) => ({
+            ...subtitle,
+            start: subtitle.originalStart + offset,
+            end: subtitle.originalEnd + offset,
+        }));
         asbTrace('playback/binding', 'Updating media-owner subtitles', {
             subtitleCount: subtitles.length,
             trackCount: this._nonEmptyTrackIndexes(subtitles).length,
@@ -2509,10 +2550,47 @@ export default class Binding {
                 }
             })
             .catch((error) => asbError('video/binding', 'Failed to show the update alert:', error));
+        return offsetRestore;
     }
 
     private _playbackPositionKeys(nonEmptyTrackIndexes: number[], subtitleFileNames: string[]): string[] {
         return nonEmptyTrackIndexes.map((track) => subtitleFileNames[track]).filter((fileName) => fileName);
+    }
+
+    private _selectSubtitleOffset() {
+        const basename = this.videoDataSyncController.videoBasename;
+        const mediaUrl = mediaSourceUrl(this.video);
+        // Object URLs rotate between player sessions. Site metadata and the page URL identify those videos.
+        const directMediaUrl =
+            (!basename || this._videoSrcChangesIndicateNewVideo) && mediaUrl && /^https?:/.test(mediaUrl)
+                ? subtitleOffsetPageIdentity(mediaUrl.split('#')[0]) // Media fragments like #t=120 aren't a different video.
+                : undefined;
+        // Tracks are keyed by name: progressive loads don't know the file size up front.
+        // Autoplayed episodes can share URL and track name, so duration tells them apart.
+        // Pinned per episode so small duration fluctuations don't move the key.
+        this._offsetKeyDuration ??=
+            this._durationChangesIndicateNewVideo && Number.isFinite(this.video.duration)
+                ? Math.round(this.video.duration)
+                : undefined;
+        const duration = this._offsetKeyDuration;
+        const videoIdentity = JSON.stringify([
+            subtitleOffsetPageIdentity(window.location.href),
+            directMediaUrl,
+            basename ?? (directMediaUrl ? undefined : subtitleOffsetTitleIdentity(document.title)),
+            duration,
+        ]);
+        return this.playbackEngine.subtitleOffsetKeyChanged(
+            subtitleOffsetKey(videoIdentity, mainSubtitleOffsetIdentity(this.subtitleStream.sourceStates()))
+        );
+    }
+
+    private async _pinOffsetKeyDuration() {
+        const offset = this.playbackEngine.currentSubtitleOffset;
+        await this._selectSubtitleOffset();
+        // Nothing saved under the pinned key: keep the offset chosen before the duration was known.
+        if (offset !== 0 && this.playbackEngine.currentSubtitleOffset === 0) {
+            this.playbackEngine.subtitleOffsetChanged(offset, { notifyPlayer: true });
+        }
     }
 
     private _nonEmptyTrackIndexes(subtitles: IndexedSubtitleModel[]): number[] {
@@ -2534,11 +2612,13 @@ export default class Binding {
 
     private _resetSubtitles() {
         this.subtitleStream.replace([], []);
+        this._offsetKeyDuration = undefined;
         this._subtitleSource = undefined;
         asbTrace('playback/binding', 'Resetting media-owner subtitles', {
             previousSubtitleCount: this.subtitleController.subtitles.length,
         });
         this.subtitleController.reset();
+        void this.playbackEngine.subtitleOffsetKeyChanged(undefined);
         this.playbackEngine.playbackPositionKeysChanged([], { isNewSource: true });
         this.playbackEngine.subtitlesChanged([], { sources: [] });
         this.ankiUiSavedState = undefined;

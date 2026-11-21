@@ -169,6 +169,10 @@ export default class VideoDataSyncController {
         this._lastLanguagesSynced[this._domain] = value;
     }
 
+    get videoBasename(): string | undefined {
+        return this._syncedData?.basename || undefined;
+    }
+
     unbind() {
         this._transcription.stop();
         this.cancelSubtitleLoad({ clearSubtitles: false });
