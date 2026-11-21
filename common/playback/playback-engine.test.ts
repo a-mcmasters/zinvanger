@@ -7,6 +7,8 @@ import type { IndexedSubtitleModel, PlaybackState } from '@project/common';
 import { AutoPauseResumeMode, defaultSettings, isSaveOnlySettings, SubtitleVisibility } from '@project/common/settings';
 import type { AsbplayerSettings, SettingsProvider } from '@project/common/settings';
 import PlaybackEngine, { formatPlaybackRateNotification } from '@project/common/playback/playback-engine';
+import { subtitleOffsetKey } from '@project/common/playback/subtitle-offset-storage';
+import type { SubtitleOffsetStorage } from '@project/common/playback/subtitle-offset-storage';
 import Clock from '@project/common/playback/media/clock';
 import VideoFrameTimingDriver from '@project/common/playback/media/video-frame-timing-driver';
 import { makeSubtitle } from '@project/common/playback/playback-test-utils';
@@ -20,6 +22,8 @@ import type {
 beforeEach(() => {
     localStorage.clear();
 });
+
+const testOffsetKey = subtitleOffsetKey('video.mp4', 'subtitles.srt')!;
 
 class FakeTimingDriver implements TimingDriver {
     callbacks: TimingDriverCallbacks = {
@@ -188,7 +192,7 @@ async function makePlaybackEngine(
         settings: Partial<AsbplayerSettings>;
         settingsReady: boolean;
         emitInitialDiscontinuity?: boolean;
-        appIntegration?: boolean;
+        subtitleOffsetStorage?: SubtitleOffsetStorage;
         autoPauseCorrectionDisabled?: boolean;
         playbackModesDisabled?: boolean;
         playbackPositionKeys?: readonly string[];
@@ -252,7 +256,7 @@ async function makePlaybackEngine(
           }) as unknown as SettingsProvider;
     const playbackEngine = new PlaybackEngine({
         settingsProvider,
-        appIntegration: overrides.appIntegration ?? true,
+        subtitleOffsetStorage: overrides.subtitleOffsetStorage,
         autoPauseCorrectionDisabled: overrides.autoPauseCorrectionDisabled ?? false,
         subtitles,
         sources: [],
@@ -312,6 +316,7 @@ async function makePlaybackEngine(
             onError: (error) => errors.push(error),
         },
     });
+    void playbackEngine.subtitleOffsetKeyChanged(testOffsetKey);
     if (overrides.settingsReady ?? true) await Promise.resolve();
     return {
         playbackEngine,
@@ -1138,46 +1143,56 @@ describe('pause token selection', () => {
 });
 
 describe('PlaybackEngine', () => {
-    it('exposes the remember-aware initial subtitle offset to its consumers', async () => {
-        const harness = await makePlaybackEngine([PlayMode.normal], {
-            timestampMs: 0,
-            subtitles: [subtitle],
-            settings: { lastSubtitleOffset: 375, rememberSubtitleOffset: false },
-        });
+    it('restores offsets for the same video and track across reopens', async () => {
+        localStorage.setItem('offset', '375');
+        const { playbackEngine } = await makePlaybackEngine([PlayMode.normal]);
+        expect(playbackEngine.currentSubtitleOffset).toBe(0);
+        playbackEngine.subtitleOffsetChanged(5000, { notifyPlayer: false });
+        void playbackEngine.subtitleOffsetKeyChanged(subtitleOffsetKey('video.mp4', 'other.srt'));
+        expect(playbackEngine.currentSubtitleOffset).toBe(0);
+        playbackEngine.subtitleOffsetChanged(-250, { notifyPlayer: false });
+        void playbackEngine.subtitleOffsetKeyChanged(subtitleOffsetKey('other.mp4', 'subtitles.srt'));
+        expect(playbackEngine.currentSubtitleOffset).toBe(0);
+        void playbackEngine.subtitleOffsetKeyChanged(testOffsetKey);
+        expect(playbackEngine.currentSubtitleOffset).toBe(5000);
+        playbackEngine.unbind();
 
-        expect(harness.playbackEngine.lastSubtitleOffset).toBe(0);
-        expect(harness.playbackEngine.currentSubtitleOffset).toBe(0);
-
-        harness.playbackEngine.settingsChanged({ ...harness.settings, rememberSubtitleOffset: true });
-
-        expect(harness.playbackEngine.lastSubtitleOffset).toBe(375);
-        expect(harness.playbackEngine.currentSubtitleOffset).toBe(0);
+        const reopened = await makePlaybackEngine([PlayMode.normal]);
+        try {
+            expect(reopened.playbackEngine.currentSubtitleOffset).toBe(5000);
+            void reopened.playbackEngine.subtitleOffsetKeyChanged(subtitleOffsetKey('video.mp4', 'other.srt'));
+            expect(reopened.playbackEngine.currentSubtitleOffset).toBe(-250);
+        } finally {
+            reopened.playbackEngine.unbind();
+        }
     });
 
-    it.each([true, false])(
-        'initializes and resets the live offset with remembering %s',
-        async (rememberSubtitleOffset) => {
-            const harness = await makePlaybackEngine([PlayMode.normal], {
-                subtitles: [],
-                settings: { lastSubtitleOffset: 375, rememberSubtitleOffset },
-            });
-            try {
-                expect(harness.playbackEngine.currentSubtitleOffset).toBe(rememberSubtitleOffset ? 375 : 0);
-                harness.playbackEngine.subtitlesChanged([subtitle], { sources: [] });
-                await flushPlaybackInitialization();
-                expect(harness.subtitleOffsets.at(-1)).toBe(rememberSubtitleOffset ? 375 : 0);
-                harness.playbackEngine.subtitleOffsetChanged(-250, { notifyPlayer: false });
-                expect(harness.playbackEngine.currentSubtitleOffset).toBe(-250);
-                harness.playbackEngine.subtitlesChanged([], { sources: [] });
-                expect(harness.playbackEngine.currentSubtitleOffset).toBe(rememberSubtitleOffset ? -250 : 0);
-                harness.playbackEngine.subtitlesChanged([subtitle], { sources: [] });
-                await flushPlaybackInitialization();
-                expect(harness.subtitleOffsets.at(-1)).toBe(rememberSubtitleOffset ? -250 : 0);
-            } finally {
-                harness.playbackEngine.unbind();
-            }
+    it('keeps manual changes made while a replacement track offset is loading', async () => {
+        const replacementKey = subtitleOffsetKey('video.mp4', 'replacement.srt')!;
+        let resolveSavedOffset!: (offset: number) => void;
+        const pendingOffset = new Promise<number>((resolve) => {
+            resolveSavedOffset = resolve;
+        });
+        const saveOffset = jest.fn<SubtitleOffsetStorage['set']>();
+        const { playbackEngine, driver } = await makePlaybackEngine([PlayMode.normal], {
+            subtitleOffsetStorage: {
+                get: (key) => (key === replacementKey ? pendingOffset : 5000),
+                set: saveOffset,
+            },
+        });
+        try {
+            void playbackEngine.subtitleOffsetKeyChanged(replacementKey);
+            expect(playbackEngine.currentSubtitleOffset).toBe(0);
+            playbackEngine.subtitleOffsetChanged(1000, { notifyPlayer: false });
+            resolveSavedOffset(-500);
+            await flushPlaybackInitialization();
+            expect(driver.bound).toBe(true);
+            expect(playbackEngine.currentSubtitleOffset).toBe(1000);
+            expect(saveOffset).toHaveBeenCalledWith(replacementKey, 1000);
+        } finally {
+            playbackEngine.unbind();
         }
-    );
+    });
 
     it('retains engine-owned playback modes when settings updates echo stale modes', async () => {
         const harness = await makePlaybackEngine([PlayMode.normal]);
@@ -1257,48 +1272,22 @@ describe('PlaybackEngine', () => {
     });
 
     it('does not change the engine-owned offset when settings are refreshed', async () => {
-        const harness = await makePlaybackEngine([PlayMode.normal], {
-            timestampMs: 0,
-            subtitles: [subtitle],
-            settings: { lastSubtitleOffset: 375, rememberSubtitleOffset: false },
-        });
+        const harness = await makePlaybackEngine([PlayMode.normal]);
 
         harness.playbackEngine.subtitleOffsetChanged(250, { notifyPlayer: false });
-        harness.playbackEngine.settingsChanged({
-            ...harness.settings,
-            lastSubtitleOffset: -500,
-            rememberSubtitleOffset: false,
-        });
+        harness.playbackEngine.settingsChanged({ ...harness.settings, playbackRate: 1.5 });
 
-        expect(harness.playbackEngine.lastSubtitleOffset).toBe(0);
         expect(harness.playbackEngine.currentSubtitleOffset).toBe(250);
         expect(harness.subtitleOffsets).toEqual([0, 250]);
-        expect(harness.savedSettings).toEqual([{ lastSubtitleOffset: 250 }]);
-    });
-
-    it('uses and updates the legacy local offset when app integration is unavailable', async () => {
-        localStorage.setItem('offset', '375');
-        const harness = await makePlaybackEngine([PlayMode.normal], {
-            timestampMs: 0,
-            subtitles: [subtitle],
-            appIntegration: false,
-            settings: { rememberSubtitleOffset: true, lastSubtitleOffset: 900 },
-        });
-
-        expect(harness.playbackEngine.lastSubtitleOffset).toBe(375);
-
-        harness.playbackEngine.subtitleOffsetChanged(250, { notifyPlayer: false });
-
-        expect(harness.playbackEngine.currentSubtitleOffset).toBe(250);
-        expect(localStorage.getItem('offset')).toBe('250');
         expect(harness.savedSettings).toEqual([]);
     });
 
     it('publishes the offset when binding', async () => {
+        localStorage.setItem(testOffsetKey, '375');
         const harness = await makePlaybackEngine([PlayMode.normal], {
             timestampMs: 0,
             subtitles: [subtitle],
-            settings: { lastSubtitleOffset: 375, playbackRate: 1.4 },
+            settings: { playbackRate: 1.4 },
         });
 
         harness.playbackEngine.bind();
@@ -1336,14 +1325,13 @@ describe('PlaybackEngine', () => {
     });
 
     it('does not reset remembered playback state for an initial empty subtitle update', async () => {
+        localStorage.setItem(testOffsetKey, '375');
         const harness = await makePlaybackEngine([PlayMode.fastForward], {
             timestampMs: 0,
             subtitles: [],
             settings: {
                 playbackRate: 1.4,
                 fastForwardModePlaybackRate: 2.7,
-                lastSubtitleOffset: 375,
-                rememberSubtitleOffset: true,
             },
         });
 
@@ -1475,6 +1463,7 @@ describe('PlaybackEngine', () => {
     });
 
     it('uses playback settings loaded before ready instead of preserving constructor settings', async () => {
+        localStorage.setItem(testOffsetKey, '375');
         const harness = await makePlaybackEngine([PlayMode.normal], {
             timestampMs: 0,
             subtitles: [subtitleWithLongEnd],
@@ -1489,8 +1478,6 @@ describe('PlaybackEngine', () => {
             lastPlaybackModes: [PlayMode.repeat],
             playbackRate: 1.4,
             lastPlaybackPositions: [{ fileName: 'video.mp4', position: 63_000 }],
-            lastSubtitleOffset: 375,
-            rememberSubtitleOffset: true,
         };
 
         harness.resolveSettings(loadedSettings);
@@ -1509,7 +1496,6 @@ describe('PlaybackEngine', () => {
             settings: {
                 rememberPlaybackRate: true,
                 rememberPlaybackModes: true,
-                rememberSubtitleOffset: true,
                 lastPlaybackPositions: [],
                 playbackRate: 1,
                 fastForwardModePlaybackRate: 2,
@@ -1529,12 +1515,11 @@ describe('PlaybackEngine', () => {
             fastForwardModePlaybackRate: 2,
             lastPlaybackModes: [PlayMode.normal],
             lastPlaybackPositions: [],
-            lastSubtitleOffset: 0,
         };
         harness.playbackEngine.settingsChanged(staleSettings);
 
         expect(harness.playbackEngine.playbackModes).toEqual(new Set([PlayMode.fastForward, PlayMode.repeat]));
-        expect(harness.playbackEngine.lastSubtitleOffset).toBe(250);
+        expect(harness.playbackEngine.currentSubtitleOffset).toBe(250);
 
         harness.playbackEngine.togglePlaybackMode(PlayMode.normal);
         expect(harness.playbackRates.at(-1)).toBe(1.7);
@@ -1586,7 +1571,6 @@ describe('PlaybackEngine', () => {
                 getSingle: async () => settings.lastPlaybackPositions,
                 activeProfile: async () => undefined,
             } as unknown as SettingsProvider,
-            appIntegration: true,
             autoPauseCorrectionDisabled: false,
             subtitles: [],
             sources: [],
@@ -1779,35 +1763,12 @@ describe('PlaybackEngine', () => {
         expect(harness.driver.unbindCalls).toBe(1);
     });
 
-    it('applies a zero subtitle offset when rebinding', async () => {
-        const harness = await makePlaybackEngine([PlayMode.normal], {
-            timestampMs: 0,
-            subtitles: [subtitle],
-            profile: 'old-profile',
-            settings: {
-                rememberSubtitleOffset: true,
-                lastSubtitleOffset: 250,
-            },
-        });
-
-        harness.setProviderSettings({
-            ...harness.settings,
-            lastSubtitleOffset: 0,
-        });
-        harness.setProfile('new-profile');
-        harness.playbackEngine.profileChanged('new-profile');
-        await flushPlaybackInitialization();
-
-        expect(harness.subtitleOffsets.at(-1)).toBe(0);
-    });
-
     it('publishes the current playback settings when unbinding', async () => {
         const harness = await makePlaybackEngine([PlayMode.normal], {
             timestampMs: 0,
             subtitles: [subtitleWithLongEnd],
             settings: {
                 rememberPlaybackRate: true,
-                rememberSubtitleOffset: true,
                 lastPlaybackPositions: [],
                 playbackRate: 1,
                 fastForwardModePlaybackRate: 2,
@@ -1833,7 +1794,6 @@ describe('PlaybackEngine', () => {
                 playbackRate: 1.5,
                 fastForwardModePlaybackRate: 2,
                 lastPlaybackModes: [PlayMode.repeat],
-                lastSubtitleOffset: 250,
                 rememberPlaybackRate: true,
             },
         ]);
@@ -2045,13 +2005,12 @@ describe('PlaybackEngine', () => {
         const harness = await makePlaybackEngine([PlayMode.normal], {
             timestampMs: 1500,
             subtitles: [subtitle],
-            settings: { rememberSubtitleOffset: true },
         });
 
         harness.playbackEngine.subtitleOffsetChanged(-7000, { notifyPlayer: true });
 
         expect(harness.subtitleOffsets).toEqual([0, -7000]);
-        expect(harness.savedSettings).toContainEqual({ lastSubtitleOffset: -7000 });
+        expect(localStorage.getItem(testOffsetKey)).toBe('-7000');
     });
 
     it('does not rebuild the plan when the duration is unchanged', async () => {
@@ -2693,7 +2652,6 @@ describe('PlaybackEngine', () => {
                 getSingle: async () => harness.settings.lastPlaybackPositions,
                 activeProfile: async () => undefined,
             } as unknown as SettingsProvider,
-            appIntegration: true,
             autoPauseCorrectionDisabled: false,
             subtitles: [subtitle],
             sources: [],
@@ -4015,7 +3973,6 @@ describe('external audio playback', () => {
                 getSingle: async () => [],
                 activeProfile: async () => undefined,
             } as unknown as SettingsProvider,
-            appIntegration: true,
             autoPauseCorrectionDisabled: false,
             subtitles: initialSubtitles,
             sources: [],

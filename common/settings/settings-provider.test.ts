@@ -62,13 +62,12 @@ it('starts at default settings', async () => {
 });
 
 it('keeps playback-owned settings separate from UI settings', () => {
-    expect(saveOnlySettings).toEqual(['lastSubtitleOffset', 'lastPlaybackModes', 'lastPlaybackPositions']);
+    expect(saveOnlySettings).toEqual(['lastPlaybackModes', 'lastPlaybackPositions']);
     expect(saveOnlySettings).not.toContain('playbackRate');
     expect(saveOnlySettings).not.toContain('fastForwardModePlaybackRate');
-    expect(isSaveOnlySettings({ lastSubtitleOffset: 100 })).toBe(true);
-    expect(isSaveOnlySettings({ lastSubtitleOffset: 100, lastPlaybackModes: [PlayMode.normal] })).toBe(true);
+    expect(isSaveOnlySettings({ lastPlaybackModes: [PlayMode.normal], lastPlaybackPositions: [] })).toBe(true);
     expect(isSaveOnlySettings({ playbackRate: 1 })).toBe(false);
-    expect(isSaveOnlySettings({ lastSubtitleOffset: 100, language: 'ja' })).toBe(false);
+    expect(isSaveOnlySettings({ lastPlaybackPositions: [], language: 'ja' })).toBe(false);
 });
 
 it('can change the value of object-typed settings', async () => {

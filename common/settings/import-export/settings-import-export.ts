@@ -362,8 +362,6 @@ export const settingsSchema = z
         subtitleListTimestampDisplay: z.enum(SubtitleListTimestampDisplay),
         copyToClipboardOnMine: z.boolean(),
         updateLastCardForSameSubtitle: z.boolean(),
-        rememberSubtitleOffset: z.boolean(),
-        lastSubtitleOffset: z.number(),
         autoCopyCurrentSubtitle: z.boolean(),
         alwaysPlayOnSubtitleRepeat: z.boolean(),
         subtitleRegexFilter: z.string(),
@@ -429,6 +427,8 @@ export const deprecatedPaths: readonly IgnorePath[] = [
     ['keyBindSet', 'updateSelectedCard'],
     // Accepted by the old validator despite never being a setting.
     ['_schema'],
+    ['rememberSubtitleOffset'],
+    ['lastSubtitleOffset'],
 ];
 
 export const omitPath = (value: any, path: IgnorePath): any => {

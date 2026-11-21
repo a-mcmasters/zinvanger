@@ -88,7 +88,6 @@ const MiscSettingTab: React.FC<Props> = ({
         showSubtitleListMiningButton,
         subtitleListTimestampDisplay,
         language,
-        rememberSubtitleOffset,
         rememberPlaybackRate,
         rememberPlaybackModes,
         playbackRateNotificationEnabled,
@@ -310,16 +309,6 @@ const MiscSettingTab: React.FC<Props> = ({
                     </>
                 )}
                 <SettingsSection>{t('settings.subtitles')}</SettingsSection>
-                <SwitchLabelWithHoverEffect
-                    control={
-                        <Switch
-                            checked={rememberSubtitleOffset}
-                            onChange={(event) => onSettingChanged('rememberSubtitleOffset', event.target.checked)}
-                        />
-                    }
-                    label={t('settings.rememberSubtitleOffset')}
-                    labelPlacement="start"
-                />
                 {supportsPlaybackEngine && (
                     <>
                         <SwitchLabelWithHoverEffect

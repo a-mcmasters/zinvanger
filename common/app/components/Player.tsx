@@ -1,4 +1,9 @@
 import { resolveSubtitleReference } from '@project/common/subtitle-reader/subtitle-stream';
+import {
+    mainSubtitleOffsetIdentity,
+    subtitleOffsetKey,
+    subtitleOffsetVideoIdentity,
+} from '@project/common/playback/subtitle-offset-storage';
 import type { SubtitleSourceProducer, SubtitleSourceState } from '@project/common/subtitle-reader/subtitle-stream';
 import { effectiveSettings } from '@project/common/settings/settings-recipes';
 import { AudioClip } from '@project/common/audio-clip';
@@ -528,7 +533,6 @@ function PlayerComponent(
         });
         const playbackEngine = new PlaybackEngine({
             settingsProvider,
-            appIntegration: extension.supportsAppIntegration,
             autoPauseCorrectionDisabled: false,
             subtitles: subtitlesRef.current ?? [],
             sources: sourceStatesRef.current,
@@ -664,6 +668,9 @@ function PlayerComponent(
             },
         });
         syntheticPlaybackEngineRef.current = playbackEngine;
+        void playbackEngine.subtitleOffsetKeyChanged(
+            subtitleOffsetKey('subtitles-only', mainSubtitleOffsetIdentity(sourceStatesRef.current))
+        );
         asbTrace('playback/player', 'Binding synthetic playback owner');
         playbackEngine.bind();
         const clearPauseTokenSelection = subtitlePlayerRef.current?.clearPauseTokenSelection;
@@ -763,7 +770,11 @@ function PlayerComponent(
     sourceStatesRef.current = sourceStates;
     useEffect(() => {
         if (!syntheticPlayback) return;
-        syntheticPlaybackEngineRef.current?.subtitlesChanged(subtitles, {
+        const playbackEngine = syntheticPlaybackEngineRef.current;
+        void playbackEngine?.subtitleOffsetKeyChanged(
+            subtitleOffsetKey('subtitles-only', mainSubtitleOffsetIdentity(sourceStates))
+        );
+        playbackEngine?.subtitlesChanged(subtitles, {
             timingChanged: subtitles !== annotationSubtitlesRef.current,
             sources: sourceStates,
         });
@@ -1023,7 +1034,11 @@ function PlayerComponent(
                     hasVideoFileName: videoFile?.file?.name !== undefined,
                 });
                 videoDurationRef.current = channel.duration;
-                return channel?.ready(calculateLengthMs(videoDurationRef, subtitles), videoFile?.file?.name);
+                return channel?.ready(
+                    calculateLengthMs(videoDurationRef, subtitles),
+                    videoFile?.file.name,
+                    videoFile ? subtitleOffsetVideoIdentity(videoFile.file) : undefined
+                );
             }),
         [channel, subtitles, videoFile]
     );
