@@ -272,6 +272,8 @@ interface ResourceRecord {
     kind?: ResourceKind;
     contentType?: string;
     body?: Promise<string | undefined>;
+    /** Where a fetched body actually came from after redirects; manifests resolve relative URLs against it. */
+    responseUrl?: string;
 }
 
 interface TrackCandidate {
@@ -468,17 +470,22 @@ function dashTrack(
     const firstUrl = Array.isArray(url) ? url[0] : url;
     const extension =
         subtitleExtensionForUrl(firstUrl) ??
-        (metadata?.mimeType?.includes('ttml') === true ? 'ttml2' : undefined) ??
+        (metadata?.mimeType?.includes('ttml') === true || metadata?.codecs?.startsWith('stpp') === true
+            ? 'ttml2'
+            : undefined) ??
         (metadata?.mimeType?.includes('vtt') === true ? 'vtt' : undefined);
     if (extension === undefined) return;
     const language = lang || undefined;
     return {
-        label: genericSubtitleDisplayLabel(undefined, language, detectedSubtitleLabel),
+        label: genericSubtitleDisplayLabel(dashRoleLabels[metadata?.role ?? ''], language, detectedSubtitleLabel),
         language,
         url,
         extension,
     };
 }
+
+// Roles that tell same-language tracks apart; `subtitle` and `main` are the plain track.
+const dashRoleLabels: Record<string, string | undefined> = { caption: 'SDH', 'forced-subtitle': 'Forced' };
 
 function standaloneHlsTrack(manifestUrl: string, manifest: any): VideoDataSubtitleTrack | undefined {
     if (!Array.isArray(manifest?.segments) || manifest.segments.length === 0) return;
@@ -725,7 +732,7 @@ export class AggressiveGenericPageDiscovery implements VideoDataProvider {
                 try {
                     processedHlsManifestUrls.add(record.url);
                     addTracks(
-                        await this.tracksFromHlsManifest(record.url, text, pageRecords),
+                        await this.tracksFromHlsManifest(record.responseUrl ?? record.url, text, pageRecords),
                         trackCandidateScore.segmentedTrack
                     );
                 } catch {
@@ -734,14 +741,18 @@ export class AggressiveGenericPageDiscovery implements VideoDataProvider {
             } else if (kind === 'dash' && text !== undefined) {
                 try {
                     addTracks(
-                        subtitleTracksFromMpdManifest(record.url, text, (playlist, language, metadata) => {
-                            for (const segment of playlist.segments ?? []) {
-                                if (typeof segment.resolvedUri === 'string') {
-                                    this.rememberManifestChild(segment.resolvedUri);
+                        subtitleTracksFromMpdManifest(
+                            record.responseUrl ?? record.url,
+                            text,
+                            (playlist, language, metadata) => {
+                                for (const segment of playlist.segments ?? []) {
+                                    if (typeof segment.resolvedUri === 'string') {
+                                        this.rememberManifestChild(segment.resolvedUri);
+                                    }
                                 }
+                                return dashTrack(playlist, language, metadata);
                             }
-                            return dashTrack(playlist, language, metadata);
-                        }),
+                        ),
                         trackCandidateScore.segmentedTrack
                     );
                 } catch {
@@ -1032,7 +1043,10 @@ export class AggressiveGenericPageDiscovery implements VideoDataProvider {
     }
 
     private async resourceText(record: ResourceRecord) {
-        return record.body === undefined ? this.fetchText(record.url) : record.body;
+        if (record.body !== undefined) return record.body;
+        const resource = await this.fetchTextResource(record.url);
+        record.responseUrl = resource?.url;
+        return resource?.text;
     }
 
     private async fetchText(url: string, maximumLength = maximumCapturedBodyLength) {

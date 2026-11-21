@@ -1253,6 +1253,53 @@ it('loads an HLS manifest discovered through buffered performance entries', asyn
     }
 });
 
+it('resolves a DASH manifest seen at a redirecting host against where it was served from', async () => {
+    // Videoland lists the same manifest under a routing host that redirects to the CDN edge.
+    const video = document.createElement('video');
+    document.body.append(video);
+    const originalFetch = window.fetch;
+    const originalGetEntriesByType = Object.getOwnPropertyDescriptor(performance, 'getEntriesByType');
+    const edgeUrl = 'https://edge.example/static/manifest.mpd';
+    const manifest = `<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT1M">
+  <Period id="1" duration="PT1M">
+    <AdaptationSet contentType="text" lang="nld" mimeType="application/mp4" codecs="stpp">
+      <Representation id="sub" bandwidth="1000">
+        <SegmentTemplate timescale="1000" media="/sub.ism/dash/sub-$Time$.dash">
+          <SegmentTimeline><S t="0" d="60000"/></SegmentTimeline>
+        </SegmentTemplate>
+      </Representation>
+    </AdaptationSet>
+  </Period>
+</MPD>`;
+    const fetchMock = jest.fn(
+        async () =>
+            ({ ok: true, status: 200, url: edgeUrl, body: null, text: async () => manifest }) as unknown as Response
+    );
+    Object.defineProperty(window, 'fetch', { configurable: true, writable: true, value: fetchMock });
+    Object.defineProperty(performance, 'getEntriesByType', {
+        configurable: true,
+        value: jest.fn(() =>
+            ['https://router.example/static/manifest.mpd', edgeUrl].map(
+                (name) => ({ name, entryType: 'resource', initiatorType: 'fetch' }) as PerformanceResourceTiming
+            )
+        ),
+    });
+    const discovery = new AggressiveGenericPageDiscovery();
+    const uninstall = discovery.install();
+
+    try {
+        const { subtitles } = await discovery.videoData(video);
+        expect(subtitles?.map((track) => track.url)).toEqual([['https://edge.example/sub.ism/dash/sub-0.dash']]);
+    } finally {
+        uninstall();
+        if (originalFetch === undefined) delete (window as { fetch?: typeof fetch }).fetch;
+        else window.fetch = originalFetch;
+        if (originalGetEntriesByType === undefined) Reflect.deleteProperty(performance, 'getEntriesByType');
+        else Object.defineProperty(performance, 'getEntriesByType', originalGetEntriesByType);
+    }
+});
+
 it('discovers extensionless DASH subtitles using representation MIME metadata', async () => {
     const video = document.createElement('video');
     document.body.append(video);
@@ -1298,6 +1345,63 @@ it('discovers extensionless DASH subtitles using representation MIME metadata', 
                 },
             ],
         });
+    } finally {
+        uninstall();
+        if (originalFetch === undefined) delete (window as { fetch?: typeof fetch }).fetch;
+        else window.fetch = originalFetch;
+    }
+});
+
+it('discovers fragmented MP4 (stpp) TTML subtitles in a DASH manifest', async () => {
+    // Shape of Videoland's Unified Streaming manifests: separate tracks share one representation id.
+    const video = document.createElement('video');
+    document.body.append(video);
+    const originalFetch = window.fetch;
+    const manifestUrl = 'https://cdn.example/media/static/manifest.mpd';
+    const textSet = (name: string, roles: string[]) => `
+    <AdaptationSet contentType="text" lang="nld" mimeType="application/mp4" codecs="stpp.ttml.im1t">
+      ${roles.map((role) => `<Role schemeIdUri="urn:mpeg:dash:role:2011" value="${role}"/>`).join('')}
+      <Representation id="textstream_nld=1000" bandwidth="1000">
+        <SegmentTemplate timescale="1000" initialization="/media/${name}.ism/dash/${name}-$RepresentationID$.dash" media="/media/${name}.ism/dash/${name}-$RepresentationID$-$Time$.dash">
+          <SegmentTimeline><S t="0" d="60000" r="1"/></SegmentTimeline>
+        </SegmentTemplate>
+      </Representation>
+    </AdaptationSet>`;
+    const manifest = `<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT2M">
+  <Period id="1" duration="PT2M">${textSet('opencaption', ['subtitle'])}${textSet('sdh', ['caption', 'subtitle'])}
+  </Period>
+</MPD>`;
+    const response = {
+        ok: true,
+        status: 200,
+        url: manifestUrl,
+        headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/dash+xml' : null) },
+        clone() {
+            return this;
+        },
+        text: async () => manifest,
+    } as unknown as Response;
+    Object.defineProperty(window, 'fetch', {
+        configurable: true,
+        writable: true,
+        value: jest.fn(async () => response),
+    });
+    const discovery = new AggressiveGenericPageDiscovery();
+    const uninstall = discovery.install();
+    const segments = (name: string) => [
+        `https://cdn.example/media/${name}.ism/dash/${name}-textstream_nld=1000-0.dash`,
+        `https://cdn.example/media/${name}.ism/dash/${name}-textstream_nld=1000-60000.dash`,
+    ];
+
+    try {
+        await window.fetch(manifestUrl);
+
+        const { subtitles } = await discovery.videoData(video);
+        expect(subtitles?.map(({ label, language, extension, url }) => ({ label, language, extension, url }))).toEqual([
+            { label: 'Nederlands', language: 'nld', extension: 'ttml2', url: segments('opencaption') },
+            { label: 'Nederlands · SDH', language: 'nld', extension: 'ttml2', url: segments('sdh') },
+        ]);
     } finally {
         uninstall();
         if (originalFetch === undefined) delete (window as { fetch?: typeof fetch }).fetch;
