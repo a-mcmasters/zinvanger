@@ -3,41 +3,32 @@ import FormHelperText from '@mui/material/FormHelperText';
 import AnkiConnectTutorialBubble from '@project/common/components/AnkiConnectTutorialBubble';
 import DeckFieldTutorialBubble from '@project/common/components/DeckFieldTutorialBubble';
 import SettingsTextField from '@project/common/components/SettingsTextField';
+import SettingsStatus from '@project/common/components/SettingsStatus';
 import { Trans, useTranslation } from 'react-i18next';
 import AnkiSelect from '@project/common/components/AnkiSelect';
 import React, { useCallback, useEffect, useState } from 'react';
 import TutorialBubble from '@project/common/components/TutorialBubble';
-import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import InputAdornment from '@mui/material/InputAdornment';
 import IconButton from '@mui/material/IconButton';
 import NoteTypeTutorialBubble from '@project/common/components/NoteTypeTutorialBubble';
-import ListField from '@project/common/components/ListField';
 import Button from '@mui/material/Button';
 import Link from '@mui/material/Link';
-import Switch from '@mui/material/Switch';
 import Tooltip from '@mui/material/Tooltip';
-import type {
-    AnkiFieldSettings,
-    AnkiFieldUiModel,
-    AsbplayerSettings,
-    CustomAnkiFieldSettings,
-} from '@project/common/settings';
-import { sortedAnkiFieldModels } from '@project/common/settings';
+import type { AsbplayerSettings } from '@project/common/settings';
 import type { CardModel } from '@project/common/src/model';
-import { Direction, TutorialStep } from '@project/common/components/settings-model';
+import { TutorialStep, sentenceTranslationField } from '@project/common/components/settings-model';
 import { Anki, exportCard } from '@project/common/anki';
 import Stack from '@mui/material/Stack';
-import SwitchLabelWithHoverEffect from '@project/common/components/SwitchLabelWithHoverEffect';
 
 const defaultDeckName = 'Sentences';
 const maskApiToken = (apiToken: string) => '•'.repeat(Array.from(apiToken).length);
 
 const defaultNoteType = {
     modelName: 'Sentence Card',
-    inOrderFields: ['Sentence', 'Word', 'Definition', 'Image', 'Audio', 'Source', 'URL'],
+    inOrderFields: ['Sentence', 'Word', 'Definition', sentenceTranslationField, 'Image', 'Audio', 'Source', 'URL'],
     css: `.card {
   font-family: arial;
   font-size: 20px;
@@ -63,6 +54,8 @@ const defaultNoteType = {
             Front: `<div class="front">{{Sentence}}</div>`,
             Back: `<div class="front">{{Sentence}}</div>
 <hr id=answer>
+{{${sentenceTranslationField}}}
+<p/>
 {{Definition}}
 <p/>
 <div class="image">
@@ -78,67 +71,28 @@ const defaultNoteType = {
     ],
 };
 
-interface AddCustomFieldProps {
-    onAddCustomField: (fieldName: string) => void;
-}
-
-function AddCustomField({ onAddCustomField }: AddCustomFieldProps) {
-    const { t } = useTranslation();
-    const [fieldName, setFieldName] = useState<string>('');
-
-    return (
-        <SettingsTextField
-            label={t('settings.addCustomField')}
-            placeholder={t('settings.customFieldName')}
-            fullWidth
-            value={fieldName}
-            color="primary"
-            onChange={(e) => setFieldName(e.target.value)}
-            slotProps={{
-                input: {
-                    endAdornment: (
-                        <InputAdornment position="end">
-                            <IconButton
-                                disabled={fieldName.trim() === ''}
-                                onClick={() => {
-                                    onAddCustomField(fieldName.trim());
-                                    setFieldName('');
-                                }}
-                            >
-                                <AddIcon fontSize="small" />
-                            </IconButton>
-                        </InputAdornment>
-                    ),
-                },
-            }}
-        />
-    );
-}
-
 interface Props {
     settings: AsbplayerSettings;
-    extensionInstalled?: boolean;
-    extensionSupportsOrderableAnkiFields?: boolean;
     isMobile?: boolean;
     insideApp?: boolean;
     inTutorial?: boolean;
     onSettingChanged: <K extends keyof AsbplayerSettings>(key: K, value: AsbplayerSettings[K]) => Promise<void>;
-    onSettingsChanged: (settings: Partial<AsbplayerSettings>) => void;
     tutorialStep: TutorialStep;
     onTutorialStepChanged: (step: TutorialStep) => void;
     anki: Anki;
     testCard?: () => Promise<CardModel>;
 }
 
+const errorMessage = (e: unknown) => (e instanceof Error ? e.message : typeof e === 'string' ? e : String(e));
+
+// S13/U2: only the connection, deck, note type and the five fields this workflow fills are configurable.
+// Other Anki settings (tags, extra and custom fields, field order) keep their stored values but have no UI.
 const AnkiSettingsTab: React.FC<Props> = ({
     settings,
-    extensionInstalled,
-    extensionSupportsOrderableAnkiFields,
     isMobile,
     insideApp,
     inTutorial,
     onSettingChanged,
-    onSettingsChanged,
     tutorialStep,
     onTutorialStepChanged,
     anki,
@@ -153,47 +107,16 @@ const AnkiSettingsTab: React.FC<Props> = ({
     const [showAnkiConnectApiKey, setShowAnkiConnectApiKey] = useState<boolean>(() => !settings.ankiConnectApiKey);
     const [fieldNames, setFieldNames] = useState<string[]>();
 
-    const handleAddCustomField = useCallback(
-        (customFieldName: string) => {
-            void onSettingChanged('customAnkiFields', { ...settings.customAnkiFields, [customFieldName]: '' });
-        },
-        [settings.customAnkiFields, onSettingChanged]
-    );
-    const handleCustomFieldChange = useCallback(
-        (customFieldName: string, value: string) => {
-            void onSettingChanged('customAnkiFields', { ...settings.customAnkiFields, [customFieldName]: value });
-        },
-        [settings.customAnkiFields, onSettingChanged]
-    );
-    const handleCustomFieldRemoval = useCallback(
-        (customFieldName: string) => {
-            const newCustomFields = { ...settings.customAnkiFields };
-            delete newCustomFields[customFieldName];
-            void onSettingChanged('customAnkiFields', newCustomFields);
-        },
-        [onSettingChanged, settings.customAnkiFields]
-    );
-
     const {
         ankiConnectUrl,
         ankiConnectApiKey,
-        ankiRefreshBrowserAfterUpdate,
         deck,
         noteType,
         sentenceField,
         definitionField,
         audioField,
-        imageField,
         wordField,
-        sourceField,
-        urlField,
-        track1Field,
-        track2Field,
-        track3Field,
-        ankiFieldSettings,
         customAnkiFields,
-        customAnkiFieldSettings,
-        tags,
     } = settings;
 
     const requestAnkiConnect = useCallback(async () => {
@@ -221,22 +144,14 @@ const AnkiSettingsTab: React.FC<Props> = ({
 
             setAnkiConnectApiKeyRequired(apiKeyRequired);
             setDeckNames(await anki.deckNames(ankiConnectUrl));
-            const modelNames = await anki.modelNames(ankiConnectUrl);
-            setModelNames(modelNames);
+            setModelNames(await anki.modelNames(ankiConnectUrl));
             setAnkiConnectUrlError(undefined);
         } catch (e) {
             setAnkiConnectApiKeyRequired(apiKeyRequired || Anki.requiresApiKey(e));
             asbError('anki/connect', e);
             setDeckNames(undefined);
             setModelNames(undefined);
-
-            if (e instanceof Error) {
-                setAnkiConnectUrlError(e.message);
-            } else if (typeof e === 'string') {
-                setAnkiConnectUrlError(e);
-            } else {
-                setAnkiConnectUrlError(String(e));
-            }
+            setAnkiConnectUrlError(errorMessage(e));
         }
     }, [anki, ankiConnectUrl, insideApp]);
 
@@ -279,14 +194,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
 
                 asbError('anki/connect', e);
                 setFieldNames(undefined);
-
-                if (e instanceof Error) {
-                    setAnkiConnectUrlError(e.message);
-                } else if (typeof e === 'string') {
-                    setAnkiConnectUrlError(e);
-                } else {
-                    setAnkiConnectUrlError(String(e));
-                }
+                setAnkiConnectUrlError(errorMessage(e));
             }
         }
 
@@ -296,65 +204,6 @@ const AnkiSettingsTab: React.FC<Props> = ({
             canceled = true;
         };
     }, [anki, noteType, ankiConnectUrl, ankiConnectApiKey, ankiConnectUrlError]);
-
-    const handleAnkiFieldOrderChange = useCallback(
-        (direction: Direction, models: AnkiFieldUiModel[], index: number) => {
-            if (direction === Direction.up && index === 0) {
-                return;
-            }
-
-            if (direction === Direction.down && index === models.length - 1) {
-                return;
-            }
-
-            const me = models[index];
-            const other = direction === Direction.up ? models[index - 1] : models[index + 1];
-            let newCustomAnkiFieldSettings: CustomAnkiFieldSettings | undefined = undefined;
-            let newAnkiFieldSettings: AnkiFieldSettings | undefined = undefined;
-            const newMeField = { [me.key]: { ...me.field, order: other.field.order } };
-            const newOtherField = { [other.key]: { ...other.field, order: me.field.order } };
-
-            if (other.custom) {
-                newCustomAnkiFieldSettings = { ...customAnkiFieldSettings, ...newOtherField };
-            } else {
-                newAnkiFieldSettings = { ...ankiFieldSettings, ...newOtherField };
-            }
-
-            if (me.custom) {
-                newCustomAnkiFieldSettings = {
-                    ...(newCustomAnkiFieldSettings ?? customAnkiFieldSettings),
-                    ...newMeField,
-                };
-            } else {
-                newAnkiFieldSettings = { ...(newAnkiFieldSettings ?? ankiFieldSettings), ...newMeField };
-            }
-
-            onSettingsChanged({
-                ankiFieldSettings: newAnkiFieldSettings ?? ankiFieldSettings,
-                customAnkiFieldSettings: newCustomAnkiFieldSettings ?? customAnkiFieldSettings,
-            });
-        },
-        [onSettingsChanged, customAnkiFieldSettings, ankiFieldSettings]
-    );
-
-    const handleAnkiFieldDisplayChange = useCallback(
-        (model: AnkiFieldUiModel, display: boolean) => {
-            const newField = { ...model.field, display };
-
-            if (model.custom) {
-                const newCustomAnkiFieldSettings = { ...customAnkiFieldSettings, [model.key]: newField };
-                onSettingsChanged({
-                    customAnkiFieldSettings: newCustomAnkiFieldSettings,
-                });
-            } else {
-                const newAnkiFieldSettings = { ...ankiFieldSettings, [model.key]: newField };
-                onSettingsChanged({
-                    ankiFieldSettings: newAnkiFieldSettings,
-                });
-            }
-        },
-        [customAnkiFieldSettings, ankiFieldSettings, onSettingsChanged]
-    );
 
     const handleCreateDefaultDeck = useCallback(() => {
         anki.createDeck(defaultDeckName)
@@ -382,13 +231,17 @@ const AnkiSettingsTab: React.FC<Props> = ({
                     onSettingChanged('imageField', 'Image'),
                     onSettingChanged('sourceField', 'Source'),
                     onSettingChanged('urlField', 'URL'),
+                    onSettingChanged('customAnkiFields', {
+                        ...customAnkiFields,
+                        [sentenceTranslationField]: sentenceTranslationField,
+                    }),
                 ])
             )
             .catch((error) => asbError('anki/connect', error));
         if (tutorialStep === TutorialStep.ankiFields) {
             onTutorialStepChanged(TutorialStep.testCard);
         }
-    }, [anki, tutorialStep, requestAnkiConnect, onSettingChanged, onTutorialStepChanged]);
+    }, [anki, tutorialStep, customAnkiFields, requestAnkiConnect, onSettingChanged, onTutorialStepChanged]);
 
     const handleCreateTestCard = useCallback(async () => {
         if (testCard === undefined) {
@@ -402,8 +255,13 @@ const AnkiSettingsTab: React.FC<Props> = ({
         await exportCard(await testCard(), settings, isMobile ? 'default' : 'gui');
     }, [tutorialStep, settings, isMobile, testCard, onTutorialStepChanged]);
 
-    const ankiFieldModels = sortedAnkiFieldModels(settings);
     const ankiConnectApiKeyVisible = showAnkiConnectApiKey || !ankiConnectApiKey;
+    const connected = deckNames !== undefined && !ankiConnectUrlError;
+    const refreshButton = (
+        <IconButton onClick={requestAnkiConnect} aria-label={t('action.refresh')}>
+            <RefreshIcon />
+        </IconButton>
+    );
 
     return (
         <Stack spacing={1}>
@@ -415,25 +273,24 @@ const AnkiSettingsTab: React.FC<Props> = ({
                     onTutorialStepChanged(TutorialStep.deck);
                 }}
             >
-                <SettingsTextField
-                    label={t('settings.ankiConnectUrl')}
-                    value={ankiConnectUrl}
-                    error={Boolean(ankiConnectUrlError)}
-                    helperText={ankiConnectUrlError}
-                    color="primary"
-                    onChange={(event) => onSettingChanged('ankiConnectUrl', event.target.value)}
-                    slotProps={{
-                        input: {
-                            endAdornment: (
-                                <InputAdornment position="end">
-                                    <IconButton onClick={requestAnkiConnect}>
-                                        <RefreshIcon />
-                                    </IconButton>
-                                </InputAdornment>
-                            ),
-                        },
-                    }}
-                />
+                {/* The URL is only editable while Anki isn't connected, which is the only time it needs changing */}
+                {!connected ? (
+                    <SettingsTextField
+                        label={t('settings.ankiConnectUrl')}
+                        value={ankiConnectUrl}
+                        error={Boolean(ankiConnectUrlError)}
+                        helperText={ankiConnectUrlError}
+                        color="primary"
+                        onChange={(event) => onSettingChanged('ankiConnectUrl', event.target.value)}
+                        slotProps={{
+                            input: { endAdornment: <InputAdornment position="end">{refreshButton}</InputAdornment> },
+                        }}
+                    />
+                ) : (
+                    <SettingsStatus state="ok" action={refreshButton}>
+                        {t('settings.ankiConnected')}
+                    </SettingsStatus>
+                )}
             </AnkiConnectTutorialBubble>
             {(ankiConnectApiKey || ankiConnectApiKeyRequired) && (
                 <SettingsTextField
@@ -462,7 +319,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
                     }}
                 />
             )}
-            {insideApp && (
+            {insideApp && ankiConnectUrlError && (
                 <FormHelperText>
                     <Trans
                         i18nKey={'settings.corsHelperText'}
@@ -481,17 +338,6 @@ const AnkiSettingsTab: React.FC<Props> = ({
                     />
                 </FormHelperText>
             )}
-            <SwitchLabelWithHoverEffect
-                control={
-                    <Switch
-                        checked={ankiRefreshBrowserAfterUpdate}
-                        onChange={(event) => onSettingChanged('ankiRefreshBrowserAfterUpdate', event.target.checked)}
-                    />
-                }
-                label={t('settings.ankiRefreshBrowserAfterUpdate')}
-                labelPlacement="start"
-            />
-            <FormHelperText>{t('settings.ankiRefreshBrowserAfterUpdateHelperText')}</FormHelperText>
             <DeckFieldTutorialBubble
                 show={tutorialStep === TutorialStep.deck && !ankiConnectUrlError && !deck}
                 disabled={!inTutorial}
@@ -528,161 +374,46 @@ const AnkiSettingsTab: React.FC<Props> = ({
                     }}
                 />
             </NoteTypeTutorialBubble>
-            {ankiFieldModels.map((model, index) => {
-                const key = model.custom ? `custom_${model.key}` : `standard_${model.key}`;
-                const handleOrderChange =
-                    !extensionInstalled || extensionSupportsOrderableAnkiFields
-                        ? (d: Direction) => handleAnkiFieldOrderChange(d, ankiFieldModels, index)
-                        : undefined;
-                const handleDisplayChange =
-                    !extensionInstalled || extensionSupportsOrderableAnkiFields
-                        ? (display: boolean) => handleAnkiFieldDisplayChange(model, display)
-                        : undefined;
-
-                let disabledDirection: Direction | undefined = undefined;
-
-                if (index === 0) {
-                    disabledDirection = Direction.up;
-                } else if (index === ankiFieldModels.length - 1) {
-                    disabledDirection = Direction.down;
+            <TutorialBubble
+                placement="bottom"
+                disabled={!inTutorial}
+                show={tutorialStep === TutorialStep.ankiFields && Boolean(deck) && Boolean(noteType)}
+                disableArrow
+                text={t('ftue.ankiFields')}
+                onConfirm={() => onTutorialStepChanged(TutorialStep.testCard)}
+            >
+                <AnkiSelect
+                    label={t('settings.sentenceField')}
+                    value={sentenceField}
+                    selections={fieldNames}
+                    onValueChange={(value) => onSettingChanged('sentenceField', value)}
+                />
+            </TutorialBubble>
+            <AnkiSelect
+                label={t('settings.wordField')}
+                value={wordField}
+                selections={fieldNames}
+                onValueChange={(value) => onSettingChanged('wordField', value)}
+            />
+            <AnkiSelect
+                label={t('settings.definitionField')}
+                value={definitionField}
+                selections={fieldNames}
+                onValueChange={(value) => onSettingChanged('definitionField', value)}
+            />
+            <AnkiSelect
+                label={t('settings.translationField')}
+                value={customAnkiFields[sentenceTranslationField] ?? ''}
+                selections={fieldNames}
+                onValueChange={(value) =>
+                    onSettingChanged('customAnkiFields', { ...customAnkiFields, [sentenceTranslationField]: value })
                 }
-
-                const rest = {
-                    onOrderChange: handleOrderChange,
-                    onDisplayChange: handleDisplayChange,
-                    disabledDirection,
-                    display: model.field.display,
-                };
-
-                return (
-                    <React.Fragment key={key}>
-                        {!model.custom && model.key === 'sentence' && (
-                            <TutorialBubble
-                                placement="bottom"
-                                disabled={!inTutorial}
-                                show={tutorialStep === TutorialStep.ankiFields && Boolean(deck) && Boolean(noteType)}
-                                disableArrow
-                                text={t('ftue.ankiFields')}
-                                onConfirm={() => onTutorialStepChanged(TutorialStep.testCard)}
-                            >
-                                <AnkiSelect
-                                    label={t('settings.sentenceField')}
-                                    value={sentenceField}
-                                    selections={fieldNames}
-                                    onValueChange={(value) => onSettingChanged('sentenceField', value)}
-                                    {...rest}
-                                />
-                            </TutorialBubble>
-                        )}
-                        {!model.custom && model.key === 'definition' && (
-                            <AnkiSelect
-                                label={t('settings.definitionField')}
-                                value={definitionField}
-                                selections={fieldNames}
-                                onValueChange={(value) => onSettingChanged('definitionField', value)}
-                                {...rest}
-                            />
-                        )}
-                        {!model.custom && model.key === 'word' && (
-                            <AnkiSelect
-                                label={t('settings.wordField')}
-                                value={wordField}
-                                selections={fieldNames}
-                                onValueChange={(value) => onSettingChanged('wordField', value)}
-                                {...rest}
-                            />
-                        )}
-                        {!model.custom && model.key === 'audio' && (
-                            <AnkiSelect
-                                label={t('settings.audioField')}
-                                value={audioField}
-                                selections={fieldNames}
-                                onValueChange={(value) => onSettingChanged('audioField', value)}
-                                {...rest}
-                            />
-                        )}
-                        {!model.custom && model.key === 'image' && (
-                            <AnkiSelect
-                                label={t('settings.imageField')}
-                                value={imageField}
-                                selections={fieldNames}
-                                onValueChange={(value) => onSettingChanged('imageField', value)}
-                                {...rest}
-                            />
-                        )}
-                        {!model.custom && model.key === 'source' && (
-                            <AnkiSelect
-                                label={t('settings.sourceField')}
-                                value={sourceField}
-                                selections={fieldNames}
-                                onValueChange={(value) => onSettingChanged('sourceField', value)}
-                                {...rest}
-                            />
-                        )}
-                        {!model.custom && model.key === 'url' && (
-                            <AnkiSelect
-                                label={t('settings.urlField')}
-                                value={urlField}
-                                selections={fieldNames}
-                                onValueChange={(value) => onSettingChanged('urlField', value)}
-                                {...rest}
-                            />
-                        )}
-                        {!model.custom &&
-                            model.key === 'track1' &&
-                            (!extensionInstalled || extensionSupportsOrderableAnkiFields) && (
-                                <AnkiSelect
-                                    label={t('settings.track1Field')}
-                                    value={track1Field}
-                                    selections={fieldNames}
-                                    onValueChange={(value) => onSettingChanged('track1Field', value)}
-                                    {...rest}
-                                />
-                            )}
-                        {!model.custom &&
-                            model.key === 'track2' &&
-                            (!extensionInstalled || extensionSupportsOrderableAnkiFields) && (
-                                <AnkiSelect
-                                    label={t('settings.track2Field')}
-                                    value={track2Field}
-                                    selections={fieldNames}
-                                    onValueChange={(value) => onSettingChanged('track2Field', value)}
-                                    {...rest}
-                                />
-                            )}
-                        {!model.custom &&
-                            model.key === 'track3' &&
-                            (!extensionInstalled || extensionSupportsOrderableAnkiFields) && (
-                                <AnkiSelect
-                                    label={t('settings.track3Field')}
-                                    value={track3Field}
-                                    selections={fieldNames}
-                                    onValueChange={(value) => onSettingChanged('track3Field', value)}
-                                    {...rest}
-                                />
-                            )}
-                        {model.custom && (
-                            <AnkiSelect
-                                label={`${model.key}`}
-                                value={customAnkiFields[model.key]}
-                                selections={fieldNames}
-                                onValueChange={(value) => handleCustomFieldChange(model.key, value)}
-                                onRemoval={() => handleCustomFieldRemoval(model.key)}
-                                removable={true}
-                                {...rest}
-                            />
-                        )}
-                    </React.Fragment>
-                );
-            })}
-            <AddCustomField onAddCustomField={handleAddCustomField} />
-            <ListField
-                textFieldComponent={SettingsTextField}
-                label={t('settings.tags')}
-                fullWidth
-                color="primary"
-                items={tags}
-                onItemsChange={(tags) => onSettingChanged('tags', tags)}
+            />
+            <AnkiSelect
+                label={t('settings.audioField')}
+                value={audioField}
+                selections={fieldNames}
+                onValueChange={(value) => onSettingChanged('audioField', value)}
             />
             {testCard && (
                 <TutorialBubble
@@ -692,7 +423,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
                     text={t('ftue.testCard')}
                     onConfirm={() => onTutorialStepChanged(TutorialStep.done)}
                 >
-                    <Button variant="contained" onClick={handleCreateTestCard}>
+                    <Button variant="contained" onClick={handleCreateTestCard} sx={{ alignSelf: 'flex-start' }}>
                         {t('settings.createTestCard')}
                     </Button>
                 </TutorialBubble>

@@ -28,6 +28,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import Popover from '@mui/material/Popover';
 import ErrorIcon from '@mui/icons-material/Error';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import { brandGradient } from '@project/common/theme';
 
 interface BarProps {
     drawerWidth: number;
@@ -57,7 +58,8 @@ const useStyles = makeStyles<Theme, StyleProps, string>((theme) => ({
         marginRight: theme.spacing(1),
     },
     appBar: {
-        background: 'linear-gradient(150deg, #ff1f62, #49007a 160%)',
+        background: brandGradient,
+        color: '#ffffff',
         transition: theme.transitions.create(['margin', 'width'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.leavingScreen,

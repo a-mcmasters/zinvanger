@@ -40,7 +40,8 @@
         "findPlaceholder": "Search by text or /regex/",
         "approve": "Approve",
         "deny": "Deny",
-        "remove": "Remove"
+        "remove": "Remove",
+        "refresh": "Refresh"
     },
     "about": {
         "title": "About Zinvanger",
@@ -767,7 +768,14 @@
         "webSocketInterface": "WebSocket interface",
         "yomitanHelperText": "Instructions to setup Yomitan API are <0>here<0>.",
         "seekableTracks": "Subtitle tracks affected by playback modes and keyboard shortcuts",
-        "autoCopyableTracks": "Subtitle tracks eligible for auto-copy"
+        "autoCopyableTracks": "Subtitle tracks eligible for auto-copy",
+        "ankiConnected": "Connected to Anki",
+        "translationField": "Translation Field",
+        "subtitleBackground": "Subtitle background",
+        "transcriber": "Transcriber",
+        "transcriberOnline": "Whisper is running at {{address}}",
+        "transcriberOffline": "Whisper isn't running at {{address}}. Start the transcriber to transcribe episodes.",
+        "transcriberChecking": "Checking Whisper at {{address}}…"
     },
     "statistics": {
         "title": "Statistics",

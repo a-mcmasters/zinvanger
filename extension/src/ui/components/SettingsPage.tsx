@@ -26,7 +26,7 @@ import { openExtensionShortcuts } from '@/services/extension-shortcuts';
 import type { DictionaryProvider } from '@project/common/dictionary-db';
 import type { LogProvider } from '@project/common/util/log';
 import { useLocationHash } from '@project/common/hooks/use-location-hash';
-import LocalLookupSettings from './LocalLookupSettings';
+import LocalLookupSettings from '@/ui/components/LocalLookupSettings';
 
 const useStyles = makeStyles<Theme>((theme) => ({
     root: {

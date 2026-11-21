@@ -155,7 +155,13 @@ interface KeyBindFieldProps {
     onOpenExtensionShortcuts: () => void;
 }
 
-function KeyBindField({ label, keys, boundViaChrome, onKeysChange, onOpenExtensionShortcuts }: KeyBindFieldProps) {
+export function KeyBindField({
+    label,
+    keys,
+    boundViaChrome,
+    onKeysChange,
+    onOpenExtensionShortcuts,
+}: KeyBindFieldProps) {
     const { t } = useTranslation();
     const theme = useTheme<Theme>();
     const classes = useKeyBindFieldStyles();

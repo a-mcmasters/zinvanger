@@ -1013,7 +1013,8 @@ export default class Binding {
                 this._lastLoadedMetadataMediaIdentity = mediaIdentity;
                 const videoSrc = this.video.src || this._fallbackVideoSrc;
                 this._updateRegisteredVideoSrc(videoSrc);
-                const sameLocationVideoChanged = (this._videoSrcChangesIndicateNewVideo && sourceChanged) || durationChanged;
+                const sameLocationVideoChanged =
+                    (this._videoSrcChangesIndicateNewVideo && sourceChanged) || durationChanged;
 
                 asbTrace('playback/binding', 'Observed media metadata load', {
                     sourceChanged,

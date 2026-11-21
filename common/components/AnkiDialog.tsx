@@ -1,4 +1,5 @@
 import { asbInfo } from '@project/common/util/log';
+import { sentenceTranslationField } from '@project/common/components/settings-model';
 import {
     humanReadableTime,
     surroundingSubtitlesAroundInterval,
@@ -55,7 +56,6 @@ import AnkiDialogTutorialBubble from '@project/common/components/AnkiDialogTutor
 import CardSelectView from '@project/common/components/CardSelectView';
 
 const quickSelectShortcut = isMacOs ? '⌘+⇧+Enter' : 'Alt+Shift+Enter';
-const sentenceTranslationField = 'Sentence Translation';
 
 const useStyles = makeStyles<Theme>((theme) => ({
     root: {

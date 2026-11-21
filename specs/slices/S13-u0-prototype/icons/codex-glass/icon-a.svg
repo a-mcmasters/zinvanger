@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img">
+  <title>Zinvanger — Glass Lens</title>
+  <defs>
+    <linearGradient id="base" x1="17" y1="111" x2="98" y2="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#190f35"/>
+      <stop offset=".53" stop-color="#2a1551"/>
+      <stop offset="1" stop-color="#473075"/>
+    </linearGradient>
+    <radialGradient id="ambient" cx="91" cy="104" r="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8337ef" stop-opacity=".66"/>
+      <stop offset="1" stop-color="#8337ef" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lens" x1="29" y1="27" x2="99" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#eadbff"/>
+      <stop offset=".29" stop-color="#b488ff"/>
+      <stop offset=".64" stop-color="#6b37cc"/>
+      <stop offset="1" stop-color="#ba8fff"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="25" y1="27" x2="101" y2="99" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fcf5ff" stop-opacity=".9"/>
+      <stop offset=".55" stop-color="#d4b2ff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#e1c4ff" stop-opacity=".65"/>
+    </linearGradient>
+    <linearGradient id="reflection" x1="21" y1="60" x2="102" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#683de0" stop-opacity="0"/>
+      <stop offset=".48" stop-color="#bea3ff" stop-opacity=".53"/>
+      <stop offset="1" stop-color="#eccaff" stop-opacity=".12"/>
+    </linearGradient>
+    <radialGradient id="aperture" cx="72" cy="57" r="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#733ab0"/>
+      <stop offset=".6" stop-color="#351357"/>
+      <stop offset="1" stop-color="#241038"/>
+    </radialGradient>
+    <radialGradient id="pearl" cx="67" cy="53" r="23" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff9ed"/>
+      <stop offset=".48" stop-color="#f5defe"/>
+      <stop offset="1" stop-color="#bf7bff"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="128" height="128" rx="29" fill="url(#base)"/>
+  <rect width="128" height="128" rx="29" fill="url(#ambient)"/>
+  <rect x="1" y="1" width="126" height="126" rx="28" fill="none" stroke="#dbc4ff" stroke-opacity=".19"/>
+
+  <path d="M95 32C114 47 116 73 102 91C87 111 57 116 37 102C16 87 13 59 27 39C42 18 75 16 95 32Z"
+        fill="url(#lens)" stroke="url(#rim)" stroke-width="1.6"/>
+  <path d="M20 65C32 74 48 80 62 78C81 75 96 62 109 52C114 66 111 80 102 91C87 111 57 116 37 102C24 93 18 79 20 65Z"
+        fill="url(#reflection)"/>
+  <path d="M96 50C104 62 98 76 85 83C72 91 53 88 45 76C36 64 41 49 55 41C69 33 87 37 96 50Z"
+        fill="url(#aperture)" stroke="url(#rim)" stroke-width="1.25"/>
+  <circle cx="70" cy="61" r="14" fill="url(#pearl)"/>
+</svg>

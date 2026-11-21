@@ -40,7 +40,8 @@
         "findPlaceholder": "テキストまたは /regex/ で検索",
         "approve": "承認",
         "deny": "拒否",
-        "remove": "削除"
+        "remove": "削除",
+        "refresh": "Refresh"
     },
     "about": {
         "title": "Zinvangerについて",
@@ -767,7 +768,14 @@
         "webSocketInterface": "WebSocketインターフェース",
         "yomitanHelperText": "YomitanのAPIのセットアップは<0>こちら<0>をご参考にしてください。",
         "seekableTracks": "操作対象の字幕トラック（プレイバックモード/ショートカット）",
-        "autoCopyableTracks": "自動コピー対象の字幕トラック"
+        "autoCopyableTracks": "自動コピー対象の字幕トラック",
+        "ankiConnected": "Connected to Anki",
+        "translationField": "Translation Field",
+        "subtitleBackground": "Subtitle background",
+        "transcriber": "Transcriber",
+        "transcriberOnline": "Whisper is running at {{address}}",
+        "transcriberOffline": "Whisper isn't running at {{address}}. Start the transcriber to transcribe episodes.",
+        "transcriberChecking": "Checking Whisper at {{address}}…"
     },
     "statistics": {
         "title": "統計",

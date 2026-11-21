@@ -1,0 +1,338 @@
+<!doctype html>
+<!--
+  PROTOTYPE (S13 U0), throwaway. Three structurally different directions for the in-video UI,
+  switchable via ?variant=A|B|C and the floating bar at the bottom (or [ and ] keys).
+  Nothing here is wired to real code. Drop a frame.jpg (paused NPO screenshot) next to this
+  file to see the mocks over a real frame; it's gitignored-by-convention, don't commit it.
+-->
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zinvanger U0 mocks</title>
+<style>
+  :root {
+    --glass: rgba(28, 28, 34, 0.55);
+    --glass-strong: rgba(22, 22, 28, 0.78);
+    --hair: rgba(255, 255, 255, 0.12);
+    --text: #f6f4f1;
+    --muted: rgba(246, 244, 241, 0.64);
+    --accent: #c4a1ff;       /* Zinvanger lilac */
+    --accent-ink: #1e0b3f;
+    --target: #9fd8ff;       /* unknown-word highlight */
+    --r-lg: 22px; --r-md: 14px; --r-sm: 10px;
+    --sans: "SF Pro Display", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "Iowan Old Style", "Charter", "Georgia", serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0b0e; color: var(--text); font-family: var(--sans); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .stage { position: relative; height: 100vh; overflow: hidden;
+    background:
+      url(frame.jpg) center / cover no-repeat,
+      radial-gradient(120% 80% at 70% 30%, #3b4a5c 0%, #1d2530 45%, #0d1015 100%); }
+  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to top, rgba(0,0,0,.55), transparent 40%); }
+  .paused { position: absolute; top: 20px; left: 24px; z-index: 2; font-size: 13px; color: var(--muted);
+    padding: 6px 12px; border-radius: 99px; background: var(--glass); backdrop-filter: blur(18px); border: 1px solid var(--hair); }
+
+  .glass { background: var(--glass); backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid var(--hair); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+
+  .sub { position: absolute; left: 50%; transform: translateX(-50%); bottom: 14vh; z-index: 3; text-align: center; max-width: 80vw; }
+  .line { font-size: clamp(26px, 3.2vw, 44px); font-weight: 600; letter-spacing: -0.01em; line-height: 1.25;
+    text-shadow: 0 2px 12px rgba(0,0,0,.6); }
+  .tr { margin-top: 8px; font-size: clamp(16px, 1.6vw, 22px); color: var(--muted); }
+  .w { border-radius: 6px; padding: 0 2px; cursor: pointer; transition: background .15s; }
+  .w:hover, .w.on { background: rgba(255,255,255,.16); }
+  .w.target { text-decoration: underline 2px var(--target); text-underline-offset: 6px; }
+
+  .toast { position: fixed; top: 22px; left: 50%; transform: translate(-50%, -20px); opacity: 0; z-index: 50;
+    padding: 10px 18px; border-radius: 99px; font-size: 14px; transition: .25s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  kbd { font-family: var(--sans); font-size: 11px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--hair); color: var(--muted); }
+
+  /* ---------- A: command bar ---------- */
+  .a-hint { position: absolute; top: 20px; right: 24px; z-index: 3; padding: 8px 14px; border-radius: 99px; font-size: 13px; cursor: pointer; }
+  .palette { position: absolute; top: 18vh; left: 50%; transform: translateX(-50%) scale(.98); width: min(620px, 92vw);
+    border-radius: var(--r-lg); z-index: 10; opacity: 0; pointer-events: none; transition: .18s; background: var(--glass-strong); }
+  .palette.open { opacity: 1; pointer-events: auto; transform: translateX(-50%) scale(1); }
+  .palette input { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--hair); color: var(--text);
+    font: inherit; font-size: 20px; padding: 20px 22px; outline: none; }
+  .palette ul { list-style: none; margin: 0; padding: 8px; max-height: 50vh; overflow: auto; }
+  .palette li { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: var(--r-sm); cursor: pointer; }
+  .palette li .ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: rgba(255,255,255,.08); font-size: 14px; }
+  .palette li .grp { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .palette li.sel { background: rgba(196,161,255,.2); }
+  .palette .ctx { padding: 12px 22px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--hair); }
+
+  /* ---------- B: living subtitle ---------- */
+  .pill { display: inline-flex; gap: 4px; padding: 6px; border-radius: 99px; margin-top: 14px; opacity: 0; transform: translateY(-4px); transition: .18s; }
+  .sub:hover .pill, .sub:focus-within .pill { opacity: 1; transform: none; }
+  .pill button { border: 0; background: transparent; padding: 8px 14px; border-radius: 99px; font-size: 14px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+  .pill button:hover { background: rgba(255,255,255,.12); }
+  .pill button.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .chip { white-space: nowrap; }
+  .wordcard { position: absolute; z-index: 12; width: 320px; border-radius: var(--r-lg); padding: 18px; text-align: left; transform: translate(-50%, calc(-100% - 18px)); }
+  .wordcard h3 { margin: 0; font-size: 26px; font-weight: 600; }
+  .wordcard .pos { color: var(--muted); font-size: 13px; margin: 2px 0 10px; }
+  .wordcard p { margin: 0 0 14px; line-height: 1.45; }
+  .wordcard .row { display: flex; gap: 8px; }
+  .chip { border: 1px solid var(--hair); background: rgba(255,255,255,.06); border-radius: 99px; padding: 8px 14px; font-size: 13px; cursor: pointer; }
+  .chip.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  .gear { position: absolute; top: 20px; right: 24px; z-index: 3; width: 40px; height: 40px; border-radius: 99px; cursor: pointer; opacity: .0; transition: .2s; }
+  .stage:hover .gear { opacity: 1; }
+  .sheet { position: absolute; top: 12px; right: 12px; bottom: 12px; width: min(380px, 92vw); border-radius: var(--r-lg); z-index: 20;
+    transform: translateX(110%); transition: .28s cubic-bezier(.2,.8,.2,1); background: var(--glass-strong); padding: 24px; overflow: auto; }
+  .sheet.open { transform: none; }
+  .sheet h2 { margin: 0 0 4px; font-size: 22px; }
+  .sheet h4 { margin: 22px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+  .field { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--hair); font-size: 15px; }
+  .field span:last-child, .field select { color: var(--muted); background: transparent; border: 0; font: inherit; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 99px; background: #7be3a1; margin-right: 6px; }
+  .mine { position: absolute; z-index: 15; left: 50%; bottom: 14vh; transform: translateX(-50%); width: min(520px, 92vw); border-radius: var(--r-lg); padding: 22px; display: none; }
+  .mine.open { display: block; }
+  .mine .s { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .mine .e { color: var(--muted); margin-bottom: 16px; }
+  .mine .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+
+  /* ---------- C: study strip ---------- */
+  .strip { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 3; border-radius: var(--r-lg); display: grid; grid-template-columns: 1fr 340px; overflow: hidden; }
+  .strip .now { padding: 26px 32px; }
+  .strip .now .line { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 3vw, 42px); text-shadow: none; }
+  .strip .now .tr { font-family: var(--serif); font-style: italic; }
+  .strip .reveal { border: 0; background: none; color: var(--muted); padding: 0; margin-top: 10px; font-size: 14px; cursor: pointer; }
+  .strip .back { border-left: 1px solid var(--hair); padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+  .strip .back .t { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 4px 10px; }
+  .hist { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm); font-family: var(--serif); font-size: 16px; color: var(--muted); }
+  .hist:hover { background: rgba(255,255,255,.07); color: var(--text); }
+  .hist .acts { margin-left: auto; display: flex; gap: 2px; opacity: 0; }
+  .hist:hover .acts, .hist:focus-within .acts { opacity: 1; }
+  .hist .acts button { border: 0; background: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .hist .acts button:hover { background: rgba(255,255,255,.12); }
+  .strip .bar { grid-column: 1 / -1; display: flex; gap: 8px; padding: 10px 32px; border-top: 1px solid var(--hair); align-items: center; font-size: 13px; color: var(--muted); }
+  .strip .bar .sp { flex: 1; }
+
+  /* ---------- prototype switcher (not part of any design) ---------- */
+  .switcher { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; align-items: center; gap: 4px;
+    background: #fff; color: #111; border-radius: 99px; padding: 4px; box-shadow: 0 8px 30px rgba(0,0,0,.5); font: 600 13px system-ui, sans-serif; }
+  .switcher button { border: 0; background: #eee; color: #111; width: 30px; height: 30px; border-radius: 99px; cursor: pointer; }
+  .switcher span { padding: 0 12px; }
+  body[data-v="C"] .switcher { bottom: auto; top: 18px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="paused">❚❚ Gepauzeerd · 12:41</div>
+  <div id="root"></div>
+</div>
+<div class="toast glass" id="toast"></div>
+<div class="switcher" aria-label="Prototype variant switcher">
+  <button id="prev" aria-label="Previous variant">‹</button><span id="label"></span><button id="next" aria-label="Next variant">›</button>
+</div>
+
+<script>
+const LINES = [
+  { nl: 'Goedemorgen, heb je goed geslapen?', en: 'Good morning, did you sleep well?' },
+  { nl: 'Ja, maar ik moet zo naar mijn werk.', en: 'Yes, but I have to go to work soon.' },
+  { nl: 'Nee hoor, je hebt nog tijd genoeg.', en: "Oh no, you've still got plenty of time." },
+  { nl: 'Wil je nog een kopje koffie?', en: 'Would you like another cup of coffee?' },
+];
+const GLOSS = {
+  wil: ['willen · verb', 'to want. "Wil je…?" is the polite-casual "Would you like…?"'],
+  je: ['pronoun', 'you (informal, unstressed form of jij)'],
+  nog: ['adverb', 'still, yet; with a noun: another, one more'],
+  een: ['article', 'a, an'],
+  kopje: ['het kopje · noun', 'small cup. kop + -je (diminutive). Very common for coffee/tea.'],
+  koffie: ['de koffie · noun', 'coffee'],
+};
+const TARGETS = new Set(['kopje']); // pretend this one is unknown
+let cur = 3, showTr = false, subsOn = true;
+
+const $ = (s, el = document) => el.querySelector(s);
+const toast = (msg) => { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1600); };
+const words = (s) => s.replace(/([\p{L}]+)/gu, (w) => `<span class="w ${TARGETS.has(w.toLowerCase()) ? 'target' : ''}" tabindex="0" data-w="${w.toLowerCase()}">${w}</span>`);
+const actions = {
+  replay: () => toast(`↺ Replaying "${LINES[cur].nl}"`),
+  translate: () => { showTr = !showTr; render(); },
+  mine: () => toast('＋ Mined to Anki · Nederlands::Zinnen'),
+  prev: () => { cur = Math.max(0, cur - 1); render(); },
+  next: () => { cur = Math.min(LINES.length - 1, cur + 1); render(); },
+  subs: () => { subsOn = !subsOn; render(); },
+};
+
+/* ---------- A: Command bar ---------- */
+const COMMANDS = [
+  ['↺', 'Replay this line', 'Line', 'replay', 'R'],
+  ['Aa', 'Show translation', 'Line', 'translate', 'T'],
+  ['＋', 'Mine sentence to Anki', 'Line', 'mine', 'M'],
+  ['⟵', 'Previous line', 'Line', 'prev', 'A'],
+  ['⟶', 'Next line', 'Line', 'next', 'D'],
+  ['📄', 'Load subtitle file…', 'Subtitles', 'Choose a .srt / .vtt'],
+  ['🎙', 'Transcribe this episode (Whisper)', 'Subtitles', 'Transcription started · ~2 min'],
+  ['＋½', 'Shift subtitles +0.5 s', 'Timing', 'Offset +0.5 s'],
+  ['−½', 'Shift subtitles −0.5 s', 'Timing', 'Offset −0.5 s'],
+  ['◐', 'Toggle subtitles', 'Subtitles', 'subs', 'S'],
+  ['🗂', 'Anki deck & fields…', 'Settings', 'Opens the one settings screen'],
+  ['⌨', 'Keyboard shortcuts…', 'Settings', 'Opens shortcuts'],
+];
+function VariantA(root) {
+  root.innerHTML = `
+    <button class="a-hint glass" id="openPal">Search commands <kbd>Ctrl K</kbd></button>
+    ${subsOn ? `<div class="sub"><div class="line">${LINES[cur].nl}</div>${showTr ? `<div class="tr">${LINES[cur].en}</div>` : ''}</div>` : ''}
+    <div class="palette glass" id="pal" role="dialog" aria-label="Command bar">
+      <input id="q" placeholder="Type a command… (try “sub”, “shift”, “mine”)" aria-label="Command" />
+      <ul id="list" role="listbox"></ul>
+      <div class="ctx">Line 4/4 · “${LINES[cur].nl}” &nbsp; <kbd>↑↓</kbd> pick &nbsp;<kbd>Enter</kbd> run &nbsp;<kbd>Esc</kbd> close</div>
+    </div>`;
+  let sel = 0, items = COMMANDS;
+  const pal = $('#pal'), q = $('#q'), list = $('#list');
+  const draw = () => {
+    items = COMMANDS.filter((c) => c[1].toLowerCase().includes(q.value.toLowerCase()));
+    sel = Math.min(sel, Math.max(0, items.length - 1));
+    list.innerHTML = items.map((c, i) => `<li role="option" class="${i === sel ? 'sel' : ''}" data-i="${i}"><span class="ic">${c[0]}</span>${c[1]}<span class="grp">${c[4] ? `<kbd>${c[4]}</kbd>` : c[2]}</span></li>`).join('') || '<li>No command. Nothing else hides in menus.</li>';
+  };
+  const run = (c) => { close(); actions[c[3]] ? actions[c[3]]() : toast(c[3]); };
+  const open = () => { pal.classList.add('open'); q.value = ''; sel = 0; draw(); q.focus(); };
+  const close = () => pal.classList.remove('open');
+  $('#openPal').onclick = open;
+  q.oninput = () => { sel = 0; draw(); };
+  q.onkeydown = (e) => {
+    if (e.key === 'ArrowDown') { sel = (sel + 1) % items.length; draw(); e.preventDefault(); }
+    if (e.key === 'ArrowUp') { sel = (sel - 1 + items.length) % items.length; draw(); e.preventDefault(); }
+    if (e.key === 'Enter' && items[sel]) run(items[sel]);
+    if (e.key === 'Escape') close();
+  };
+  list.onclick = (e) => { const li = e.target.closest('li[data-i]'); if (li) run(items[+li.dataset.i]); };
+  VariantA.open = open;
+}
+
+/* ---------- B: Living subtitle ---------- */
+function VariantB(root) {
+  root.innerHTML = `
+    <button class="gear glass" id="gear" aria-label="Settings">⚙</button>
+    ${subsOn ? `<div class="sub" id="sub">
+      <div class="line">${words(LINES[cur].nl)}</div>
+      ${showTr ? `<div class="tr">${LINES[cur].en}</div>` : ''}
+      <div class="pill glass">
+        <button data-a="replay">↺ Replay <kbd>R</kbd></button>
+        <button data-a="translate">Aa ${showTr ? 'Hide' : 'English'} <kbd>T</kbd></button>
+        <button data-a="mineCard" class="primary">＋ Mine <kbd>M</kbd></button>
+      </div>
+    </div>` : ''}
+    <div id="card"></div>
+    <div class="mine glass" id="mine">
+      <div class="s">${LINES[cur].nl.replace('kopje', '<u>kopje</u>')}</div>
+      <div class="e">${LINES[cur].en}</div>
+      <div class="meta"><span class="chip">🔊 audio 12:39.2–12:41.0</span><span class="chip">🖼 frame</span><span class="chip">word: kopje</span><span class="chip">Nederlands::Zinnen</span></div>
+      <div class="row" style="display:flex;gap:8px;justify-content:flex-end"><button class="chip" id="mineX">Cancel</button><button class="chip primary" id="mineGo">Add card ⏎</button></div>
+    </div>
+    <aside class="sheet glass" id="sheet" aria-label="Settings">
+      <div style="display:flex;justify-content:space-between;align-items:center"><h2>Zinvanger</h2><button class="chip" id="sheetX">Done</button></div>
+      <div style="color:var(--muted);font-size:14px">Everything else is fixed to sensible defaults.</div>
+      <h4>Anki</h4>
+      <div class="field"><span>Connection</span><span><i class="dot"></i>Connected</span></div>
+      <div class="field"><span>Deck</span><select><option>Nederlands::Zinnen</option></select></div>
+      <div class="field"><span>Note type</span><select><option>Zin (sentence)</option></select></div>
+      <div class="field"><span>Fields</span><span>Sentence · Word · Audio · Meaning · English ›</span></div>
+      <h4>Subtitles</h4>
+      <div class="field"><span>Size</span><span>Large</span></div>
+      <div class="field"><span>Position</span><span>Bottom</span></div>
+      <div class="field"><span>Background</span><span>Off</span></div>
+      <div class="field"><span>English line</span><span>On demand</span></div>
+      <h4>Transcriber</h4>
+      <div class="field"><span>Whisper server</span><span><i class="dot"></i>localhost:8080</span></div>
+      <h4>Shortcuts</h4>
+      <div class="field"><span>Replay · English · Mine</span><span><kbd>R</kbd> <kbd>T</kbd> <kbd>M</kbd></span></div>
+      <div class="field"><span>Prev · Next · Subtitles</span><span><kbd>A</kbd> <kbd>D</kbd> <kbd>S</kbd></span></div>
+      <h4>Sites</h4>
+      <div class="field"><span>NPO Start · YouTube · Netflix</span><span>On · On · On</span></div>
+    </aside>`;
+  const card = $('#card');
+  root.onclick = (e) => {
+    const w = e.target.closest('.w');
+    const a = e.target.closest('[data-a]');
+    if (a) { a.dataset.a === 'mineCard' ? $('#mine').classList.add('open') : actions[a.dataset.a](); return; }
+    if (w) return openCard(w);
+    if (!e.target.closest('.wordcard')) closeCard();
+  };
+  root.onkeydown = (e) => { if (e.key === 'Enter' && e.target.classList.contains('w')) openCard(e.target); };
+  function openCard(w) {
+    document.querySelectorAll('.w.on').forEach((x) => x.classList.remove('on')); w.classList.add('on');
+    const [pos, def] = GLOSS[w.dataset.w] || ['', '—'];
+    const r = w.getBoundingClientRect();
+    card.innerHTML = `<div class="wordcard glass" style="left:${r.left + r.width / 2}px;top:${r.top}px">
+      <h3>${w.dataset.w}</h3><div class="pos">${pos}</div><p>${def}</p>
+      <div class="row"><button class="chip">★ Learn this word</button><button class="chip primary" id="mineWord">＋ Mine with word</button></div></div>`;
+    $('#mineWord').onclick = () => { closeCard(); $('#mine').classList.add('open'); };
+  }
+  function closeCard() { card.innerHTML = ''; document.querySelectorAll('.w.on').forEach((x) => x.classList.remove('on')); }
+  $('#gear').onclick = () => $('#sheet').classList.add('open');
+  $('#sheetX').onclick = () => $('#sheet').classList.remove('open');
+  $('#mineX').onclick = () => $('#mine').classList.remove('open');
+  $('#mineGo').onclick = () => { $('#mine').classList.remove('open'); actions.mine(); };
+  VariantB.mine = () => $('#mine').classList.add('open');
+}
+
+/* ---------- C: Study strip ---------- */
+function VariantC(root) {
+  const past = LINES.slice(Math.max(0, cur - 3), cur).map((l, i, arr) => ({ ...l, i: cur - arr.length + i }));
+  root.innerHTML = `
+    <section class="strip glass" aria-label="Study strip">
+      <div class="now">
+        ${subsOn ? `<div class="line">${words(LINES[cur].nl)}</div>
+        ${showTr ? `<div class="tr">${LINES[cur].en}</div>` : `<button class="reveal" data-a="translate">Show English <kbd>T</kbd></button>`}` : '<div class="line" style="opacity:.4">Subtitles hidden</div>'}
+      </div>
+      <div class="back">
+        <div class="t">Just said</div>
+        ${past.map((l) => `<div class="hist" tabindex="0">${l.nl}<span class="acts"><button data-go="${l.i}" title="Replay">↺</button><button data-mine title="Mine">＋</button></span></div>`).join('') || '<div class="hist">—</div>'}
+      </div>
+      <div class="bar">
+        <span>Line ${cur + 1} of ${LINES.length}</span><span class="sp"></span>
+        <button class="chip" data-a="prev">⟵ <kbd>A</kbd></button>
+        <button class="chip" data-a="replay">↺ Replay <kbd>R</kbd></button>
+        <button class="chip" data-a="next"><kbd>D</kbd> ⟶</button>
+        <button class="chip primary" data-a="mine">＋ Mine <kbd>M</kbd></button>
+      </div>
+    </section>`;
+  root.onclick = (e) => {
+    const a = e.target.closest('[data-a]'); if (a) return actions[a.dataset.a]();
+    const g = e.target.closest('[data-go]'); if (g) { cur = +g.dataset.go; render(); return toast('↺ Replaying that line'); }
+    if (e.target.closest('[data-mine]')) return actions.mine();
+    const w = e.target.closest('.w'); if (w) { const [pos, def] = GLOSS[w.dataset.w] || ['', '—']; toast(`${w.dataset.w}: ${def}`); }
+  };
+}
+
+/* ---------- switcher ---------- */
+const VARIANTS = { A: ['Command bar', VariantA], B: ['Living subtitle', VariantB], C: ['Study strip', VariantC] };
+const keys = Object.keys(VARIANTS);
+let v = new URLSearchParams(location.search).get('variant');
+if (!VARIANTS[v]) v = 'B';
+function render() {
+  document.body.dataset.v = v;
+  $('#label').textContent = `${v} (${VARIANTS[v][0]})`;
+  const root = $('#root'); root.onclick = root.onkeydown = null;
+  VARIANTS[v][1](root);
+}
+function go(d) {
+  v = keys[(keys.indexOf(v) + d + keys.length) % keys.length]; showTr = false;
+  history.replaceState(null, '', `?variant=${v}`); render();
+}
+$('#prev').onclick = () => go(-1); $('#next').onclick = () => go(1);
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, textarea, [contenteditable]')) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && v === 'A') { e.preventDefault(); return VariantA.open(); }
+  // [ and ] switch variants, because ←/→ are the natural "prev/next line" keys being judged here
+  if (e.key === '[') return go(-1);
+  if (e.key === ']') return go(1);
+  const k = e.key.toLowerCase();
+  if (k === 'm' && v === 'B') return VariantB.mine();
+  const map = { r: 'replay', t: 'translate', m: 'mine', a: 'prev', d: 'next', s: 'subs' };
+  if (map[k]) actions[map[k]]();
+});
+render();
+</script>
+</body>
+</html>

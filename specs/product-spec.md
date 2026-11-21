@@ -1,6 +1,6 @@
 # Product spec: personal asbplayer fork
 
-Status: draft v1 (2026-11-20). This is a living document, and the roadmap is re-ranked after every slice.
+Status: draft v2 (2026-11-21; v2 re-ranks the UI redesign to the top). This is a living document, and the roadmap is re-ranked after every slice.
 
 ## 1. Vision
 
@@ -8,13 +8,14 @@ The fork is a Chrome extension for learning Dutch from streaming video. A line y
 
 ## 2. User and context
 
-- One user, learning Dutch (a European language, so no furigana, readings or word segmentation are needed).
+- Built for one user first, possibly shared with others later. The user is a Dutch beginner (A1–A2), so translations matter on most lines. Dutch is a European language, so no furigana, readings or word segmentation are needed.
 - Uses the browser extension on streaming sites in Chromium (Chrome, Edge or Brave). Doesn't use the web app with local files, the side panel, Firefox, or mobile.
 - Sites: YouTube, Netflix, Amazon Prime, Disney+, NPO Start, and Stremio (maybe; it has little Dutch content).
 - Anki through AnkiConnect. Card fields used: **sentence, audio clip, target word**. An external agent writes the **definition**, so the extension does not look anything up.
 
 ## 3. Problems to solve, ranked
 
+0. **The UI isn't the user's style, and the UX is clunky (top priority as of 2026-11-21).** It has a stock upstream look, too many options and clunky menus. See [S13](slices/S13-ui-redesign.md).
 1. **The Anki dialog is cluttered and mouse-driven.** It shows too many fields and controls (image, source, URL, three track fields, tags, a timestamp slider, three export buttons), picking the target word is awkward, and exporting needs the mouse.
 2. **Settings overload.** There are about 126 settings keys and 77 key binds across 9 tabs, and most serve features this user doesn't use.
 3. **NPO Start isn't supported on `main`.** The work exists on `feat/npo-start-subtitles`.
@@ -45,7 +46,7 @@ The fork is a Chrome extension for learning Dutch from streaming video. A line y
 ### Change
 
 - **Anki dialog:** by default it shows only the sentence, word and audio. Clicking a word in the sentence sets it as the target word (and optionally highlights it in the sentence field). The dialog is fully keyboard-driven, with Enter to export and Esc to cancel. Everything else sits behind a collapsed "More" section, or is deleted.
-- **Settings:** one Essentials screen (AnkiConnect URL, deck, note type, field mapping, audio padding, the mining shortcut, subtitle appearance, and per-site toggles), with an Advanced screen behind it. Settings for deleted features are deleted.
+- **Settings:** superseded by S13: one screen with no Advanced screen, and most options removed. Originally: one Essentials screen (AnkiConnect URL, deck, note type, field mapping, audio padding, the mining shortcut, subtitle appearance, and per-site toggles), with an Advanced screen behind it. Settings for deleted features are deleted.
 
 ### Add
 
@@ -91,6 +92,7 @@ The order puts quick wins on your daily workflow first, then pruning, which shri
 
 | # | Slice | Value | Size |
 |---|---|---|---|
+| S13 | **UI redesign** ([spec](slices/S13-ui-redesign.md)). Pick a design direction from three mocks, then new design tokens, one settings screen, in-video controls and menus. Runs ahead of S2. | Fixes the top pain | L (5 sub-slices) |
 | S0 | **Baseline and fork conventions.** Build, load unpacked, mine one card on YouTube and Netflix, record the metrics in section 4, add fork conventions to AGENTS.md. | Safety net, numbers to compare against | S |
 | S1 | **Land NPO Start.** Merge `feat/npo-start-subtitles` into `main` after a manual check on NPO Start. | Dutch content works | S |
 | S2 | **Lean Anki dialog.** The default view is sentence, word and audio. Tags, slider, source, URL, image and tracks go under "More". Actions are reduced to Export and Update last. | Fixes clutter | M |

@@ -19,7 +19,7 @@ import Popup from '@project/extension/src/ui/components/Popup';
 import { useRequestingActiveTabPermission } from '@project/extension/src/ui/hooks/use-requesting-active-tab-permission';
 import { isMobile } from 'react-device-detect';
 import { useSettingsProfileContext } from '@project/common/hooks/use-settings-profile-context';
-import { StyledEngineProvider } from '@mui/material/styles';
+import { alpha, StyledEngineProvider } from '@mui/material/styles';
 import { DictionaryProvider } from '@project/common/dictionary-db';
 import { ExtensionDictionaryStorage } from '@/services/extension-dictionary-storage';
 import { isFirefoxBuild } from '@/services/build-flags';
@@ -135,11 +135,8 @@ export function PopupUi({ commands }: Props) {
                 <CssBaseline />
                 <Paper
                     square
-                    style={{
-                        backgroundImage:
-                            settings.themeType === 'dark'
-                                ? 'linear-gradient(rgba(255, 255, 255, 0.165), rgba(255, 255, 255, 0.165))'
-                                : 'none',
+                    sx={{
+                        backgroundImage: `linear-gradient(145deg, ${alpha(theme.palette.primary.main, 0.09)}, transparent 55%)`,
                         width: isMobile ? '100%' : 600,
                     }}
                 >
