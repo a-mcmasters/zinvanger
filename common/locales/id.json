@@ -43,7 +43,7 @@
         "remove": "Remove"
     },
     "about": {
-        "title": "Tentang asbplayer",
+        "title": "Tentang Zinvanger",
         "license": "Lisensi",
         "deps": "Dependensi",
         "depName": "Nama",
@@ -154,12 +154,12 @@
         "seekToPreviousSubtitle": "Lompat ke takarir sebelumnya",
         "seekToSubtitle": "Lompat ke takarir sebelumnya/berikutnya",
         "takeScreenshot": "Ambil tangkapan layar secara manual, menimpa tangkapan otomatis saat menambang",
-        "toggleAsbplayerSubtitleTrack1": "Aktifkan/nonaktifkan trek takarir 1 di asbplayer",
-        "toggleAsbplayerSubtitleTrack2": "Aktifkan/nonaktifkan trek takarir 2 di asbplayer",
-        "toggleAsbplayerSubtitleTrack3": "Aktifkan/nonaktifkan trek takarir 3 di asbplayer",
-        "toggleAsbplayerSubtitleTracks": "Aktifkan/nonaktifkan trek takarir di asbplayer",
-        "toggleAsbplayerBlurTrack": "Aktifkan/nonaktifkan buram pada trek takarir {{trackNumber}} di asbplayer",
-        "unblurAsbplayerTrack": "Hilangkan buram dari trek takarir {{trackNumber}} di asbplayer",
+        "toggleAsbplayerSubtitleTrack1": "Aktifkan/nonaktifkan trek takarir 1 di Zinvanger",
+        "toggleAsbplayerSubtitleTrack2": "Aktifkan/nonaktifkan trek takarir 2 di Zinvanger",
+        "toggleAsbplayerSubtitleTrack3": "Aktifkan/nonaktifkan trek takarir 3 di Zinvanger",
+        "toggleAsbplayerSubtitleTracks": "Aktifkan/nonaktifkan trek takarir di Zinvanger",
+        "toggleAsbplayerBlurTrack": "Aktifkan/nonaktifkan buram pada trek takarir {{trackNumber}} di Zinvanger",
+        "unblurAsbplayerTrack": "Hilangkan buram dari trek takarir {{trackNumber}} di Zinvanger",
         "toggleAutoPause": "Aktifkan/nonaktifkan jeda otomatis",
         "toggleCondensedPlayback": "Aktifkan/nonaktifkan pemutaran ringkas",
         "toggleFastForwardPlayback": "Aktifkan/nonaktifkan pemutaran maju cepat",
@@ -169,7 +169,7 @@
         "toggleVideoSubtitleTrack2": "Aktifkan/nonaktifkan trek takarir 2 di video",
         "toggleVideoSubtitleTrack3": "Aktifkan/nonaktifkan trek takarir 3 di video",
         "toggleVideoSubtitleTracks": "Aktifkan/nonaktifkan trek takarir di video",
-        "updateLastCard": "Perbarui kartu Anki terakhir dengan tangkapan layar, audio, dan lainnya dari asbplayer",
+        "updateLastCard": "Perbarui kartu Anki terakhir dengan tangkapan layar, audio, dan lainnya dari Zinvanger",
         "exportCard": "Ekspor kartu ke Anki tanpa membuka dialog.",
         "toggleSidePanel": "Tampilkan/sembunyikan panel samping",
         "toggleRepeat": "Aktifkan/nonaktifkan mode ulangi",
@@ -297,33 +297,33 @@
             "aggressiveGenericPage": "Try aggressive detection methods (may degrade this site)",
             "genericPageInfo": "This page does not have a dedicated subtitle detection parser. Enable generic subtitle detection then refresh the page to possibly detect subtitles.",
             "genericPageWarning": "This site is using generic subtitle detection. Some subtitle tracks may be missing, mislabeled, incorrect, or inconsistently present between page loads. Additionally, a subtitle may need to be first selected on the site and shown on the video to be usable.",
-            "ftue": "Trek takarir yang terdeteksi otomatis dapat dipilih di sini. asbplayer tidak dapat mendeteksi takarir di semua situs. Anda selalu dapat memuat berkas takarir sendiri."
+            "ftue": "Trek takarir yang terdeteksi otomatis dapat dipilih di sini. Zinvanger tidak dapat mendeteksi takarir di semua situs. Anda selalu dapat memuat berkas takarir sendiri."
         },
         "videoSelect": {
             "multipleVideoElements": "Beberapa elemen video terdeteksi",
-            "selectVideo": "Pilih elemen video untuk disinkronkan dengan asbplayer.",
-            "syncBeforeMine": "Video harus disinkronkan dengan asbplayer sebelum dapat ditambang. Pilih elemen video untuk disinkronkan.",
+            "selectVideo": "Pilih elemen video untuk disinkronkan dengan Zinvanger.",
+            "syncBeforeMine": "Video harus disinkronkan dengan Zinvanger sebelum dapat ditambang. Pilih elemen video untuk disinkronkan.",
             "videoElement": "Elemen Video"
         }
     },
     "ftue": {
-        "welcome": "Selamat datang di asbplayer.",
+        "welcome": "Selamat datang di Zinvanger.",
         "welcomeBody": "Baca <0>readme</0> untuk melihat cara memulai.",
         "welcomeBody2": "Gulir ke bawah untuk pengenalan singkat, atau buka <0>panduan pengguna</0>.",
-        "toolbar": "Klik ikon 🧩 di bilah alat, lalu pilih <0>asbplayer</0> untuk membuka <1>Popup</1>.<2/>Gunakan tombol {{pin}} untuk menyematkan asbplayer ke bilah alat agar mudah diakses.",
+        "toolbar": "Klik ikon 🧩 di bilah alat, lalu pilih <0>Zinvanger</0> untuk membuka <1>Popup</1>.<2/>Gunakan tombol {{pin}} untuk menyematkan Zinvanger ke bilah alat agar mudah diakses.",
         "sidePanel": "Gunakan <0>Panel Samping</0> untuk <1>menavigasi</1> antar takarir, <2>menambang</2> takarir, dan lainnya.",
         "overlayScroll": "<0>Gulir</0> kontrol paling kanan untuk berpindah antara <1>navigasi takarir</1>, <2>offset takarir</2>, dan <3>kecepatan pemutaran</3>.",
         "overlay": "Gunakan <0>Lapisan Video</0> untuk <1>menambang</1> dan <2>tampilkan/sembunyikan</2> takarir, <3>berpindah mode pemutaran</3>, dan lainnya.",
         "congrats": "Itu saja untuk dasar-dasarnya! Silakan bereksperimen di halaman ini.",
-        "loadSubtitles": "Langkah pertama dalam menggunakan asbplayer adalah selalu memuat takarir ke dalam video. Gunakan <0>Panel Samping</0> untuk memuat takarir ke dalam video di halaman ini.<1/>Tip: <2>Panel Samping</2> dapat diakses melalui <3>Popup</3>.",
-        "loadSubtitlesFirefox": "Langkah pertama dalam menggunakan asbplayer adalah selalu memuat takarir ke dalam video. <0>Klik kanan</0> pada video dan temukan <1>menu konteks</1> asbplayer untuk memuat takarir.",
-        "loadSubtitlesMobile": "Langkah pertama dalam menggunakan asbplayer adalah selalu memuat takarir ke dalam video. Buka pemilih trek dengan memilih <0>asbplayer</0> di menu <1>ekstensi</1>.",
-        "ankiConnect": "<0>AnkiConnect</0> memungkinkan asbplayer terhubung dengan <1>Anki</1>.",
+        "loadSubtitles": "Langkah pertama dalam menggunakan Zinvanger adalah selalu memuat takarir ke dalam video. Gunakan <0>Panel Samping</0> untuk memuat takarir ke dalam video di halaman ini.<1/>Tip: <2>Panel Samping</2> dapat diakses melalui <3>Popup</3>.",
+        "loadSubtitlesFirefox": "Langkah pertama dalam menggunakan Zinvanger adalah selalu memuat takarir ke dalam video. <0>Klik kanan</0> pada video dan temukan <1>menu konteks</1> Zinvanger untuk memuat takarir.",
+        "loadSubtitlesMobile": "Langkah pertama dalam menggunakan Zinvanger adalah selalu memuat takarir ke dalam video. Buka pemilih trek dengan memilih <0>Zinvanger</0> di menu <1>ekstensi</1>.",
+        "ankiConnect": "<0>AnkiConnect</0> memungkinkan Zinvanger terhubung dengan <1>Anki</1>.",
         "ankiConnectError": "Setelah Anda membuka Anki dan menginstal AnkiConnect, klik tombol ⟳ untuk menghilangkan kesalahan ini.",
         "deck": "Pilih <0>Deck</0> tempat kartu Anda akan disimpan.",
         "defaultDeck": "Jika Anda belum memiliki deck, Anda dapat <0>membuat deck bawaan</0>.",
         "anki": "<0>Anki</0> adalah aplikasi kartu flash paling populer di dunia. Anki menggunakan algoritma bernama <1>SRS</1> untuk membuat proses belajar menjadi sangat efisien.",
-        "ankiDialog": "Gunakan <0>Dialog Ekspor Anki</0> untuk membuat kartu flash Anki. Dalam sebagian besar kasus, asbplayer dapat otomatis mengisi <1>kalimat</1>, <2>gambar</2>, dan <3>audio</3>.",
+        "ankiDialog": "Gunakan <0>Dialog Ekspor Anki</0> untuk membuat kartu flash Anki. Dalam sebagian besar kasus, Zinvanger dapat otomatis mengisi <1>kalimat</1>, <2>gambar</2>, dan <3>audio</3>.",
         "whatsAnki": "Apa itu Anki?",
         "configureAnki": "Tekan di sini untuk mengatur integrasi asblayer dengan Anki.",
         "ankiDialogDefinition": "Biasanya Anda perlu mengisi <0>Kolom Definisi</0> dan <1>Kolom Kata</1> sendiri.",
@@ -334,9 +334,9 @@
         "testCard": "Jika sudah siap, Anda dapat membuat kartu uji coba untuk melihat tampilannya."
     },
     "update": {
-        "heading": "asbplayer baru saja diperbarui ke versi {{version}}.",
+        "heading": "Zinvanger baru saja diperbarui ke versi {{version}}.",
         "body": "Lihat catatan rilisnya <0>di sini</0>.",
-        "alert": "asbplayer telah diperbarui ke versi {{version}}. Lihat <0>catatan rilis</0>."
+        "alert": "Zinvanger telah diperbarui ke versi {{version}}. Lihat <0>catatan rilis</0>."
     },
     "info": {
         "copiedSubtitle": "Disalin: {{text}}",
@@ -371,7 +371,7 @@
         "subtitleVisibility": "Show subtitles: {{value}}",
         "connectionSucceeded": "Koneksi berhasil",
         "connectionFailed": "Koneksi gagal",
-        "webSocketManagedByExtension": "Connection is managed by the asbplayer extension",
+        "webSocketManagedByExtension": "Connection is managed by the Zinvanger extension",
         "error": "Galat: {{message}}",
         "errorNoMessage": "Galat",
         "toggleSubtitlesShortcut": "Tekan \"{{keys}}\" untuk menampilkan/sembunyikan takarir",
@@ -383,18 +383,18 @@
         "extensionNotInstalled": "Pasang <1>ekstensi Chrome</1> untuk menyinkronkan takarir dengan video streaming.",
         "extensionUpdateAvailable": "Tersedia <1>pembaruan</1> untuk ekstensi.",
         "noSubtitles": "Tidak ada takarir",
-        "videoElementsDetected": "Muat takarir ke dalam video untuk mulai menggunakan asbplayer.",
+        "videoElementsDetected": "Muat takarir ke dalam video untuk mulai menggunakan Zinvanger.",
         "noVideoElementsDetected": "Tidak ada video yang terdeteksi.",
         "restoreLastSession": "Pulihkan sesi terakhir"
     },
     "activeTabPermissionRequest": {
         "title": "Aktifkan perekaman audio",
         "grantedTitle": "Perekaman audio diaktifkan",
-        "prompt": "Klik tombol aksi asbplayer di kanan atas jendela browser untuk mengaktifkan perekaman audio pada tab ini.",
+        "prompt": "Klik tombol aksi Zinvanger di kanan atas jendela browser untuk mengaktifkan perekaman audio pada tab ini.",
         "grantedPrompt": "Perekaman audio telah diaktifkan untuk tab ini. Anda sekarang dapat mulai menambang."
     },
     "audioCaptureFailed": {
-        "message": "Audio yang dilindungi DRM tidak dapat direkam di asbplayer versi Firefox."
+        "message": "Audio yang dilindungi DRM tidak dapat direkam di Zinvanger versi Firefox."
     },
     "settings": {
         "appIntegration": "App integration",
@@ -493,7 +493,7 @@
         "noteType": "Jenis Catatan",
         "pages": "Pages",
         "preCacheSubtitleDom": "Pra-cache DOM Takarir",
-        "preCacheSubtitleDomHelperText": "Jika diaktifkan, asbplayer akan merender teks takarir terlebih dahulu di elemen tersembunyi, lalu menggunakannya kembali untuk ditampilkan. Cara ini memungkinkan kode eksternal memodifikasi teks takarir secara permanen sebelum ditampilkan.",
+        "preCacheSubtitleDomHelperText": "Jika diaktifkan, Zinvanger akan merender teks takarir terlebih dahulu di elemen tersembunyi, lalu menggunakannya kembali untuk ditampilkan. Cara ini memungkinkan kode eksternal memodifikasi teks takarir secara permanen sebelum ditampilkan.",
         "recordingBind": "Perekaman",
         "recordWithAudioPlayback": "Putar audio saat merekam dari video lokal",
         "rememberSubtitleOffset": "Ingat offset takarir",
@@ -578,7 +578,7 @@
         "annotation": "Annotation",
         "ftueAnnotation": "Subtitle annotation features are now available.",
         "annotationHelperText": "Annotation requires <0>Yomitan API</0> to function.",
-        "annotationNoExtensionWarn": "Installing the asbplayer extension is recommended to prevent your browser from deleting manually stored words. Export your settings before installing the extension to preserve your data.",
+        "annotationNoExtensionWarn": "Installing the Zinvanger extension is recommended to prevent your browser from deleting manually stored words. Export your settings before installing the extension to preserve your data.",
         "annotationLocalAnkiHelperText": "Word status is determined by your local collection then from Anki cards. Collect words locally through imports or by hovering over words and using the keyboard shortcuts.",
         "manageWords": "My word database",
         "buildAnkiCache": "Re-Build Anki cache",
@@ -881,8 +881,8 @@
         "title": "External extensions",
         "empty": "No external extensions to display.",
         "help": "Learn about external extensions <docs>here</docs>.",
-        "incomingRequest": "An external extension is requesting to connect to asbplayer.",
+        "incomingRequest": "An external extension is requesting to connect to Zinvanger.",
         "extensionDetailsHelper": "Extension details can be viewed at <0>{{address}}</0>.",
-        "warning": "Once approved, extension <0>{{id}}</0> will be able to control asbplayer. Only approve if you recognize it."
+        "warning": "Once approved, extension <0>{{id}}</0> will be able to control Zinvanger. Only approve if you recognize it."
     }
 }

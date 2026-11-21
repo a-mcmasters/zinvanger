@@ -9,7 +9,7 @@
         "message": "현재 자막을 기반으로 Anki 카드 생성을 시작합니다. 자막 파일 없이 영상이 연동된 경우, 오디오 녹음을 시작하거나 중지합니다."
     },
     "shortcutUpdateLastCardDescription": {
-        "message": "asbplayer로 캡처한 미디어로 마지막에 생성된 Anki 카드를 업데이트합니다. 자막 파일 없이 영상이 연동된 경우, 오디오 녹음을 시작하거나 중지합니다."
+        "message": "Zinvanger로 캡처한 미디어로 마지막에 생성된 Anki 카드를 업데이트합니다. 자막 파일 없이 영상이 연동된 경우, 오디오 녹음을 시작하거나 중지합니다."
     },
     "shortcutExportCardDescription": {
         "message": "팝업 없이 Anki에 카드를 바로 저장합니다."

@@ -43,7 +43,7 @@
         "remove": "削除"
     },
     "about": {
-        "title": "asbplayerについて",
+        "title": "Zinvangerについて",
         "license": "ライセンス",
         "deps": "依存関係のあるライブラリ",
         "depName": "プロジェクト名",
@@ -141,7 +141,7 @@
         "extensionSelectSubtitleTrack": "ロードする字幕ファイルを選択する。",
         "extensionTakeScreenshot": "手動でスクリーンショットを撮影しマイニング時に自動的に撮影されたものを上書きする。",
         "extensionToggleRecording": "字幕がロードされていても手動で録音を開始/終了する。",
-        "extensionUpdateLastCard": "最後に作成した Anki カードに asbplayer でキャプチャしたメディアを添付して更新する。動画が字幕ファイルなしで同期されている場合、録音を開始/停止する。",
+        "extensionUpdateLastCard": "最後に作成した Anki カードに Zinvanger でキャプチャしたメディアを添付して更新する。動画が字幕ファイルなしで同期されている場合、録音を開始/停止する。",
         "increaseOffset": "字幕の表示タイミング +100ms",
         "increasePlaybackRate": "再生速度を上げる",
         "resetOffset": "字幕の表示タイミングをリセット",
@@ -154,12 +154,12 @@
         "seekToPreviousSubtitle": "前の字幕に巻き戻り",
         "seekToSubtitle": "前/次の字幕に移動",
         "takeScreenshot": "手動でスクリーンショットを撮影しマイニング時に自動的に撮影されたものを上書きする",
-        "toggleAsbplayerSubtitleTrack1": "asbplayer の字幕トラック 1 オン/オフ",
-        "toggleAsbplayerSubtitleTrack2": "asbplayer の字幕トラック 2 オン/オフ",
-        "toggleAsbplayerSubtitleTrack3": "asbplayer の字幕トラック 3 オン/オフ",
-        "toggleAsbplayerSubtitleTracks": "asbplayer の字幕トラック オン/オフ",
-        "toggleAsbplayerBlurTrack": "asbplayer の字幕トラック {{trackNumber}} のぼかし オン/オフ",
-        "unblurAsbplayerTrack": "asbplayer の字幕トラック {{trackNumber}} のぼかしを解除",
+        "toggleAsbplayerSubtitleTrack1": "Zinvanger の字幕トラック 1 オン/オフ",
+        "toggleAsbplayerSubtitleTrack2": "Zinvanger の字幕トラック 2 オン/オフ",
+        "toggleAsbplayerSubtitleTrack3": "Zinvanger の字幕トラック 3 オン/オフ",
+        "toggleAsbplayerSubtitleTracks": "Zinvanger の字幕トラック オン/オフ",
+        "toggleAsbplayerBlurTrack": "Zinvanger の字幕トラック {{trackNumber}} のぼかし オン/オフ",
+        "unblurAsbplayerTrack": "Zinvanger の字幕トラック {{trackNumber}} のぼかしを解除",
         "toggleAutoPause": "自動一時停止オン/オフ",
         "toggleCondensedPlayback": "短縮プレイバック",
         "toggleFastForwardPlayback": "早送りプレイバックオン/オフ",
@@ -169,7 +169,7 @@
         "toggleVideoSubtitleTrack2": "動画の字幕トラック 2 オン/オフ",
         "toggleVideoSubtitleTrack3": "動画の字幕トラック 3 オン/オフ",
         "toggleVideoSubtitleTracks": "動画の字幕トラック オン/オフ",
-        "updateLastCard": "asbplayer でキャプチャしたスクリーンショットや音声を、最後に作成した Anki カードに添付して更新する",
+        "updateLastCard": "Zinvanger でキャプチャしたスクリーンショットや音声を、最後に作成した Anki カードに添付して更新する",
         "exportCard": "直接カードをAnkiにエクスポート。",
         "toggleSidePanel": "サイドパネルを開く/閉じる",
         "toggleRepeat": "リピートプレイバックオン/オフ",
@@ -297,33 +297,33 @@
             "aggressiveGenericPage": "Try aggressive detection methods (may degrade this site)",
             "genericPageInfo": "This page does not have a dedicated subtitle detection parser. Enable generic subtitle detection then refresh the page to possibly detect subtitles.",
             "genericPageWarning": "This site is using generic subtitle detection. Some subtitle tracks may be missing, mislabeled, incorrect, or inconsistently present between page loads. Additionally, a subtitle may need to be first selected on the site and shown on the video to be usable.",
-            "ftue": "自動検出された字幕トラックはここで選択できます。asbplayerはすべてのサイトで字幕トラックを検出できるわけではありません。自分の字幕ファイルはいつでもロードすることができます。"
+            "ftue": "自動検出された字幕トラックはここで選択できます。Zinvangerはすべてのサイトで字幕トラックを検出できるわけではありません。自分の字幕ファイルはいつでもロードすることができます。"
         },
         "videoSelect": {
             "multipleVideoElements": "複数の動画を探知しました",
-            "selectVideo": "asbplayer と同期する動画埋め込み要素を選択してください。",
-            "syncBeforeMine": "動画埋め込み要素のマイニングを開始する前に、動画と asbplayer を同期してください。選択した動画埋め込み要素を asbplayer と同期します。",
+            "selectVideo": "Zinvanger と同期する動画埋め込み要素を選択してください。",
+            "syncBeforeMine": "動画埋め込み要素のマイニングを開始する前に、動画と Zinvanger を同期してください。選択した動画埋め込み要素を Zinvanger と同期します。",
             "videoElement": "動画埋め込み要素を選択"
         }
     },
     "ftue": {
-        "welcome": "asbplayer へようこそ。",
-        "welcomeBody": "asbplayer の使い方は<0>readme</0>をご参考ください。",
+        "welcome": "Zinvanger へようこそ。",
+        "welcomeBody": "Zinvanger の使い方は<0>readme</0>をご参考ください。",
         "welcomeBody2": "下にスクロールすると簡単な紹介があります。詳しくは<0>ユーザーガイド</0>をご覧ください。",
-        "toolbar": "asbplayerの <1>ポップアップ</1>を開くには、🧩のアイコンをクリックし、<0>asbplayer</0>を選択してください。<2/>{{pin}}のボタンを押すと、asbplayerをツールバーに固定でき、簡単にアクセスできるようになります。",
+        "toolbar": "Zinvangerの <1>ポップアップ</1>を開くには、🧩のアイコンをクリックし、<0>Zinvanger</0>を選択してください。<2/>{{pin}}のボタンを押すと、Zinvangerをツールバーに固定でき、簡単にアクセスできるようになります。",
         "sidePanel": "<0>サイドパネル</0>では、<1>字幕へシーク</1>したり、<2>字幕をマイニング</2>したりすることができます。",
         "overlayScroll": "一番右側のコントロールを<0>スクロール</0>すると、<1>シーク</1>、<2>字幕タイミングの調整</2>、<3>再生速度</3>のコントロールを切り替えることができます。",
         "overlay": "<0>コントロールオーバーレイ</0>では、<1>字幕をマイニング</1>したり、<2>字幕の表示を切り替えたり</2>、<3>プレイバックモードを切り替えたり</3>することができます。",
-        "congrats": "asbplayerの基本的な使い方はそんなところです！このページで自分でいろいろ試してみてくださいね。",
-        "loadSubtitles": "asbplayerを使い始めるには、まず字幕をロードすることが第一歩です。<0>サイドパネル</0>を使って、このページの動画に字幕をロードしてみてください。<1/>ヒント：<2>サイドパネル</2>は<3>ポップアップ</3>を通じて開くことができます。",
-        "loadSubtitlesFirefox": "sasbplayerを使い始めるには、まず字幕をロードすることが第一歩です。動画を<0>右クリック</0>し、asbplayerの<1>コンテキストメニュー</1>で字幕をロードしてみてください。",
-        "loadSubtitlesMobile": "asbplayerを使い始めるには、まず字幕をロードすることが第一歩です。<1>拡張機能メニュー</1>で<0>asbplayer</0>をクリックし、字幕トラックの選択ダイアログを開いてみてください。",
+        "congrats": "Zinvangerの基本的な使い方はそんなところです！このページで自分でいろいろ試してみてくださいね。",
+        "loadSubtitles": "Zinvangerを使い始めるには、まず字幕をロードすることが第一歩です。<0>サイドパネル</0>を使って、このページの動画に字幕をロードしてみてください。<1/>ヒント：<2>サイドパネル</2>は<3>ポップアップ</3>を通じて開くことができます。",
+        "loadSubtitlesFirefox": "sasbplayerを使い始めるには、まず字幕をロードすることが第一歩です。動画を<0>右クリック</0>し、Zinvangerの<1>コンテキストメニュー</1>で字幕をロードしてみてください。",
+        "loadSubtitlesMobile": "Zinvangerを使い始めるには、まず字幕をロードすることが第一歩です。<1>拡張機能メニュー</1>で<0>Zinvanger</0>をクリックし、字幕トラックの選択ダイアログを開いてみてください。",
         "ankiConnect": "<0>AnkiConnect</0>は<1>Anki</1>と連携するためのAnkiアドオンです。",
         "ankiConnectError": "Ankiを開いてAnkiConnectをインストールし、⟳のボタンを押すとエラーが消えます。",
         "deck": "フラッシュカードが保存される<0>デッキ</0>を選択してください。",
         "defaultDeck": "まだデッキを作成していない場合は、<0>デフォルトのデッキを作成する</0>ことができます。",
         "anki": "<0>Anki</0>は世界でもっとも人気のフラッシュカードソフトウェアで、<1>間隔反復アルゴリズム</1>によって学習効率を高めます。",
-        "ankiDialog": "<0>Anki エクスポートのダイアログ</0>では、Ankiのフラッシュカードを作成できます。<1>文章</1>・<2>画像</2>・<3>音声</3>はほとんどの場合、asbplayerが自動で入力してくれます。",
+        "ankiDialog": "<0>Anki エクスポートのダイアログ</0>では、Ankiのフラッシュカードを作成できます。<1>文章</1>・<2>画像</2>・<3>音声</3>はほとんどの場合、Zinvangerが自動で入力してくれます。",
         "whatsAnki": "Anki とは何ですか？",
         "configureAnki": "Ankiとの連携の設定はこちらです。",
         "ankiDialogDefinition": "基本的には、<0>詳細フィールド</0>と<1>単語フィールド</1>は自分で入力します。",
@@ -334,9 +334,9 @@
         "testCard": "準備ができたら、テストカードを作成し、設定の効果を確認ができます。"
     },
     "update": {
-        "heading": "asbplayer が新しいバージョン{{version}}にアップデートされました。",
+        "heading": "Zinvanger が新しいバージョン{{version}}にアップデートされました。",
         "body": "リリースノートは<0>こちら</0>をご参照ください。",
-        "alert": "asbplayer が新しいバージョン{{version}}にアップデートされました。リリースノートは<0>こちら</0>をご参照ください。"
+        "alert": "Zinvanger が新しいバージョン{{version}}にアップデートされました。リリースノートは<0>こちら</0>をご参照ください。"
     },
     "info": {
         "copiedSubtitle": "コピーしました：{{text}}",
@@ -371,7 +371,7 @@
         "subtitleVisibility": "Show subtitles: {{value}}",
         "connectionSucceeded": "接続が成功しました",
         "connectionFailed": "接続に失敗しました",
-        "webSocketManagedByExtension": "Connection is managed by the asbplayer extension",
+        "webSocketManagedByExtension": "Connection is managed by the Zinvanger extension",
         "error": "エラー：{{message}}",
         "errorNoMessage": "エラー",
         "toggleSubtitlesShortcut": "字幕を表示するには 「{{keys}}」 を押してください",
@@ -383,18 +383,18 @@
         "extensionNotInstalled": "Web上の動画と字幕を同期するために<1>Chrome 拡張機能</1>をインストールしてください。",
         "extensionUpdateAvailable": "拡張機能の<1>アップデート</1>を公開しました。",
         "noSubtitles": "字幕はありません",
-        "videoElementsDetected": "asbplayer を使用するには字幕をロードしてください。",
+        "videoElementsDetected": "Zinvanger を使用するには字幕をロードしてください。",
         "noVideoElementsDetected": "動画を探知できませんでした。",
         "restoreLastSession": "前回のセッションを復元"
     },
     "activeTabPermissionRequest": {
         "title": "音声記録を有効にしてください",
         "grantedTitle": "音声記録が有効になりました",
-        "prompt": "音声記録を有効するにはブラウザの右上にある asbplayer のアクションボタンをクリックしてください。",
+        "prompt": "音声記録を有効するにはブラウザの右上にある Zinvanger のアクションボタンをクリックしてください。",
         "grantedPrompt": "音声記録が有効になりました。マイニングを始めてください。"
     },
     "audioCaptureFailed": {
-        "message": "DRMで保護されている音声は asbplayer のFirefox版では録音できません。"
+        "message": "DRMで保護されている音声は Zinvanger のFirefox版では録音できません。"
     },
     "settings": {
         "appIntegration": "アプリ連携",
@@ -493,7 +493,7 @@
         "noteType": "メモタイプ",
         "pages": "ページ",
         "preCacheSubtitleDom": "字幕DOMをキャッシュ",
-        "preCacheSubtitleDomHelperText": "この設定をオンにすると、asbplayer は隠れたDOM要素に字幕をレンダリングし、字幕が表示される際には既存の要素を再利用します。そのため、字幕のテキストは外部のコードによって永続的に変更可能となります。",
+        "preCacheSubtitleDomHelperText": "この設定をオンにすると、Zinvanger は隠れたDOM要素に字幕をレンダリングし、字幕が表示される際には既存の要素を再利用します。そのため、字幕のテキストは外部のコードによって永続的に変更可能となります。",
         "recordingBind": "記録中",
         "recordWithAudioPlayback": "ローカルビデオから録音の際、音声を再生",
         "rememberSubtitleOffset": "字幕の表示タイミングを記憶する",
@@ -578,7 +578,7 @@
         "annotation": "アノテーション",
         "ftueAnnotation": "字幕アノテーション機能が利用可能になりました。",
         "annotationHelperText": "アノテーション機能は<0>Yomitan API</0>が必要です。",
-        "annotationNoExtensionWarn": "単語がブラウザによって削除されないためには、asbplayer拡張機能のインストールをお勧めします。設定をなくさないためには拡張機能をインストールする前に設定のエクスポートもお勧めします。",
+        "annotationNoExtensionWarn": "単語がブラウザによって削除されないためには、Zinvanger拡張機能のインストールをお勧めします。設定をなくさないためには拡張機能をインストールする前に設定のエクスポートもお勧めします。",
         "annotationLocalAnkiHelperText": "単語の成熟度は、Anki や WaniKani の単語データベースより、ローカルの単語データベースが優先されます。単語を収集するためには、こちらのボタンでインポートするか、字幕にマウスカーソルを重ね、<0>キーボードショートカット</0>を使用することができます。",
         "manageWords": "My単語",
         "buildAnkiCache": "Ankiの単語データベースを再構築",
@@ -881,8 +881,8 @@
         "title": "External extensions",
         "empty": "No external extensions to display.",
         "help": "Learn about external extensions <docs>here</docs>.",
-        "incomingRequest": "An external extension is requesting to connect to asbplayer.",
+        "incomingRequest": "An external extension is requesting to connect to Zinvanger.",
         "extensionDetailsHelper": "Extension details can be viewed at <0>{{address}}</0>.",
-        "warning": "Once approved, extension <0>{{id}}</0> will be able to control asbplayer. Only approve if you recognize it."
+        "warning": "Once approved, extension <0>{{id}}</0> will be able to control Zinvanger. Only approve if you recognize it."
     }
 }
