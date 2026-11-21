@@ -108,11 +108,15 @@ const ScrollableNumberControls = ({
                 return;
             }
 
-            if (Math.abs(event.deltaY) < 1) return;
+            const { deltaMode, deltaY } = event;
+            // Let fine pixel scrolling accumulate and snap natively.
+            if (deltaY === 0 || (deltaMode === WheelEvent.DOM_DELTA_PIXEL && Math.abs(deltaY) < containerHeight)) {
+                return;
+            }
 
             event.preventDefault();
             const currentControl = Math.round(container.scrollTop / containerHeight);
-            const nextControl = currentControl + Math.sign(event.deltaY);
+            const nextControl = currentControl + Math.sign(deltaY);
             if (nextControl < ControlType.timeDisplay || nextControl > ControlType.playbackRate) return;
 
             // Release the lock even in browsers that do not emit scrollend.

@@ -79,6 +79,25 @@ describe('ScrollableNumberControls', () => {
         expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: 'smooth' });
     });
 
+    it('leaves a sequence of small pixel deltas to native scroll snapping', () => {
+        const { controls, scrollTo } = renderControls(ControlType.playbackRate);
+
+        for (const deltaY of [-2, -6, -10]) {
+            expect(wheel(controls, { deltaY, deltaMode: WheelEvent.DOM_DELTA_PIXEL })).toBe(false);
+        }
+        expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    it.each([WheelEvent.DOM_DELTA_LINE, WheelEvent.DOM_DELTA_PAGE])(
+        'keeps wheel delta mode %s on adjacent controls',
+        (deltaMode) => {
+            const { controls, scrollTo } = renderControls(ControlType.playbackRate);
+
+            expect(wheel(controls, { deltaY: -1, deltaMode })).toBe(true);
+            expect(scrollTo).toHaveBeenCalledWith({ top: 40, behavior: 'smooth' });
+        }
+    );
+
     it('lets zoom and horizontal wheel gestures through', () => {
         const { controls, scrollTo } = renderControls();
 
