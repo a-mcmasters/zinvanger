@@ -11,3 +11,6 @@ export enum Direction {
     up = 1,
     down = 2,
 }
+
+// Anki field the mining dialog fills with the English translation (mapped via customAnkiFields)
+export const sentenceTranslationField = 'Sentence Translation';

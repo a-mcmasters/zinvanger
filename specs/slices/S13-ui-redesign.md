@@ -55,7 +55,7 @@ U2 and U3 are independent after U1, so they can run in either order.
 
 - [x] U0: three mocks exist, a direction is chosen and recorded here with the reason.
 - [x] U1: popup, settings, the Anki dialog and the subtitle picker all render with the new tokens in light and dark mode, with no leftover `#ff3f78` pink.
-- [ ] U2: the settings screen has no tabs and 20 or fewer controls, and an existing install keeps its Anki deck, fields and shortcuts after upgrading.
+- [x] U2: the settings screen has no tabs and 20 or fewer controls, and an existing install keeps its Anki deck, fields and shortcuts after upgrading.
 - [ ] U3: on NPO Start you can replay a line, look up a word, show the translation and mine the sentence without opening any menu.
 - [ ] U4: loading a subtitle file, starting a Whisper transcription and shifting the offset each take one entry point, reachable by the keyboard.
 - [ ] Every interactive element is keyboard reachable and meets WCAG AA contrast in both modes.
@@ -72,6 +72,12 @@ U2 and U3 are independent after U1, so they can run in either order.
 
 U1 uses the shared MUI theme for the violet palette, typography, focus rings, and translucent dialog surfaces. The popup and legacy brand accents use the same palette. The iframe background stays transparent so the video remains visible around the dialogs.
 
+U2 rewrites `SettingsForm` as one scrolling screen with no tabs, keeping its props so the popup, the settings page and the app dialog need no changes. There are three sections: Anki (a connection row, with the URL field only while Anki isn't connected; deck; note type; sentence, word, definition, translation and audio fields; test card), Subtitles (size, bottom offset, background on/off), and Shortcuts (mine, mine with dialog, replay, previous, next, toggle subtitles). In the extension there's also a Transcriber status row. Section ids reuse the old tab ids, so deep links still land. The old `*SettingsTab` files stay but are unrouted; deleting them is left to S6–S11. Three deviations from the table above:
+
+- The **translation line on/off** toggle isn't needed, because the English line is on demand (answered question 2). U3 adds the on-demand control.
+- The **Whisper URL** isn't a setting (it's fixed in `project.json`), so the Transcriber row is just a status dot.
+- **Sites** waits for S7: no per-site on/off setting exists yet, and S7 decides which sites stay.
+
 Filled in per sub-slice before building. Known entry points: `common/theme/theme.ts` (all MUI theming), `common/components/SettingsForm.tsx` + `*SettingsTab.tsx`, `extension/src/ui/components/Popup.tsx`, `common/components/VideoDataSyncDialog.tsx`, `extension/src/entrypoints/video.content/` (overlay and controls).
 
 ## Chosen direction
@@ -84,5 +90,6 @@ The initial extension icon is [Dutch A, Sentence to Flashcard](S13-u0-prototype/
 
 - U1: the built popup, settings, subtitle picker, and Anki dialog rendered with the new palette in both modes in Chromium. The tested text color pairs passed 4.5:1 contrast, and input borders passed 3:1.
 - Common typecheck, client and extension compile, 32 focused tests, and lint and formatting for the touched code passed. Full `pnpm run verify` stopped at the Windows generated-file line-ending issue recorded in S1.
+- U2: in the web app's settings dialog (Chromium, dark mode) there are no tabs, 19 controls including the dialog's profile picker, and the `#keyboard-shortcuts` deep link scrolls to its section. The Anki row switched from the URL field to "Connected to Anki" once Anki allowed the origin. No setting keys changed, so stored decks, fields and shortcuts carry over. Common typecheck, client and extension compile, lint, prettier, 69 related tests and locale key parity all passed. The extension popup and settings page were not checked by eye.
 
 ## Retro
