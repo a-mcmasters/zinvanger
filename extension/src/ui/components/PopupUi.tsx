@@ -89,7 +89,7 @@ export function PopupUi({ commands }: Props) {
     }, []);
 
     const handleOpenUserGuide = useCallback(() => {
-        void browser.tabs.create({ active: true, url: `${project.urls.docs}/docs/intro` });
+        void browser.tabs.create({ active: true, url: `${project.urls.repo}#getting-started` });
         window.close();
     }, []);
 

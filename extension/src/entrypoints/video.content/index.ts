@@ -25,7 +25,8 @@ import { configureExtensionLogProvider } from '@/services/extension-log-provider
 
 import './video.css';
 
-const excludeGlobs = [`*://${new URL(project.urls.app).hostname}/*`];
+const appUrl = new URL(project.urls.app);
+const excludeGlobs = [`*://${appUrl.hostname}${appUrl.pathname.replace(/\/+$/, '')}/*`];
 
 if (import.meta.env.DEV) {
     excludeGlobs.push(`*://${project.development.host}:${project.development.port}/*`);

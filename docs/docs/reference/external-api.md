@@ -15,7 +15,7 @@ This page is intended to be an technical reference on asbplayer's external inter
 
 ## Commands {#commands}
 
-asbplayer responds to the following commands, represented as JSON-RPC messages. The OpenRPC schema can be found [here](https://github.com/asbplayer/asbplayer/blob/main/external-api/openrpc.json).
+asbplayer responds to the following commands, represented as JSON-RPC messages. The OpenRPC schema can be found <a href={`${project.urls.repo}/blob/main/external-api/openrpc.json`}>here</a>.
 
 :::info
 asbplayer extensions v1.22 and below support the schema `{ command, messageId, body }` instead of `{ method, id, params }`.
@@ -269,7 +269,7 @@ Returns the OpenRPC document for the running build. Use it to discover the curre
 
 ### Response {#rpc-discover-response}
 
-Returns the OpenRPC document describing the supported JSON-RPC methods. See [`external-api/openrpc.json`](https://github.com/asbplayer/asbplayer/blob/main/external-api/openrpc.json) for the full document.
+Returns the OpenRPC document describing the supported JSON-RPC methods. See <a href={`${project.urls.repo}/blob/main/external-api/openrpc.json`}><code>external-api/openrpc.json</code></a> for the full document.
 
 ## Error codes {#error-codes}
 
@@ -302,4 +302,4 @@ Errors use the standard JSON-RPC error object:
 
 Notifications are never answered, including when handling fails. A request with an unusable `id` receives an error response with `id: null`.
 
-The Go server's HTTP bridge maps these errors to HTTP statuses; see [`external-api/README.md`](https://github.com/asbplayer/asbplayer/blob/main/external-api/README.md#error-codes).
+The Go server's HTTP bridge maps these errors to HTTP statuses; see <a href={`${project.urls.repo}/blob/main/external-api/README.md#error-codes`}><code>external-api/README.md</code></a>.

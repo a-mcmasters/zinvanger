@@ -9,8 +9,8 @@ const config: Config = {
   favicon: "img/favicon.ico",
   url: project.urls.docs,
   baseUrl: "/",
-  organizationName: "asbplayer",
-  projectName: "asbplayer-docs",
+  organizationName: "a-mcmasters",
+  projectName: "zinvanger",
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
@@ -98,6 +98,10 @@ const config: Config = {
         {
           title: "Community",
           items: [
+            {
+              label: "Submit an issue",
+              href: `${project.urls.repo}/issues/new/choose`,
+            },
             {
               label: "Discord",
               href: project.urls.discord,

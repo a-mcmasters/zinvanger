@@ -35,7 +35,8 @@ import { ExtensionSettingsStorage } from '@/services/extension-settings-storage'
 import { ExtensionGlobalStateProvider } from '@/services/extension-global-state-provider';
 import { configureExtensionLogProvider } from '@/services/extension-log-provider';
 
-const matches = [`*://${new URL(project.urls.app).hostname}/*`];
+const appUrl = new URL(project.urls.app);
+const matches = [`*://${appUrl.hostname}${appUrl.pathname.replace(/\/+$/, '')}/*`];
 
 if (import.meta.env.DEV) {
     matches.push(`*://${project.development.host}/*`);

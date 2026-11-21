@@ -28,7 +28,7 @@ In Yomitan's Anki settings:
 
 The add-on requires at least Anki 25.02. It is not yet available on AnkiWeb, so it has to be installed from a file:
 
-1. Download the latest `.ankiaddon` file from the <a href={`${project.urls.repo}/releases?q=${encodeURIComponent(project.releases.ankiAddon.releaseTitlePrefix)}`}>releases page</a>.
+1. Download the latest `.ankiaddon` file from the <a href={`${project.urls.upstreamReleases}?q=${encodeURIComponent(project.releases.ankiAddon.releaseTitlePrefix)}`}>upstream asbplayer releases</a>.
 2. Open the file and press **Yes** on the popup.
 3. Restart Anki.
 

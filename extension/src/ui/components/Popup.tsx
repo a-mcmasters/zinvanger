@@ -41,6 +41,8 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import type { ToggleButtonProps } from '@mui/material/ToggleButton';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import Badge from '@mui/material/Badge';
+import BugReportIcon from '@mui/icons-material/BugReport';
+import project from '@project/common/project';
 
 const globalStateProvider = new ExtensionGlobalStateProvider();
 
@@ -77,6 +79,11 @@ class ExtensionFetcher implements Fetcher {
         return browser.runtime.sendMessage(httpPostCommand);
     }
 }
+
+const handleSubmitIssue = () => {
+    void browser.tabs.create({ active: true, url: `${project.urls.repo}/issues/new/choose` });
+    window.close();
+};
 
 const handleUnlockLocalFonts = () => {
     void browser.tabs.create({
@@ -275,6 +282,11 @@ const Popup = ({
                             startIcon={<TutorialIcon />}
                             onClick={onOpenUserGuide}
                             label={t('action.userGuide')}
+                        />
+                        <NavButton
+                            startIcon={<BugReportIcon />}
+                            onClick={handleSubmitIssue}
+                            label={t('bar.submitIssue')}
                         />
                     </ButtonGroup>
                 </Stack>

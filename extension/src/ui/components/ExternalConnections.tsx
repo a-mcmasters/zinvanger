@@ -136,7 +136,7 @@ const ExternalConnections: React.FC = () => {
                             components={{
                                 docs: (
                                     <Link
-                                        href={`${project.urls.docs}/docs/guides/external-extensions`}
+                                        href={`${project.urls.repo}/blob/main/docs/docs/guides/external-extensions.md`}
                                         target="_blank"
                                         rel="noreferrer"
                                     />

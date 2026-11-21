@@ -35,7 +35,7 @@ For the items in the matrix marked with `✓ (FFmpeg)`, asbplayer automatically 
 :::tip
 For streaming services not listed below, asbplayer can attempt a best-effort generic subtitle detection which works for ~85% of websites.
 
-You can always request a dedicated parser for any website, even if the generic parser detects subtitles, through an <a href={`${project.urls.repo}/issues`}>issue</a> or submit your own implementation in a <a href={`${project.urls.repo}/pulls`}>PR</a> on GitHub.
+You can always request a dedicated parser for any website, even if the generic parser detects subtitles, through an <a href={`${project.urls.repo}/issues/new/choose`}>issue</a> or submit your own implementation in a <a href={`${project.urls.repo}/pulls`}>PR</a> on GitHub.
 :::
 
 | Service            |                                                                                      Compatibility                                                                                       | Notes                                                                                                                                                                                                          |

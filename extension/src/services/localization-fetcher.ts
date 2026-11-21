@@ -77,7 +77,10 @@ const bundledVersion = (lang: string): number => {
 
 const fetchAndCache = async ({ code, url, version }: LocalizationConfig): Promise<void> => {
     const asbplayerUrl = await settings.getSingle('streamingAppUrl');
-    const effectiveUrl = url.startsWith('http://') || url.startsWith('https://') ? url : `${asbplayerUrl}/${url}`;
+    const effectiveUrl =
+        url.startsWith('http://') || url.startsWith('https://')
+            ? url
+            : `${asbplayerUrl.replace(/\/+$/, '')}/${url.replace(/^\/+/, '')}`;
     try {
         const remoteStrings = await (await fetch(effectiveUrl)).json();
 

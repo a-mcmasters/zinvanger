@@ -103,6 +103,15 @@ it('returns the same object references if the values inside do not change', asyn
     expect(await provider.getSingle('keyBindSet')).toBe(await provider.getSingle('keyBindSet'));
 });
 
+it.each(['https://app.asbplayer.dev', 'https://app.asbplayer.dev/'])(
+    'uses the Zinvanger app for the previous default URL %s',
+    async (streamingAppUrl) => {
+        const storage = new MockSettingsStorage();
+        storage.setData({ streamingAppUrl });
+        expect(await new SettingsProvider(storage).getSingle('streamingAppUrl')).toEqual(project.urls.app);
+    }
+);
+
 it('changes different keys for different profiles', async () => {
     const storage = new MockSettingsStorage();
     const provider = new SettingsProvider(storage);

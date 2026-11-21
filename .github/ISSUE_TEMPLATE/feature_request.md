@@ -2,12 +2,11 @@
 name: Feature request
 about: Suggest an idea for this project
 title: ''
-labels: ''
+labels: enhancement
 assignees: ''
 ---
 
-Before submitting a feature request, please look through the asbplayer readme (https://github.com/asbplayer/asbplayer), docs (https://docs.asbplayer.dev/docs/reference/settings), and settings (https://app.asbplayer.dev/?view=settings)
-to be sure that your feature request isn't already implemented.
+Before submitting a feature request, please look through the [Zinvanger README](https://github.com/a-mcmasters/zinvanger#readme) and [existing issues](https://github.com/a-mcmasters/zinvanger/issues) to see if your request is already covered.
 
 **Is your feature request related to a problem? Please describe.**
 A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]

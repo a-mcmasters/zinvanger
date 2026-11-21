@@ -209,7 +209,7 @@ const FinishedDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open
                             Settings
                         </Link>,
                         <p key={1} />,
-                        <Link href={`${project.urls.docs}/docs/intro/`} target="_blank" rel="noreferrer" key={2}>
+                        <Link href={`${project.urls.repo}#getting-started`} target="_blank" rel="noreferrer" key={2}>
                             user guide
                         </Link>,
                     ]}

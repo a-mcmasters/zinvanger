@@ -12,7 +12,7 @@ The first step to using asbplayer is to load subtitles onto a video source.
 
 ### Chrome (or other Chromium-based browsers) {#chromium}
 
-1. Install the Chrome extension from Google's <a href={project.extension.chrome.storeUrl}>web store</a> or from the <a href={`${project.urls.repo}/releases/latest`}>GitHub release</a>.
+1. Follow the <a href={`${project.urls.repo}#install-the-chrome-extension`}>Zinvanger installation instructions</a> to load the extension in Chrome.
 2. Click 🧩 icon in browser toolbar → asbplayer → **Open Side Panel**
 3. Click **Load Subtitles** to load subtitles onto any video on the current page.
 
@@ -30,7 +30,7 @@ Keep playback at 1×. Pauses are fine, but seeking or changing speed discards th
 asbplayer is missing some features on Firefox. See the [Compatibility](../compatibility.md#extension) section.  
 :::
 
-1. Install the the Firefox addon from the Mozilla <a href={project.extension.firefox.storeUrl}>addon store</a> or from the <a href={`${project.urls.repo}/releases/latest`}>GitHub release</a>.
+1. Install the the Firefox addon from the Mozilla <a href={project.extension.firefox.storeUrl}>addon store</a> or from the <a href={`${project.urls.upstreamReleases}/latest`}>upstream asbplayer release</a>.
 2. Click 🧩 icon in browser toolbar → asbplayer → **Open Side Panel**
 3. Click **Load Subtitles** to load subtitles onto any video on the current page.
 

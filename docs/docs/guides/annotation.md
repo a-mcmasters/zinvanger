@@ -48,4 +48,4 @@ If you rely on the **local word database**, installing the asbplayer browser ext
 
 ## Troubleshooting {#troubleshooting}
 
-Please refer to the [common issues](../common-issues.md#annotation) section of the docs for troubleshooting annotation issues. If you can't find a solution there, please reach out on <a href={project.urls.discord}>Discord</a> or submit a <a href={`${project.urls.repo}/issues`}>bug report</a> with detailed information about your issue and steps to reproduce it.
+Please refer to the [common issues](../common-issues.md#annotation) section of the docs for troubleshooting annotation issues. If you can't find a solution there, please submit a <a href={`${project.urls.repo}/issues/new/choose`}>bug report</a> with detailed information about your issue and steps to reproduce it.

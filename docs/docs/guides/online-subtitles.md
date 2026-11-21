@@ -47,7 +47,7 @@ Once you've opened a series, click the gear icon next to the file list header to
 - Press **Enter** to re-filter the current series. The search term picks up the change the next time you open the dialog.
 
 :::tip
-The built-in rules were only tested on the few websites the feature's author uses. If a site's title format isn't recognized, please <a href={`${project.urls.repo}/issues`}>open an issue</a> with an example page title (or a PR on `common/subtitle-sources/jimaku-episode-patterns.ts`) so the built-in rules can be extended.
+The built-in rules were only tested on the few websites the feature's author uses. If a site's title format isn't recognized, please <a href={`${project.urls.repo}/issues/new/choose`}>open an issue</a> with an example page title (or a PR on `common/subtitle-sources/jimaku-episode-patterns.ts`) so the built-in rules can be extended.
 :::
 
 For example, if a site titles its pages `Some Show - Chapter 07 | SiteName`, use:

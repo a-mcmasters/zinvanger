@@ -52,7 +52,7 @@ const WelcomeMessage: React.FC<{ className: string }> = ({ className }) => {
                                 color="primary"
                                 target="_blank"
                                 rel="noreferrer"
-                                href={`${project.urls.docs}/docs/intro/`}
+                                href={`${project.urls.repo}#getting-started`}
                             >
                                 readme
                             </Link>,
