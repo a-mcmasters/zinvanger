@@ -70,7 +70,12 @@ it('streams the recording to the server in order, retrying a chunk the server mi
         sent.push(url.pathname === '/append' ? (init!.body as Blob).size : url.search); // jsdom Blobs can't be read back
         return { status: url.pathname === '/append' ? 204 : 202 } as Response;
     });
-    const message = (operation: any) => ({ command: 'capture-episode-audio' as const, id: 'abcd1234', tabId: 1, operation });
+    const message = (operation: any) => ({
+        command: 'capture-episode-audio' as const,
+        id: 'abcd1234',
+        tabId: 1,
+        operation,
+    });
 
     await handleEpisodeAudioCapture(message({ action: 'start', key: 'E1' }), async () => stream, true);
     await handleEpisodeAudioCapture(message({ action: 'resume', offset: 38 }), async () => stream, true);
