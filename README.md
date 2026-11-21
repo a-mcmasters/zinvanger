@@ -194,7 +194,7 @@ Before contributing, please read the [contribution guidelines](CONTRIBUTING.md).
 
 ## User guide
 
-asbplayer's complete user guide is [here](https://docs.asbplayer.dev/docs/intro).
+Start with the [setup instructions](#getting-started) or browse the [full user guide](docs/docs/intro.md).
 
 ## Install the Chrome extension
 
@@ -213,7 +213,7 @@ asbplayer's complete user guide is [here](https://docs.asbplayer.dev/docs/intro)
 4. In Zinvanger’s extension settings, configure AnkiConnect with your deck and note type.
 5. Enhance a video using asbplayer and subtitle files.
     - **For streaming video:** After [loading the Zinvanger extension](#install-the-chrome-extension), drag-and-drop a subtitle file into the streaming video you want to mine.
-    - **For local files:** Drag-and-drop media/subtitle files into the [asbplayer website](https://app.asbplayer.dev).
+    - **For local files:** Drag-and-drop media/subtitle files into the [Zinvanger web app](https://a-mcmasters.github.io/zinvanger/).
 
     You may have to [adjust the subtitle offset](https://docs.asbplayer.dev/docs/guides/subtitle-timing) to get the subtitles in sync.
 

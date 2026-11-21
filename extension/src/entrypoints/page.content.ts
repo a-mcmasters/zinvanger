@@ -3,7 +3,8 @@ import { asbError } from '@project/common/util/log';
 import { currentPageDelegate } from '@/services/pages';
 import { configureExtensionLogProvider } from '@/services/extension-log-provider';
 
-const excludeGlobs = [`*://${new URL(project.urls.app).hostname}/*`];
+const appUrl = new URL(project.urls.app);
+const excludeGlobs = [`*://${appUrl.hostname}${appUrl.pathname.replace(/\/+$/, '')}/*`];
 
 if (import.meta.env.DEV) {
     excludeGlobs.push(`*://${project.development.host}:${project.development.port}/*`);

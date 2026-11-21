@@ -293,7 +293,7 @@ export default function Bar({
                 }}
             >
                 <List className={classes.menu} onMouseLeave={handleMenuClose} dense>
-                    <Link href={`${project.urls.docs}/docs/intro`}>
+                    <Link href={`${project.urls.repo}#getting-started`}>
                         <ListItem disablePadding>
                             <ListItemButton>
                                 <ListItemIcon>

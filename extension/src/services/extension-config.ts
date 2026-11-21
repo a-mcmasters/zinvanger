@@ -44,7 +44,7 @@ export const fetchExtensionConfig = async (noCache = false): Promise<ExtensionCo
 
     try {
         const asbplayerUrl = await settings.getSingle('streamingAppUrl');
-        const extensionJsonUrl = `${asbplayerUrl}/extension.json`;
+        const extensionJsonUrl = `${asbplayerUrl.replace(/\/+$/, '')}/extension.json`;
         const extensionJson = await (await fetch(extensionJsonUrl)).json();
 
         if (validJson(extensionJson)) {

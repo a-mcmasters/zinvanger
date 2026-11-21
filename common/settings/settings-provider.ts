@@ -558,6 +558,13 @@ export const ensureConsistencyOnRead = (
     ensureTextSubtitleSettingsConsistency(settings, fillSource);
     ensureStreamingPagesConsistency(settings);
 
+    if (
+        typeof settings.streamingAppUrl === 'string' &&
+        settings.streamingAppUrl.replace(/\/+$/, '') === 'https://app.asbplayer.dev'
+    ) {
+        settings = { ...settings, streamingAppUrl: defaultSettings.streamingAppUrl };
+    }
+
     let keyBindSetModified = false;
     const newKeyBindSet: any = {};
     let ankiFieldSettingsModified = false;

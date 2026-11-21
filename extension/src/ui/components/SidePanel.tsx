@@ -634,7 +634,7 @@ export default function SidePanel({
     );
 
     const handleOpenUserGuide = useCallback(() => {
-        void browser.tabs.create({ active: true, url: `${project.urls.docs}/docs/intro` });
+        void browser.tabs.create({ active: true, url: `${project.urls.repo}#getting-started` });
     }, []);
     const noOp = useCallback(() => {}, []);
 
