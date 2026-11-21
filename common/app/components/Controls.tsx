@@ -257,7 +257,7 @@ const useProgressBarStyles = makeStyles<Theme>((theme) => ({
     },
     fill: {
         position: 'relative',
-        background: 'linear-gradient(to left, #ff1f62, #49007a)',
+        background: `linear-gradient(to left, ${theme.palette.primary.light}, ${theme.palette.primary.dark})`,
         height: '100%',
     },
     handleContainer: {

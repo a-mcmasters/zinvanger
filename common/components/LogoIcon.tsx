@@ -1,16 +1,21 @@
 import type { SvgIconProps } from '@mui/material/SvgIcon';
 import SvgIcon from '@mui/material/SvgIcon';
+import { brandGradient } from '@project/common/theme';
 
 const LogoIcon = ({ style, ...rest }: SvgIconProps) => {
     return (
-        <SvgIcon
-            viewBox="0 0 28 28"
-            style={{ background: 'linear-gradient(150deg, #ff1f62, #49007a 160%)', borderRadius: 3, ...style }}
-            {...rest}
-        >
+        <SvgIcon viewBox="0 0 128 128" style={{ background: brandGradient, borderRadius: '23%', ...style }} {...rest}>
             <path
-                fill="white"
-                d="M 0 0 L 0 20 L 4 21 A 1 1 0 0 0 8 21 L 8 6 A 1 1 0 0 0 4 6 L 4 21 L 0 20 L 0 0 L 12 0 L 12 23 L 22 23 A 1 1 0 0 0 22 19 L 16 19 L 16 6 A 1 1 0 0 0 12 6 L 12 0 L 20 0 L 20 13 A 1 1 0 0 0 24 13 L 24 6 A 1 1 0 0 0 20 6 L 20 0"
+                d="M92 52V40a12 12 0 0 0-12-12H34a12 12 0 0 0-12 12v26a12 12 0 0 0 12 12h10"
+                fill="none"
+                stroke="#ddc4ff"
+                strokeWidth="10"
+            />
+            <path d="m44 40 16 9c3 2 3 4 0 6l-16 9c-3 1-5 0-5-3V43c0-3 2-4 5-3Z" fill="#ddc4ff" />
+            <rect x="51" y="60" width="62" height="48" rx="12" fill="#f2e3ff" />
+            <path
+                d="M66 72h32a5 5 0 0 1 0 10H66a5 5 0 0 1 0-10Zm0 14h20a5 5 0 0 1 0 10H66a5 5 0 0 1 0-10Z"
+                fill="#52248d"
             />
         </SvgIcon>
     );
