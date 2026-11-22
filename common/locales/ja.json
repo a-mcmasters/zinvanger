@@ -921,6 +921,9 @@
             "timeout": "The lookup took too long",
             "invalid": "This text cannot be looked up",
             "malformed": "The lookup service returned an unexpected answer",
+            "notStored": "No English subtitle for this line",
+            "noDictionary": "Set a Yomitan URL for subtitle track 1 to look up words",
+            "dictionaryUnavailable": "Yomitan is not reachable. Is the Yomitan API running?",
             "mining": "Mining failed: {{message}}"
         }
     }

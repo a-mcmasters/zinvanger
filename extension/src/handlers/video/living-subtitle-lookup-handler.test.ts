@@ -26,11 +26,11 @@ describe('LivingSubtitleLookupHandler', () => {
         };
     });
 
-    it('defines a word for the video content script only', async () => {
-        fetchMock.mockReturnValue(respond(200, { definition: 'to put' }));
-        const message = { command: 'living-subtitle-lookup', operation: 'define', sentence: 'Hij zet.', word: 'zet' };
-        await expect(run(new LivingSubtitleLookupHandler(), message)).resolves.toEqual({ text: 'to put' });
-        expect(fetchMock.mock.calls[0][0]).toContain('/define?sentence=Hij+zet.&word=zet');
+    it('reads a stored translation for the video content script only', async () => {
+        fetchMock.mockReturnValue(respond(200, { translation: 'He puts.' }));
+        const message = { command: 'living-subtitle-lookup', sentence: 'Hij zet.' };
+        await expect(run(new LivingSubtitleLookupHandler(), message)).resolves.toEqual({ text: 'He puts.' });
+        expect(fetchMock.mock.calls[0][0]).toContain('/translate?sentence=Hij+zet.&stored=1'); // never a model call
         expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${token}`);
 
         for (const sender of [
@@ -46,12 +46,7 @@ describe('LivingSubtitleLookupHandler', () => {
     });
 
     it('rejects malformed requests without calling the service', async () => {
-        for (const message of [
-            { operation: 'define', sentence: 'Hij zet.' },
-            { operation: 'translate', sentence: '' },
-            { operation: 'translate', sentence: 'x'.repeat(501) },
-            { operation: 'delete', sentence: 'Hij zet.' },
-        ]) {
+        for (const message of [{}, { sentence: '' }, { sentence: 'x'.repeat(501) }]) {
             await expect(
                 run(new LivingSubtitleLookupHandler(), { command: 'living-subtitle-lookup', ...message })
             ).resolves.toEqual({ error: 'invalid' });
@@ -60,8 +55,9 @@ describe('LivingSubtitleLookupHandler', () => {
     });
 
     it('returns distinguishable errors', async () => {
-        const message = { command: 'living-subtitle-lookup', operation: 'translate', sentence: 'Hoi.' };
+        const message = { command: 'living-subtitle-lookup', sentence: 'Hoi.' };
         const cases: [() => Promise<Response>, string][] = [
+            [() => respond(404, {}), 'notStored'],
             [() => respond(401, {}), 'unauthorized'],
             [() => respond(429, {}), 'busy'],
             [() => respond(504, {}), 'timeout'],

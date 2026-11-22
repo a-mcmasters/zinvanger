@@ -148,17 +148,23 @@ export interface GetLocalDefinitionMessage extends Message {
     readonly sentence: string;
 }
 
-export type LivingSubtitleLookupOperation = 'translate' | 'define';
-
-/** Sent only by the video content script (see LivingSubtitleLookupHandler for why not by a frame). */
+/**
+ * The stored English of a sentence (never a model call). Sent only by the video content script (see
+ * LivingSubtitleLookupHandler for why not by a frame). Word meanings come from Yomitan in the content script.
+ */
 export interface LivingSubtitleLookupMessage extends Message {
     readonly command: 'living-subtitle-lookup';
-    readonly operation: LivingSubtitleLookupOperation;
     readonly sentence: string;
-    readonly word?: string;
 }
 
-export type LocalLookupError = 'unavailable' | 'unauthorized' | 'busy' | 'timeout' | 'invalid' | 'malformed';
+export type LocalLookupError =
+    | 'unavailable'
+    | 'unauthorized'
+    | 'busy'
+    | 'timeout'
+    | 'invalid'
+    | 'malformed'
+    | 'notStored';
 
 export type LocalLookupResponse = { readonly text: string } | { readonly error: LocalLookupError };
 

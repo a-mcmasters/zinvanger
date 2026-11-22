@@ -1,6 +1,16 @@
 import type { IndexedSubtitleModel } from '@project/common';
 import LivingSubtitleHost from '@/controllers/living-subtitle-host';
 
+// jsdom has no layout: word ranges measure as empty, so the card anchors to the line.
+(Range.prototype as any).getBoundingClientRect ??= () => ({
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 0,
+    height: 0,
+});
+
 const clients: { part: string; sent: any[]; listener?: (message: any) => void }[] = [];
 
 jest.mock('@/services/ui-frame', () => ({
@@ -74,6 +84,7 @@ const setup = () => {
         pause: jest.fn(),
         replay: jest.fn(),
         mine: jest.fn(async () => 'saved' as const),
+        define: jest.fn(async (word: string) => `meaning of ${word}`),
     };
     const host = new LivingSubtitleHost(context);
     host.bind({ language: 'en', themeType: 'dark' });
@@ -140,10 +151,22 @@ describe('LivingSubtitleHost', () => {
         await flush();
         expect(sendMessage.mock.calls[0][0]).toMatchObject({
             sender: 'asbplayer-video',
-            message: { command: 'living-subtitle-lookup', operation: 'translate', sentence: cue.text },
+            message: { command: 'living-subtitle-lookup', sentence: cue.text },
         });
         expect(clients.flatMap((client) => client.sent).some((message) => message.command === 'lookup')).toBe(false);
         expect((host as any).state.translation).toEqual({ status: 'error', message: 'busy' });
+        host.unbind();
+    });
+
+    it('looks words up in the dictionary, never through the background', async () => {
+        const { host, context, span, sendMessage } = setup();
+        span.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }));
+        await flush();
+        void host.controller.selectWord(1);
+        await flush();
+        expect(context.define).toHaveBeenCalledWith('zet');
+        expect((host as any).state.definition).toEqual({ status: 'success', text: 'meaning of zet' });
+        expect(sendMessage).not.toHaveBeenCalled();
         host.unbind();
     });
 

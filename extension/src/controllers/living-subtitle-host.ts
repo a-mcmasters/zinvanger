@@ -1,7 +1,6 @@
 import type {
     IndexedSubtitleModel,
     LivingSubtitleLookupMessage,
-    LivingSubtitleLookupOperation,
     LocalLookupResponse,
     VideoToExtensionCommand,
 } from '@project/common';
@@ -35,6 +34,8 @@ export interface LivingSubtitleHostContext {
     pause(): void;
     replay(target: LivingSubtitleTarget): void;
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
+    /** The word's dictionary meaning ('' when the dictionary has none); rejects with a `livingSubtitle.error` key. */
+    define(word: string): Promise<string>;
 }
 
 const leaveDelayMs = 250;
@@ -426,10 +427,11 @@ export default class LivingSubtitleHost {
     }
 
     // From the content script, not a frame: frame replies reach the parent window by postMessage, which the page reads.
-    private async lookup(operation: LivingSubtitleLookupOperation, sentence: string, word?: string): Promise<string> {
+    private async lookup(operation: 'translate' | 'define', sentence: string, word?: string): Promise<string> {
+        if (operation === 'define') return this.context.define(word!);
         const command: VideoToExtensionCommand<LivingSubtitleLookupMessage> = {
             sender: 'asbplayer-video',
-            message: { command: 'living-subtitle-lookup', operation, sentence, word },
+            message: { command: 'living-subtitle-lookup', sentence },
             src: '',
         };
         const response = ((await browser.runtime.sendMessage(command).catch(() => undefined)) as

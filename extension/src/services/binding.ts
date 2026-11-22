@@ -124,6 +124,7 @@ import { SubtitleReader } from '@project/common/subtitle-reader';
 
 import AnkiUiController from '@project/extension/src/controllers/anki-ui-controller';
 import LivingSubtitleHost from '@/controllers/living-subtitle-host';
+import { Yomitan } from '@project/common/yomitan';
 import type { LivingSubtitleMineOutcome, LivingSubtitleState } from '@/controllers/living-subtitle-controller';
 import { sentenceTranslationField } from '@project/common/components/settings-model';
 import ControlsController from '@project/extension/src/controllers/controls-controller';
@@ -131,7 +132,7 @@ import DragController from '@project/extension/src/controllers/drag-controller';
 import { MobileGestureController } from '@project/extension/src/controllers/mobile-gesture-controller';
 import { MobileVideoOverlayController } from '@project/extension/src/controllers/mobile-video-overlay-controller';
 import NotificationController from '@project/extension/src/controllers/notification-controller';
-import SubtitleController from '@project/extension/src/controllers/subtitle-controller';
+import SubtitleController, { VideoFetcher } from '@project/extension/src/controllers/subtitle-controller';
 import BulkExportController from '@project/extension/src/controllers/bulk-export-controller';
 import VideoDataSyncController from '@project/extension/src/controllers/video-data-sync-controller';
 import AudioRecorder, { TimedRecordingInProgressError } from '@project/extension/src/services/audio-recorder';
@@ -266,6 +267,7 @@ export default class Binding {
     /** Desktop only: hover-driven sentence actions make no sense on touch devices. */
     readonly livingSubtitleHost?: LivingSubtitleHost;
     private pendingLivingSubtitleMine?: PendingLivingSubtitleMine;
+    private _livingSubtitleYomitan?: { readonly url: string; readonly yomitan: Yomitan };
     private _seekDurationMs = 3000;
     private _speedChangeStep = 0.1;
     private _lastProfile?: string;
@@ -1870,7 +1872,24 @@ export default class Binding {
                     .replay(target.cue.start, target.cue.end)
                     .catch((error) => asbError('playback/binding', 'Living subtitle replay failed', error)),
             mine: (state) => this.mineLivingSubtitle(state),
+            define: (word) => this._defineWithYomitan(word),
         });
+    }
+
+    /** The meaning of a main-track word from the Yomitan dictionaries set for subtitle track 1; no model tokens. */
+    private async _defineWithYomitan(word: string): Promise<string> {
+        const dt = (await this.settings.getSingle('dictionaryTracks'))[0];
+        const url = dt?.dictionaryYomitanUrl?.trim();
+        if (!dt || !url) throw new Error('noDictionary');
+        if (this._livingSubtitleYomitan?.url !== url) {
+            const fetcher = new VideoFetcher(() => this._registeredVideoSrc);
+            this._livingSubtitleYomitan = { url, yomitan: new Yomitan(dt, fetcher) }; // keeps its gloss cache
+        }
+        try {
+            return (await this._livingSubtitleYomitan.yomitan.gloss(word)) ?? '';
+        } catch {
+            throw new Error('dictionaryUnavailable');
+        }
     }
 
     /**

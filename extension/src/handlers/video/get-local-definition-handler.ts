@@ -21,7 +21,7 @@ export default class GetLocalDefinitionHandler {
 
         const { sentence } = command.message as GetLocalDefinitionMessage;
 
-        localLookup('translate', { sentence })
+        localLookup(sentence)
             .then((response) => sendResponse('text' in response ? { translation: response.text } : undefined))
             .catch(() => sendResponse(undefined));
 

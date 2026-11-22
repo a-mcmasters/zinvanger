@@ -80,7 +80,7 @@ const _intersectsVisibleChild = (clientX: number, clientY: number, element: HTML
     );
 };
 
-class VideoFetcher implements Fetcher {
+export class VideoFetcher implements Fetcher {
     private readonly videoSrcCB: () => string;
 
     constructor(videoSrcCB: () => string) {

@@ -2,16 +2,10 @@ import type { Command, LivingSubtitleLookupMessage, LocalLookupResponse, Message
 import { localLookup } from '@/services/local-lookup-client';
 
 const maxSentenceLength = 500;
-const maxWordLength = 80;
-const maxResultLength = 2000; // a definition or sentence for the overlay, not a document
+const maxResultLength = 2000; // a sentence for the overlay, not a document
 
-const valid = ({ operation, sentence, word }: LivingSubtitleLookupMessage) =>
-    typeof sentence === 'string' &&
-    sentence.trim() !== '' &&
-    sentence.length <= maxSentenceLength &&
-    (operation === 'translate'
-        ? word === undefined
-        : operation === 'define' && typeof word === 'string' && word.trim() !== '' && word.length <= maxWordLength);
+const valid = ({ sentence }: LivingSubtitleLookupMessage) =>
+    typeof sentence === 'string' && sentence.trim() !== '' && sentence.length <= maxSentenceLength;
 
 // Only the video content script can spend local lookup quota: page scripts cannot reach runtime messaging (no
 // externally_connectable), and the content script's isolated world keeps results away from the page. The extension
@@ -42,7 +36,7 @@ export default class LivingSubtitleLookupHandler {
             return false;
         }
 
-        localLookup(message.operation, { sentence: message.sentence, word: message.word })
+        localLookup(message.sentence, { storedOnly: true }) // the living subtitle never spends model tokens
             .then((response) =>
                 sendResponse(
                     'text' in response && response.text.length > maxResultLength
