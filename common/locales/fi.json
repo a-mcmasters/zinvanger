@@ -899,8 +899,6 @@
         "actions": "Sentence actions",
         "replay": "Replay",
         "replayUnavailable": "Replay is unavailable while recording",
-        "lookUp": "Look up word",
-        "wordNavigation": "Word {{index}} of {{count}}: {{word}}. Use Left and Right to move, Enter to look up, Escape to stop.",
         "english": "English",
         "hideEnglish": "Hide English",
         "mine": "Mine",

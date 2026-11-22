@@ -36,6 +36,8 @@ export interface LivingSubtitleHostContext {
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     /** The word's dictionary meaning ('' when the dictionary has none); rejects with a `livingSubtitle.error` key. */
     define(word: string): Promise<string>;
+    /** Left/Right in the strip: the same seek as the previous/next subtitle key bindings. */
+    seekToAdjacentSubtitle(forward: boolean): void;
 }
 
 const leaveDelayMs = 250;
@@ -343,9 +345,6 @@ export default class LivingSubtitleHost {
             case 'replay':
                 if (!this.context.recording()) controller.replay();
                 break;
-            case 'look-up':
-                controller.startWordNavigation();
-                break;
             case 'english':
                 void controller.toggleEnglish();
                 break;
@@ -366,15 +365,11 @@ export default class LivingSubtitleHost {
                 else if (!this.state?.target) this.focusSubtitle();
                 break;
             }
-            case 'word-previous':
-                controller.moveCursor(-1);
+            case 'subtitle-previous':
+                this.context.seekToAdjacentSubtitle(false);
                 break;
-            case 'word-next':
-                controller.moveCursor(1);
-                break;
-            case 'word-open':
-                controller.openCursor();
-                if (this.state?.word) this.focusFrame('card'); // keyboard users reach the card's actions
+            case 'subtitle-next':
+                this.context.seekToAdjacentSubtitle(true);
                 break;
             case 'retry-definition':
                 controller.retryDefinition();
@@ -581,7 +576,6 @@ export default class LivingSubtitleHost {
         const targetWordIndex = state.targetWord
             ? words.findIndex((w) => w.start === state.targetWord!.start)
             : undefined;
-        this.highlight('asbplayer-living-subtitle-cursor', rangesFor(state.cursor));
         this.highlight('asbplayer-living-subtitle-word', rangesFor(targetWordIndex ?? wordIndex));
 
         const video = this.context.video.getBoundingClientRect();
@@ -595,9 +589,8 @@ export default class LivingSubtitleHost {
             themeType: this.themeType,
             sentence: cue.text,
             captured: state.captured,
-            wordNavigation: state.cursor !== undefined,
             words: words.map((w) => w.text),
-            wordIndex: state.cursor ?? wordIndex,
+            wordIndex,
             targetWordIndex,
             cardOpen: state.word !== undefined,
             englishVisible: state.englishVisible,
@@ -605,7 +598,6 @@ export default class LivingSubtitleHost {
             definition: state.definition,
             mining: state.mining,
             replayDisabled: this.context.recording(),
-            lookupAvailable: words.length > 0,
             focusRequest: this.focusRequests.get('strip') ?? 0,
             maxWidth: Math.max(0, visibleRight - visibleLeft),
             maxHeight: Math.max(0, visibleBottom - visibleTop),

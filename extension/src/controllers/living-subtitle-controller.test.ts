@@ -153,25 +153,15 @@ describe('LivingSubtitleController', () => {
         expect(state().targetWord?.text).toBe('zet');
     });
 
-    it('navigates words by keyboard and escapes card, navigation, then interaction', () => {
+    it('escape closes the word card, then the interaction', () => {
         const { controller, actions, lookups, state } = setup();
         controller.hover(target('Een twee drie.'));
-        controller.startWordNavigation();
+        void controller.selectWord(2);
         expect(actions.pause).toHaveBeenCalled();
-        expect(state().cursor).toBe(0);
-        controller.moveCursor(-1);
-        expect(state().cursor).toBe(0);
-        controller.moveCursor(5);
-        expect(state().cursor).toBe(2);
-        expect(lookups).toHaveLength(0);
-        controller.openCursor();
         expect(lookups[0].word).toBe('drie');
 
         controller.escape();
         expect(state().word).toBeUndefined();
-        expect(state().cursor).toBe(2);
-        controller.escape();
-        expect(state().cursor).toBeUndefined();
         expect(state().target).toBeDefined();
         controller.escape();
         expect(state().target).toBeUndefined();

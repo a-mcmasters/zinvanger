@@ -28,8 +28,6 @@ export type LivingSubtitleResult =
 export interface LivingSubtitleState {
     target?: LivingSubtitleTarget;
     captured: boolean;
-    /** Keyboard word navigation position; the card opens only for `word`. */
-    cursor?: number;
     word?: LivingSubtitleWord;
     targetWord?: LivingSubtitleWord;
     /** The target word's meaning, kept after its card closes. */
@@ -117,36 +115,10 @@ export default class LivingSubtitleController {
         this.emit();
     }
 
-    startWordNavigation() {
-        const target = this.state.target;
-        if (this.disposed || !target || livingSubtitleWords(target.cue.text).length === 0) return;
-        this.state.cursor = this.state.word
-            ? livingSubtitleWords(target.cue.text).findIndex((w) => w.start === this.state.word!.start)
-            : 0;
-        this.capture();
-    }
-
-    moveCursor(delta: number) {
-        const words = this.state.target ? livingSubtitleWords(this.state.target.cue.text) : [];
-        if (this.state.cursor === undefined || words.length === 0) return;
-        this.state.cursor = Math.min(words.length - 1, Math.max(0, this.state.cursor + delta));
-        this.emit();
-    }
-
-    openCursor() {
-        if (this.state.cursor !== undefined) void this.selectWord(this.state.cursor);
-    }
-
-    /** Escape: closes the word card, then word navigation, then the whole interaction. */
+    /** Escape: closes the word card, then the whole interaction. */
     escape() {
-        if (this.state.word) {
-            this.closeWord();
-        } else if (this.state.cursor !== undefined) {
-            this.state.cursor = undefined;
-            this.emit();
-        } else {
-            this.clear();
-        }
+        if (this.state.word) this.closeWord();
+        else this.clear();
     }
 
     closeWord() {
@@ -167,7 +139,6 @@ export default class LivingSubtitleController {
         const word = target && livingSubtitleWords(target.cue.text)[index];
         if (this.disposed || !target || !word) return;
         this.capture();
-        if (this.state.cursor !== undefined) this.state.cursor = index;
         this.state.word = word;
         const request = ++this.definitionRequest;
         const generation = this.generation;

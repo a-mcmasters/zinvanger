@@ -85,6 +85,7 @@ const setup = () => {
         replay: jest.fn(),
         mine: jest.fn(async () => 'saved' as const),
         define: jest.fn(async (word: string) => `meaning of ${word}`),
+        seekToAdjacentSubtitle: jest.fn(),
     };
     const host = new LivingSubtitleHost(context);
     host.bind({ language: 'en', themeType: 'dark' });
@@ -167,6 +168,17 @@ describe('LivingSubtitleHost', () => {
         expect(context.define).toHaveBeenCalledWith('zet');
         expect((host as any).state.definition).toEqual({ status: 'success', text: 'meaning of zet' });
         expect(sendMessage).not.toHaveBeenCalled();
+        host.unbind();
+    });
+
+    it('Left and Right in the strip go to the previous and next subtitle', async () => {
+        const { host, context, span } = setup();
+        span.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }));
+        await flush();
+        const strip = clients.find((client) => client.part === 'strip')!;
+        strip.listener!({ command: 'action', action: 'subtitle-previous' });
+        strip.listener!({ command: 'action', action: 'subtitle-next' });
+        expect(context.seekToAdjacentSubtitle.mock.calls).toEqual([[false], [true]]);
         host.unbind();
     });
 

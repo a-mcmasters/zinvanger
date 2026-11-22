@@ -433,10 +433,6 @@ div.asbplayer-fullscreen-subtitles > span {
     top: 0;
 }
 
-::highlight(asbplayer-living-subtitle-cursor) {
-    background-color: rgba(255, 255, 255, 0.24);
-}
-
 ::highlight(asbplayer-living-subtitle-word) {
     color: #e2ceff;
     background-color: rgba(98, 49, 185, 0.45);

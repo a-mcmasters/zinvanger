@@ -20,7 +20,6 @@ export interface LivingSubtitleViewModel {
     readonly themeType: 'light' | 'dark';
     readonly sentence: string;
     readonly captured: boolean;
-    readonly wordNavigation: boolean;
     readonly words: readonly string[];
     readonly wordIndex?: number;
     readonly targetWordIndex?: number;
@@ -30,7 +29,6 @@ export interface LivingSubtitleViewModel {
     readonly definition: LivingSubtitleResult;
     readonly mining: LivingSubtitleResult;
     readonly replayDisabled: boolean;
-    readonly lookupAvailable: boolean;
     /** Incremented by the host when focus should move into this frame. */
     readonly focusRequest: number;
     /** Widest the frame may be (visible video width), so the strip wraps instead of overflowing at high zoom. */
@@ -41,15 +39,13 @@ export interface LivingSubtitleViewModel {
 
 export type LivingSubtitleAction =
     | 'replay'
-    | 'look-up'
     | 'english'
     | 'mine'
     | 'use-target'
     | 'close-word'
     | 'escape'
-    | 'word-previous'
-    | 'word-next'
-    | 'word-open'
+    | 'subtitle-previous'
+    | 'subtitle-next'
     | 'retry-definition'
     | 'retry-translation'
     | 'pointer-enter'
@@ -69,7 +65,6 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
     const [model, setModel] = useState<LivingSubtitleViewModel>();
     const rootRef = useRef<HTMLDivElement>(null);
     const firstActionRef = useRef<HTMLButtonElement>(null);
-    const lookUpRef = useRef<HTMLButtonElement>(null);
     const send = useCallback(
         (action: LivingSubtitleAction) => bridge.sendMessageFromServer({ command: 'action', action } as any),
         [bridge]
@@ -128,10 +123,9 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
         ) : null;
     const handleKeyDown = (event: React.KeyboardEvent) => {
         if (event.key === 'Escape') send('escape');
-        else if (model.wordNavigation && event.key === 'ArrowLeft') send('word-previous');
-        else if (model.wordNavigation && event.key === 'ArrowRight') send('word-next');
-        // Enter on any other button presses that button.
-        else if (model.wordNavigation && event.key === 'Enter' && event.target === lookUpRef.current) send('word-open');
+        // Keys inside a frame never reach the page's key bindings, so the strip does their subtitle seek itself.
+        else if (event.key === 'ArrowLeft') send('subtitle-previous');
+        else if (event.key === 'ArrowRight') send('subtitle-next');
         else return;
         event.preventDefault();
     };
@@ -198,17 +192,6 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
                                 ↺ {t('livingSubtitle.replay')}
                             </Button>
                             <Button
-                                ref={lookUpRef}
-                                size="small"
-                                color="inherit"
-                                disabled={!model.lookupAvailable}
-                                aria-pressed={model.wordNavigation}
-                                onClick={() => send('look-up')}
-                                sx={{ borderRadius: 99, minHeight: 32, px: 1.5 }}
-                            >
-                                ⌕ {t('livingSubtitle.lookUp')}
-                            </Button>
-                            <Button
                                 size="small"
                                 color="inherit"
                                 aria-pressed={model.englishVisible}
@@ -235,15 +218,6 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
                             </Button>
                         </Box>
                         <Box role="status" aria-live="polite" sx={{ maxWidth: 560, textAlign: 'center' }}>
-                            {model.wordNavigation && word !== undefined && (
-                                <Typography variant="caption" sx={{ ...surface, px: 1, py: 0.25, borderRadius: 1 }}>
-                                    {t('livingSubtitle.wordNavigation', {
-                                        index: model.wordIndex! + 1,
-                                        count: model.words.length,
-                                        word,
-                                    })}
-                                </Typography>
-                            )}
                             {model.mining.status === 'error' && (
                                 <Typography variant="body2" color="error" sx={{ ...surface, px: 1, borderRadius: 1 }}>
                                     {t('livingSubtitle.error.mining', { message: model.mining.message })}

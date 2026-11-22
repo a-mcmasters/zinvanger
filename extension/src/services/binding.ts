@@ -867,21 +867,8 @@ export default class Binding {
         this.mobileGestureController.bind();
         this.bulkExportController.bind();
 
-        const seek = (forward: boolean) => {
-            const subtitle = adjacentSubtitle(
-                forward,
-                this.currentTimeMs,
-                this.subtitleController.subtitles,
-                this.seekableTracks
-            );
-
-            if (subtitle !== null) {
-                void this.seek(subtitle.start);
-            }
-        };
-
-        this.mobileGestureController.onSwipeLeft = () => seek(false);
-        this.mobileGestureController.onSwipeRight = () => seek(true);
+        this.mobileGestureController.onSwipeLeft = () => this._seekToAdjacentSubtitle(false);
+        this.mobileGestureController.onSwipeRight = () => this._seekToAdjacentSubtitle(true);
         asbTrace('playback/binding', 'Media-owner bind finished');
     }
 
@@ -1873,7 +1860,21 @@ export default class Binding {
                     .catch((error) => asbError('playback/binding', 'Living subtitle replay failed', error)),
             mine: (state) => this.mineLivingSubtitle(state),
             define: (word) => this._defineWithYomitan(word),
+            seekToAdjacentSubtitle: (forward) => this._seekToAdjacentSubtitle(forward),
         });
+    }
+
+    private _seekToAdjacentSubtitle(forward: boolean) {
+        const subtitle = adjacentSubtitle(
+            forward,
+            this.currentTimeMs,
+            this.subtitleController.subtitles,
+            this.seekableTracks
+        );
+
+        if (subtitle !== null) {
+            void this.seek(subtitle.start);
+        }
     }
 
     /** The meaning of a main-track word from the Yomitan dictionaries set for subtitle track 1; no model tokens. */
