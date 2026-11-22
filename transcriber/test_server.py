@@ -163,27 +163,6 @@ class Http(Translate):
         url = f"http://127.0.0.1:{self.httpd.server_port}{path}"
         return urllib.request.urlopen(urllib.request.Request(url, data=body, method="POST" if body is not None else "GET"), timeout=5)
 
-    def test_stored_only_translation_never_runs_the_cli(self):
-        import json
-        import urllib.error
-        import urllib.request
-        from unittest import mock
-
-        url = f"http://127.0.0.1:{self.httpd.server_port}/translate?stored=1&sentence=Hij%20zet."
-        token = "t" * 32
-        auth = {"Authorization": f"Bearer {token}"}
-        self.use("raise SystemExit('the CLI must not run')")
-        with mock.patch.object(server, "LOOKUP_TOKEN", token):
-            with self.assertRaises(urllib.error.HTTPError) as denied:
-                urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": "Bearer wrong"}), timeout=5)
-            self.assertEqual(denied.exception.code, 401)
-            with self.assertRaises(urllib.error.HTTPError) as missing:
-                urllib.request.urlopen(urllib.request.Request(url, headers=auth), timeout=5)
-            self.assertEqual(missing.exception.code, 404)
-            with mock.patch.object(server, "stored_translation", lambda sentence: "He puts."):
-                response = urllib.request.urlopen(urllib.request.Request(url, headers=auth), timeout=5)
-                self.assertEqual(json.load(response), {"translation": "He puts."})
-
     def test_job_status_is_served(self):
         import urllib.error
 

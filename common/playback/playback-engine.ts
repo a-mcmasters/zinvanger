@@ -54,7 +54,6 @@ import { localSubtitleOffsetStorage } from '@project/common/playback/subtitle-of
 import type { SubtitleOffsetStorage } from '@project/common/playback/subtitle-offset-storage';
 
 const internalSeekWatchdogMs = 10_000;
-const replayPauseTimeoutMs = 2_000;
 const initialPlaybackSettingsAutoHideDurationMs = 6000;
 const playbackRateMismatchTolerance = 0.01;
 const subtitleOffsetNotificationKey = 'subtitle-offset';
@@ -239,14 +238,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
     private readonly settingsProvider: SettingsProvider;
     private unbindOperationId = 0;
     private pauseOperationId = 0;
-    /** End of a one-shot replay; any seek, pause or source change other than the replay's own cancels it. */
-    private replayEndMs?: number;
-    private replayGeneration = 0;
-    /**
-     * Settles the current replay's wait for the pause it requested: true when the pause event arrives (that event must
-     * not cancel the replay), false when the replay is cancelled or unbound first.
-     */
-    private replayPauseWait?: (confirmed: boolean) => void;
     private settingsChangedOperationId = 0;
     private lastProfile?: string;
     private settingsInitialization?: {
@@ -433,10 +424,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
         this.timingDriver.setCallbacks({
             onTime: async (currentTimestampMs, { lookaheadTimestampMs }) => {
                 const playbackStateLock = this.playbackStateController.lock(); // This update can trigger a lot of events
-                if (this.replayEndMs !== undefined && currentTimestampMs >= this.replayEndMs) {
-                    this.setReplayEnd(undefined);
-                    this.pause();
-                }
                 try {
                     await this.executor.update(currentTimestampMs, { lookaheadTimestampMs });
                 } finally {
@@ -451,10 +438,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
                     playbackRate: this.timingDriver.playbackRate(),
                     timestampMs,
                 });
-                const replayPauseWait = this.replayPauseWait;
-                this.replayPauseWait = undefined;
-                if (replayPauseWait) replayPauseWait(true);
-                else this.cancelReplay();
                 this.subtitleVisibilityController.playbackPaused();
                 this.playbackPositionController.playbackPaused();
                 this.playbackStateController.reconcileAndNotify(
@@ -471,7 +454,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
                 this.playbackPositionController.discontinuity(currentTimestampMs);
                 const { cause } = this.executor.handleDiscontinuity(currentTimestampMs);
                 if (cause !== 'internal-seek') {
-                    this.cancelReplay();
                     asbTrace('playback/seek', 'Playback discontinuity handled', {
                         cause,
                         timestampMs: currentTimestampMs,
@@ -706,9 +688,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
     }
 
     unbind(): void {
-        this.replayPauseWait?.(false);
-        this.replayEndMs = undefined; // no plan rebuild while tearing down
-        ++this.replayGeneration;
         this.externalAudioController.unbind();
         this.playbackAudio.unbind();
         this.timingDriver.unbindMedia();
@@ -847,57 +826,7 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
             isNewSource: options.isNewSource,
             keyCount: playbackPositionKeys.length,
         });
-        if (options.isNewSource) this.cancelReplay();
         this.playbackPositionController.playbackPositionKeysChanged(playbackPositionKeys, options);
-    }
-
-    /**
-     * Plays [startMs, endMs) once and pauses at endMs. Times are effective (offset-adjusted) media times.
-     * Saved playback modes are untouched; a user seek, pause, new source or unbind cancels the end pause.
-     */
-    async replay(startMs: number, endMs: number): Promise<void> {
-        this.cancelReplay();
-        const generation = this.replayGeneration;
-        // Pause first and wait until the player confirms it, so a seek that never lands cannot leave the video
-        // playing, and so any pause during the seek is the viewer's (some sites pause asynchronously).
-        if (!this.timingDriver.paused()) {
-            let wait: (confirmed: boolean) => void = () => {};
-            const paused = new Promise<boolean>((resolve) => {
-                const timeout = setTimeout(() => wait(false), replayPauseTimeoutMs);
-                wait = (confirmed) => {
-                    clearTimeout(timeout);
-                    if (this.replayPauseWait === wait) this.replayPauseWait = undefined; // never another replay's
-                    resolve(confirmed);
-                };
-            });
-            this.replayPauseWait = wait;
-            this.pause();
-            const confirmed = await paused;
-            if (!confirmed || generation !== this.replayGeneration) return;
-        }
-        const completed = await this.seekCompleted(startMs);
-        // Cancelled while seeking, or the seek never landed: don't start playback from the wrong place.
-        if (!completed || generation !== this.replayGeneration) return;
-        this.setReplayEnd(endMs);
-        try {
-            await this.play();
-        } catch (error) {
-            if (generation === this.replayGeneration) this.cancelReplay(); // don't leave a stray end pause armed
-            throw error;
-        }
-    }
-
-    /** Playback modes (auto-pause, condensed, ...) are off while a replay runs, so they cannot cut it short. */
-    private setReplayEnd(endMs: number | undefined) {
-        const changed = (this.replayEndMs === undefined) !== (endMs === undefined);
-        this.replayEndMs = endMs;
-        if (changed) this.rebuildPlan();
-    }
-
-    private cancelReplay() {
-        this.replayPauseWait?.(false);
-        this.setReplayEnd(undefined);
-        ++this.replayGeneration;
     }
 
     private get subtitleSourceStatus() {
@@ -1272,7 +1201,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
 
     /** Reports that a seek operation has started from a non-standard media adapter, such as Disney+'s page-script seek event. */
     seekStarted(): void {
-        // No cancelReplay() here: external adapters report the replay's own seek too; the cause decides below.
         if (this.timingDriver.externalSeekEvents) {
             asbTrace('playback/seek', 'Received external seek start');
             this.timingDriver.externalSeekStarted!();
@@ -1285,7 +1213,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
 
     private seekStartedWithCause(cause: PlaybackTimelineTransitionCause): void {
         if (cause === 'internal-seek') return;
-        this.cancelReplay();
         this.tokenSelectionController.seekStarted();
         const snapshotCleared = this.clearAutoPauseTimestamp();
         this.autoPauseController.userSeeked();
@@ -1309,10 +1236,9 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
 
     private buildPlan(): PlaybackPlan<T> {
         const displaySubtitles = this.subtitles;
-        const effectiveModes =
-            this.playbackModesSuppressed || this.replayEndMs !== undefined
-                ? new Set([PlayMode.normal])
-                : this.playbackModeController.playModes;
+        const effectiveModes = this.playbackModesSuppressed
+            ? new Set([PlayMode.normal])
+            : this.playbackModeController.playModes;
 
         return buildPlaybackPlan({
             sources: this.subtitleSources.filter((source) =>
@@ -1485,11 +1411,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
         await this.performSeek(targetTimestampMs, 'seek');
     }
 
-    /** Like seek(), but reports whether the seek completed (false when the watchdog gave up on it). */
-    private async seekCompleted(timestampMs: number): Promise<boolean> {
-        return this.performSeek(this.externalAudioController.clampSeekMs(this.clampTimestamp(timestampMs)), 'seek');
-    }
-
     private async correctTimestamp(
         timestampMs: number,
         warningCommand: 'pause-correction'
@@ -1503,13 +1424,10 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
         return { seekIssued: true };
     }
 
-    private async performSeek(
-        targetTimestampMs: number,
-        warningCommand: 'seek' | 'pause-correction'
-    ): Promise<boolean> {
+    private async performSeek(targetTimestampMs: number, warningCommand: 'seek' | 'pause-correction'): Promise<void> {
         if (!this.timingDriver.bound) {
             await this.callbacks.seek(targetTimestampMs); // Media remains usable without subtitles, when no timing listeners can observe seek completion.
-            return true;
+            return;
         }
         if (warningCommand === 'seek') {
             asbTrace('playback/seek', 'Starting internal seek', {
@@ -1541,7 +1459,7 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
                     completion,
                     targetTimestampMs,
                 });
-                return false;
+                return;
             }
             this.warnIfTimestampMismatch(warningCommand, targetTimestampMs);
             const actualTimestampMs = this.timingDriver.currentTimeMs();
@@ -1557,7 +1475,6 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
                     targetTimestampMs,
                 });
             }
-            return true;
         } catch (error) {
             asbTrace('playback/error', 'Internal seek failed', { error, targetTimestampMs, warningCommand });
             this.timingDriver.cancelExpectedInternalSeek();

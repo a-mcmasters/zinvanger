@@ -5,8 +5,7 @@
     python transcriber/server.py translate --key "<name>"           # translate a stored transcript
 
 It also translates each transcript into English (<key>.en.ai.srt) and serves GET /translate?sentence=, which the Anki
-dialog uses to fill the sentence translation field (with stored=1, only stored translations: the living subtitle's
-English line never spends model tokens). Translation runs your logged-in Claude Code (Claude plan) or, with ASB_DEFINE_PROVIDER=codex, the Codex
+dialog uses to fill the sentence translation field. Translation runs your logged-in Claude Code (Claude plan) or, with ASB_DEFINE_PROVIDER=codex, the Codex
 CLI (ChatGPT plan), so it uses your subscription rather than per-token API billing.
 
 Transcripts are stored as <ASB_TRANSCRIPTS_DIR or ~/asbplayer-transcripts>/<key>.srt, where the key is the video
@@ -485,11 +484,6 @@ class Handler(BaseHTTPRequestHandler):
 
                 if not sentence:
                     raise ValueError("sentence is required")
-
-                if query.get("stored") == ["1"]:
-                    stored = stored_translation(sentence)
-                    self._send(200 if stored else 404, json.dumps({"translation": stored} if stored else {}).encode())
-                    return
 
                 self._send(200, json.dumps({"translation": translate(sentence)}).encode())
             elif url.path == "/jobs":

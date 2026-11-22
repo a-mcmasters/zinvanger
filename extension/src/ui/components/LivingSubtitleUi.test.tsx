@@ -30,21 +30,15 @@ it('reports its first size even when the hidden frame receives no ResizeObserver
     const root = createRoot(container);
     const state: LivingSubtitleViewModel = {
         themeType: 'dark',
-        sentence: 'Ik kom zo terug.',
-        captured: false,
         words: ['Ik', 'kom', 'zo', 'terug'],
-        cardOpen: false,
-        englishVisible: false,
+        wordIndex: 1,
         definition: { status: 'idle' },
-        translation: { status: 'idle' },
         mining: { status: 'idle' },
-        replayDisabled: false,
-        focusRequest: 0,
         maxWidth: 640,
         maxHeight: 360,
     };
     try {
-        act(() => root.render(<LivingSubtitleUi bridge={bridge} part="strip" />));
+        act(() => root.render(<LivingSubtitleUi bridge={bridge} />));
         const message = { command: 'updateState', state };
         act(() => bridge.sendMessageFromClient(message));
         expect(onMessage).toHaveBeenCalledWith({ command: 'size', width: 360, height: 54 });

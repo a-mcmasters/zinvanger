@@ -438,9 +438,3 @@ div.asbplayer-fullscreen-subtitles > span {
     background-color: rgba(98, 49, 185, 0.45);
     text-decoration: underline 2px #c4a1ff;
 }
-
-.asbplayer-living-subtitle-region:focus-visible {
-    outline: 2px solid #c4a1ff !important;
-    outline-offset: 4px;
-    border-radius: 8px;
-}

@@ -126,7 +126,6 @@ import AnkiUiController from '@project/extension/src/controllers/anki-ui-control
 import LivingSubtitleHost from '@/controllers/living-subtitle-host';
 import { Yomitan } from '@project/common/yomitan';
 import type { LivingSubtitleMineOutcome, LivingSubtitleState } from '@/controllers/living-subtitle-controller';
-import { sentenceTranslationField } from '@project/common/components/settings-model';
 import ControlsController from '@project/extension/src/controllers/controls-controller';
 import DragController from '@project/extension/src/controllers/drag-controller';
 import { MobileGestureController } from '@project/extension/src/controllers/mobile-gesture-controller';
@@ -1847,20 +1846,13 @@ export default class Binding {
                     cue && { ...target, cue, surrounding: this.subtitleController.subtitleAtIndex(cue.index)[1] ?? [] }
                 );
             },
-            recording: () => this.recordingMedia,
             pause: () => {
                 // A captured sentence stays paused: leaving the subtitles must not auto-resume it.
                 this.pausedDueToHover = false;
                 this.pause();
             },
-            // Cue times already include the subtitle offset.
-            replay: (target) =>
-                void this.playbackEngine
-                    .replay(target.cue.start, target.cue.end)
-                    .catch((error) => asbError('playback/binding', 'Living subtitle replay failed', error)),
             mine: (state) => this.mineLivingSubtitle(state),
             define: (word) => this._defineWithYomitan(word),
-            seekToAdjacentSubtitle: (forward) => this._seekToAdjacentSubtitle(forward),
         });
     }
 
@@ -1898,13 +1890,10 @@ export default class Binding {
      * flow reports a card or opens the dialog, not when the request is queued.
      */
     mineLivingSubtitle(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome> {
-        const { target, targetWord, targetDefinition, translation } = state;
+        const { target, targetWord, targetDefinition } = state;
         if (!target) return Promise.reject(new Error('No subtitle'));
         if (this.recordMedia && this.recordingMedia) return Promise.reject(new Error('Recording in progress'));
         this._settleLivingSubtitleMine(new Error('superseded'));
-        const translationMapped = Boolean(
-            this.ankiUiController.settings?.customAnkiFields[sentenceTranslationField]?.trim()
-        );
         const postMineAction = this.clickToMineDefaultAction;
         let request: PendingLivingSubtitleMine;
         const completion = new Promise<LivingSubtitleMineOutcome>((resolve, reject) => {
@@ -1934,10 +1923,6 @@ export default class Binding {
                 surroundingSubtitles: [...target.surrounding],
                 word: targetWord?.text,
                 definition: targetWord ? targetDefinition : undefined,
-                customFieldValues:
-                    translationMapped && translation.status === 'success'
-                        ? { [sentenceTranslationField]: translation.text }
-                        : undefined,
             },
             { exactText: true, onSent: (promise) => void (sent = promise) }
         )

@@ -37,10 +37,6 @@ Translation runs a logged-in subscription CLI, so there is no API key and no per
 
 To enable lookups in Chromium, generate a token with `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Set `ASB_LOOKUP_TOKEN` to that token before starting the server, then enter the same value in the extension's **Anki → Local lookup token** setting and click **Save**. See the [setup guide](../docs/docs/guides/local-whisper.md#set-up-automatic-anki-lookups) for shell commands and field mapping.
 
-## Stored-only translations
-
-`GET /translate?stored=1&sentence=<sentence>` returns only a translation that is already stored (a supplied `<key>.en.srt` or the episode translation `<key>.en.ai.srt`), and `404` otherwise; it never runs the CLI. The extension's living-subtitle English line uses it, so showing English costs no model tokens. Word meanings come from Yomitan, not from this server.
-
 Add an asbplayer custom field named exactly `Sentence Translation` and map it to the desired field in your Anki note type to enable the translation box.
 
 ## Tests

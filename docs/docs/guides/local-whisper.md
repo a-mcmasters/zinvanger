@@ -37,15 +37,13 @@ In the Chromium extension, the Anki dialog fills in the English translation of t
 
 The lookup-enabled dialog runs in the extension's own frame, where page-injected dictionary popups are unavailable. Clear the token in **Anki** settings to use the dialog with those popups again.
 
-## Subtitle actions on the video
+## Word lookup on the video
 
-On desktop, hovering a line in the first subtitle track shows a small action strip below it with **Replay**, **English** and **Mine**. Playback keeps going unless you have pause-on-hover enabled. Clicking a word, choosing **English**, or tabbing into the subtitle pauses and keeps that sentence until you resume, seek or press Escape.
+On desktop, click a word in the first subtitle track. Playback pauses, the word is highlighted, and a card opens above the line with its dictionary meaning from [Yomitan](annotation.md) (no model tokens):
 
-- **Replay** plays the sentence once from its start (including your subtitle offset) and pauses at its end. Seeking cancels the pause. It is unavailable while recording.
-- **Click a word** to open a card with its dictionary meaning from [Yomitan](annotation.md) (no model tokens). **Use as target word** sends the word, and its meaning when shown, to the card's word and definition fields. You can pick a target word without waiting for the meaning.
-- **English** shows the stored English of the sentence: your `<key>.en.srt`, or the episode translation made after transcription. It never asks the model for a single line. It is sent to the `Sentence Translation` field when that field is mapped.
+- **Use as target word** sends the word, and its meaning when shown, to the Anki card's word and definition fields. You can pick it without waiting for the meaning.
 - **Mine** mines exactly this sentence, without joining neighboring lines, using your usual audio padding and click-to-mine action.
 
-Keyboard: Tab onto the subtitle, then Tab through the actions. Left and Right go to the previous and next subtitle. Escape closes the card, then the strip. Words are looked up by clicking them.
+Close the card with **×** or Escape. Resuming or seeking closes it too.
 
-Word meanings need a [Yomitan URL](annotation.md) on subtitle track 1 and a Dutch dictionary in Yomitan, such as a Dutch Wiktionary dictionary from [wiktionary-to-yomitan](https://yomidevs.github.io/wiktionary-to-yomitan/download/). Yomitan has no Dutch deinflection, so an inflected form is found only when the dictionary lists it. English needs this server running with a lookup token (see above). Without them, the card shows an error with **Retry**, and Replay and Mine keep working.
+Word meanings need a [Yomitan URL](annotation.md) on subtitle track 1 and a Dutch dictionary in Yomitan, such as a Dutch Wiktionary dictionary from [wiktionary-to-yomitan](https://yomidevs.github.io/wiktionary-to-yomitan/download/). Yomitan has no Dutch deinflection, so an inflected form is found only when the dictionary lists it. Without Yomitan, the card shows an error with **Retry**, and **Mine** keeps working.

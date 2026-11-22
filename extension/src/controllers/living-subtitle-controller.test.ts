@@ -30,14 +30,13 @@ const deferred = () => {
 };
 
 const setup = () => {
-    const lookups: { operation: string; sentence: string; word?: string; result: ReturnType<typeof deferred> }[] = [];
+    const lookups: { word: string; result: ReturnType<typeof deferred> }[] = [];
     const mines: { state: LivingSubtitleState; result: ReturnType<typeof deferred> }[] = [];
     const actions = {
         pause: jest.fn(),
-        replay: jest.fn(),
-        lookup: jest.fn((operation: 'translate' | 'define', sentence: string, word?: string) => {
+        define: jest.fn((word: string) => {
             const result = deferred();
-            lookups.push({ operation, sentence, word, result });
+            lookups.push({ word, result });
             return result.promise;
         }),
         mine: jest.fn((state: LivingSubtitleState) => {
@@ -167,22 +166,6 @@ describe('LivingSubtitleController', () => {
         expect(state().target).toBeUndefined();
     });
 
-    it('a translation hidden while pending stays hidden when it arrives', async () => {
-        const { controller, lookups, state } = setup();
-        controller.hover(target('Een zin.'));
-        void controller.toggleEnglish();
-        expect(lookups[0]).toMatchObject({ operation: 'translate', sentence: 'Een zin.' });
-        void controller.toggleEnglish();
-        lookups[0].result.resolve('A sentence.');
-        await flush();
-        expect(state().englishVisible).toBe(false);
-        expect(state().translation).toEqual({ status: 'success', text: 'A sentence.' });
-
-        void controller.toggleEnglish();
-        expect(lookups).toHaveLength(1);
-        expect(state().englishVisible).toBe(true);
-    });
-
     it('mines once per request with a snapshot, and keeps the target on failure', async () => {
         const { controller, mines, state } = setup();
         controller.hover(target('Hij zet.'));
@@ -236,32 +219,6 @@ describe('LivingSubtitleController', () => {
         lookups[0].result.resolve('puts');
         await flush();
         expect(state()).toMatchObject({ word: undefined, definition: { status: 'idle' }, targetDefinition: 'puts' });
-    });
-
-    it('retries a failed translation without hiding it', async () => {
-        const { controller, lookups, state } = setup();
-        controller.hover(target('Een zin.'));
-        void controller.toggleEnglish();
-        lookups[0].result.reject(new Error('busy'));
-        await flush();
-        expect(state().translation).toEqual({ status: 'error', message: 'busy' });
-
-        void controller.retryTranslation();
-        expect(state().englishVisible).toBe(true);
-        lookups[1].result.resolve('A sentence.');
-        await flush();
-        expect(state().translation).toEqual({ status: 'success', text: 'A sentence.' });
-    });
-
-    it('replay hands over the target before clearing', () => {
-        const { controller, actions, state } = setup();
-        controller.hover(target('Een zin.'));
-        controller.capture();
-        controller.replay();
-        expect(actions.replay).toHaveBeenCalledWith(
-            expect.objectContaining({ cue: expect.objectContaining({ text: 'Een zin.' }) })
-        );
-        expect(state().target).toBeUndefined();
     });
 
     it('renders nothing after dispose and ignores late results', async () => {

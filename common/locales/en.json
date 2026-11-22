@@ -894,13 +894,7 @@
         "warning": "Once approved, extension <0>{{id}}</0> will be able to control Zinvanger. Only approve if you recognize it."
     },
     "livingSubtitle": {
-        "region": "Subtitle actions: {{sentence}}",
-        "noSubtitle": "No subtitle at this time",
-        "actions": "Sentence actions",
-        "replay": "Replay",
-        "replayUnavailable": "Replay is unavailable while recording",
-        "english": "English",
-        "hideEnglish": "Hide English",
+        "actions": "Word lookup",
         "mine": "Mine",
         "mining": "Mining…",
         "mined": "Mined",
@@ -911,15 +905,7 @@
         "useAsTarget": "Use as target word",
         "targetWord": "Target word",
         "meaningInContext": "Dictionary",
-        "openLookupSettings": "Open lookup settings",
         "error": {
-            "unavailable": "The local lookup service is not running",
-            "unauthorized": "The local lookup token is missing or invalid",
-            "busy": "The local lookup service is busy. Try again shortly",
-            "timeout": "The lookup took too long",
-            "invalid": "This text cannot be looked up",
-            "malformed": "The lookup service returned an unexpected answer",
-            "notStored": "No English subtitle for this line",
             "noDictionary": "Set a Yomitan URL for subtitle track 1 to look up words",
             "dictionaryUnavailable": "Yomitan is not reachable. Is the Yomitan API running?",
             "mining": "Mining failed: {{message}}"

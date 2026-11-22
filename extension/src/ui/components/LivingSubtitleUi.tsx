@@ -9,62 +9,36 @@ import { alpha, ThemeProvider } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { localLookupTokenSettingsId } from '@/services/local-lookup-token';
 import type Bridge from '@/ui/bridge';
 import type { LivingSubtitleResult } from '@/controllers/living-subtitle-controller';
 
-export type LivingSubtitlePart = 'strip' | 'card';
-
-/** What the host sends to both frames. Text only: frames never receive HTML. */
+/** What the host sends to the word card. Text only: the frame never receives HTML. */
 export interface LivingSubtitleViewModel {
     readonly themeType: 'light' | 'dark';
-    readonly sentence: string;
-    readonly captured: boolean;
     readonly words: readonly string[];
-    readonly wordIndex?: number;
+    readonly wordIndex: number;
     readonly targetWordIndex?: number;
-    readonly cardOpen: boolean;
-    readonly englishVisible: boolean;
-    readonly translation: LivingSubtitleResult;
     readonly definition: LivingSubtitleResult;
     readonly mining: LivingSubtitleResult;
-    readonly replayDisabled: boolean;
-    /** Incremented by the host when focus should move into this frame. */
-    readonly focusRequest: number;
-    /** Widest the frame may be (visible video width), so the strip wraps instead of overflowing at high zoom. */
+    /** Widest the card may be (visible video width). */
     readonly maxWidth: number;
-    /** Tallest the frame may be (visible video height); content beyond it scrolls. */
+    /** Tallest the card may be (visible video height); content beyond it scrolls. */
     readonly maxHeight: number;
 }
 
-export type LivingSubtitleAction =
-    | 'replay'
-    | 'english'
-    | 'mine'
-    | 'use-target'
-    | 'close-word'
-    | 'escape'
-    | 'subtitle-previous'
-    | 'subtitle-next'
-    | 'retry-definition'
-    | 'retry-translation'
-    | 'pointer-enter'
-    | 'pointer-leave'
-    | 'focus-in'
-    | 'focus-out';
+export type LivingSubtitleAction = 'mine' | 'use-target' | 'close-word' | 'escape' | 'retry-definition';
 
 interface Props {
     readonly bridge: Bridge;
-    readonly part: LivingSubtitlePart;
 }
 
 const glass = (mode: 'light' | 'dark') => (mode === 'dark' ? 'rgba(28, 24, 38, 0.94)' : 'rgba(252, 249, 255, 0.96)');
 
-export default function LivingSubtitleUi({ bridge, part }: Props) {
+/** The word card: a clicked word's dictionary meaning, the target-word choice and Mine. */
+export default function LivingSubtitleUi({ bridge }: Props) {
     const { t } = useTranslation();
     const [model, setModel] = useState<LivingSubtitleViewModel>();
     const rootRef = useRef<HTMLDivElement>(null);
-    const firstActionRef = useRef<HTMLButtonElement>(null);
     const send = useCallback(
         (action: LivingSubtitleAction) => bridge.sendMessageFromServer({ command: 'action', action } as any),
         [bridge]
@@ -80,7 +54,7 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
     );
 
     const loaded = model !== undefined;
-    // The host sizes each frame to its content so the rest of the video stays clickable.
+    // The host sizes the frame to its content so the rest of the video stays clickable.
     useLayoutEffect(() => {
         const element = rootRef.current;
         if (!element) return;
@@ -96,67 +70,33 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
         return () => observer.disconnect();
     }, [bridge, loaded]);
 
-    const focusRequest = model?.focusRequest ?? 0;
-    useEffect(() => {
-        if (focusRequest === 0) return;
-        if (part === 'strip') firstActionRef.current?.focus();
-        else rootRef.current?.querySelector<HTMLElement>('button')?.focus();
-    }, [focusRequest, part]);
-
     const theme = useMemo(() => createTheme(model?.themeType ?? 'dark'), [model?.themeType]);
     if (!model) return null;
 
-    const mode = model.themeType;
-    const word = model.wordIndex === undefined ? undefined : model.words[model.wordIndex];
-    const errorText = (result: LivingSubtitleResult) =>
-        result.status === 'error' ? t(`livingSubtitle.error.${result.message}`, { defaultValue: result.message }) : '';
-    const lookupSettingsLink = (result: LivingSubtitleResult) =>
-        result.status === 'error' && result.message === 'unauthorized' ? (
-            <Button
-                size="small"
-                href={`${browser.runtime.getURL('/options.html')}#${localLookupTokenSettingsId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-            >
-                {t('livingSubtitle.openLookupSettings')}
-            </Button>
-        ) : null;
-    const handleKeyDown = (event: React.KeyboardEvent) => {
-        if (event.key === 'Escape') send('escape');
-        // Keys inside a frame never reach the page's key bindings, so the strip does their subtitle seek itself.
-        else if (event.key === 'ArrowLeft') send('subtitle-previous');
-        else if (event.key === 'ArrowRight') send('subtitle-next');
-        else return;
-        event.preventDefault();
-    };
+    const word = model.words[model.wordIndex];
+    const isTarget = model.targetWordIndex === model.wordIndex;
     const surface = {
-        bgcolor: glass(mode),
+        bgcolor: glass(model.themeType),
         color: 'text.primary',
         border: 1,
         borderColor: alpha(theme.palette.text.primary, 0.16),
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)', // must fit inside the root padding: the frame edge clips it
-        '@media (prefers-reduced-motion: no-preference)': { transition: 'opacity 120ms' },
     };
 
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
-            {/* CssBaseline paints the body; these frames float over video, so only their surfaces may be opaque. */}
+            {/* CssBaseline paints the body; the frame floats over video, so only the card may be opaque. */}
             <GlobalStyles styles={{ 'html, body': { backgroundColor: 'transparent' } }} />
             <Box
                 ref={rootRef}
-                onPointerEnter={() => send('pointer-enter')}
-                onPointerLeave={() => send('pointer-leave')}
-                onFocus={() => send('focus-in')}
-                onBlur={(event) => {
-                    if (!event.currentTarget.contains(event.relatedTarget)) send('focus-out');
+                onKeyDown={(event) => {
+                    if (event.key !== 'Escape') return;
+                    send('escape');
+                    event.preventDefault();
                 }}
-                onKeyDown={handleKeyDown}
                 sx={{
                     display: 'inline-flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 1,
                     p: 1.5,
                     width: 'max-content', // measured size must not depend on the frame's current viewport
                     maxWidth: model.maxWidth,
@@ -165,168 +105,101 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
                     boxSizing: 'border-box',
                 }}
             >
-                {part === 'strip' ? (
-                    <>
-                        <Box
-                            role="toolbar"
-                            aria-label={t('livingSubtitle.actions')}
-                            sx={{
-                                ...surface,
-                                display: 'flex',
-                                flexWrap: 'wrap',
-                                justifyContent: 'center',
-                                gap: 0.25,
-                                p: 0.5,
-                                borderRadius: 3,
-                            }}
+                <Box
+                    role="dialog"
+                    aria-label={word}
+                    sx={{
+                        ...surface,
+                        borderRadius: 3,
+                        px: 2.25,
+                        pt: 1.75,
+                        pb: 1.5,
+                        width: 300,
+                        maxWidth: '100%',
+                        maxHeight: 280,
+                        overflowY: 'auto',
+                    }}
+                >
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography
+                                component="strong"
+                                sx={{ display: 'block', fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.2 }}
+                            >
+                                {word}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {t('livingSubtitle.meaningInContext')}
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            size="small"
+                            aria-label={t('livingSubtitle.closeWord')}
+                            onClick={() => send('close-word')}
+                            sx={{ mt: -0.5, mr: -1, color: 'text.secondary' }}
                         >
-                            <Button
-                                ref={firstActionRef}
-                                size="small"
-                                color="inherit"
-                                disabled={model.replayDisabled}
-                                title={model.replayDisabled ? t('livingSubtitle.replayUnavailable') : undefined}
-                                onClick={() => send('replay')}
-                                sx={{ borderRadius: 99, minHeight: 32, px: 1.5 }}
-                            >
-                                ↺ {t('livingSubtitle.replay')}
-                            </Button>
-                            <Button
-                                size="small"
-                                color="inherit"
-                                aria-pressed={model.englishVisible}
-                                onClick={() => send('english')}
-                                sx={{ borderRadius: 99, minHeight: 32, px: 1.5 }}
-                            >
-                                文 {t(model.englishVisible ? 'livingSubtitle.hideEnglish' : 'livingSubtitle.english')}
-                            </Button>
-                            <Button
-                                size="small"
-                                variant="contained"
-                                disabled={model.mining.status === 'pending'}
-                                onClick={() => send('mine')}
-                                sx={{ borderRadius: 99, minHeight: 32, px: 1.5 }}
-                            >
-                                ＋{' '}
-                                {t(
-                                    model.mining.status === 'pending'
-                                        ? 'livingSubtitle.mining'
-                                        : model.mining.status === 'success'
-                                          ? 'livingSubtitle.mined'
-                                          : 'livingSubtitle.mine'
-                                )}
-                            </Button>
-                        </Box>
-                        <Box role="status" aria-live="polite" sx={{ maxWidth: 560, textAlign: 'center' }}>
-                            {model.mining.status === 'error' && (
-                                <Typography variant="body2" color="error" sx={{ ...surface, px: 1, borderRadius: 1 }}>
-                                    {t('livingSubtitle.error.mining', { message: model.mining.message })}
-                                </Typography>
-                            )}
-                        </Box>
-                        {model.englishVisible && (
-                            <Box sx={{ ...surface, px: 1.5, py: 0.75, borderRadius: 2, maxWidth: 560 }}>
-                                {model.translation.status === 'pending' && <CircularProgress size={16} />}
-                                {model.translation.status === 'success' && (
-                                    <Typography sx={{ textAlign: 'center' }}>{model.translation.text}</Typography>
-                                )}
-                                {model.translation.status === 'error' && (
-                                    <Typography variant="body2" color="error">
-                                        {errorText(model.translation)}{' '}
-                                        <Button size="small" onClick={() => send('retry-translation')}>
-                                            {t('livingSubtitle.retry')}
-                                        </Button>
-                                        {lookupSettingsLink(model.translation)}
-                                    </Typography>
-                                )}
-                            </Box>
+                            ×
+                        </IconButton>
+                    </Box>
+                    <Box
+                        sx={{ mt: 1.25, mb: 1.5, pl: 1.25, minHeight: 24, borderLeft: 2, borderColor: 'primary.main' }}
+                    >
+                        {model.definition.status === 'pending' && (
+                            <Typography variant="body2" color="text.secondary">
+                                <CircularProgress size={12} sx={{ mr: 1 }} />
+                                {t('livingSubtitle.loading')}
+                            </Typography>
                         )}
-                    </>
-                ) : (
-                    model.cardOpen &&
-                    word !== undefined && (
-                        <Box
-                            role="dialog"
-                            aria-label={word}
-                            sx={{
-                                ...surface,
-                                borderRadius: 3,
-                                px: 2.25,
-                                pt: 1.75,
-                                pb: 1.5,
-                                width: 300,
-                                maxWidth: '100%',
-                                maxHeight: 240,
-                                overflowY: 'auto',
-                            }}
+                        {model.definition.status === 'success' && (
+                            <Typography sx={{ fontSize: '0.95rem', lineHeight: 1.45 }}>
+                                {model.definition.text || t('livingSubtitle.noResult')}
+                            </Typography>
+                        )}
+                        {model.definition.status === 'error' && (
+                            <Typography variant="body2" color="error">
+                                {t(`livingSubtitle.error.${model.definition.message}`, {
+                                    defaultValue: model.definition.message,
+                                })}{' '}
+                                <Button size="small" onClick={() => send('retry-definition')}>
+                                    {t('livingSubtitle.retry')}
+                                </Button>
+                            </Typography>
+                        )}
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button
+                            variant={isTarget ? 'contained' : 'outlined'}
+                            size="small"
+                            sx={{ flex: 1, borderRadius: 99, whiteSpace: 'nowrap' }}
+                            aria-pressed={isTarget}
+                            onClick={() => send('use-target')}
                         >
-                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                    <Typography
-                                        component="strong"
-                                        sx={{ display: 'block', fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.2 }}
-                                    >
-                                        {word}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                        {t('livingSubtitle.meaningInContext')}
-                                    </Typography>
-                                </Box>
-                                <IconButton
-                                    size="small"
-                                    aria-label={t('livingSubtitle.closeWord')}
-                                    onClick={() => send('close-word')}
-                                    sx={{ mt: -0.5, mr: -1, color: 'text.secondary' }}
-                                >
-                                    ×
-                                </IconButton>
-                            </Box>
-                            <Box
-                                sx={{
-                                    mt: 1.25,
-                                    mb: 1.5,
-                                    pl: 1.25,
-                                    minHeight: 24,
-                                    borderLeft: 2,
-                                    borderColor: 'primary.main',
-                                }}
-                            >
-                                {model.definition.status === 'pending' && (
-                                    <Typography variant="body2" color="text.secondary">
-                                        <CircularProgress size={12} sx={{ mr: 1 }} />
-                                        {t('livingSubtitle.loading')}
-                                    </Typography>
-                                )}
-                                {model.definition.status === 'success' && (
-                                    <Typography sx={{ fontSize: '0.95rem', lineHeight: 1.45 }}>
-                                        {model.definition.text || t('livingSubtitle.noResult')}
-                                    </Typography>
-                                )}
-                                {model.definition.status === 'error' && (
-                                    <Typography variant="body2" color="error">
-                                        {errorText(model.definition)}{' '}
-                                        <Button size="small" onClick={() => send('retry-definition')}>
-                                            {t('livingSubtitle.retry')}
-                                        </Button>
-                                        {lookupSettingsLink(model.definition)}
-                                    </Typography>
-                                )}
-                            </Box>
-                            <Button
-                                fullWidth
-                                variant={model.targetWordIndex === model.wordIndex ? 'contained' : 'outlined'}
-                                size="small"
-                                sx={{ borderRadius: 99 }}
-                                aria-pressed={model.targetWordIndex === model.wordIndex}
-                                onClick={() => send('use-target')}
-                            >
-                                {model.targetWordIndex === model.wordIndex
-                                    ? `✓ ${t('livingSubtitle.targetWord')}`
-                                    : `＋ ${t('livingSubtitle.useAsTarget')}`}
-                            </Button>
-                        </Box>
-                    )
-                )}
+                            {isTarget ? `✓ ${t('livingSubtitle.targetWord')}` : `＋ ${t('livingSubtitle.useAsTarget')}`}
+                        </Button>
+                        <Button
+                            variant="contained"
+                            size="small"
+                            sx={{ borderRadius: 99, px: 2 }}
+                            disabled={model.mining.status === 'pending'}
+                            onClick={() => send('mine')}
+                        >
+                            {t(
+                                model.mining.status === 'pending'
+                                    ? 'livingSubtitle.mining'
+                                    : model.mining.status === 'success'
+                                      ? 'livingSubtitle.mined'
+                                      : 'livingSubtitle.mine'
+                            )}
+                        </Button>
+                    </Box>
+                    <Box role="status" aria-live="polite">
+                        {model.mining.status === 'error' && (
+                            <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                                {t('livingSubtitle.error.mining', { message: model.mining.message })}
+                            </Typography>
+                        )}
+                    </Box>
+                </Box>
             </Box>
         </ThemeProvider>
     );

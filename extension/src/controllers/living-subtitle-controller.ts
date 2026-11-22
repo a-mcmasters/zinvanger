@@ -32,8 +32,6 @@ export interface LivingSubtitleState {
     targetWord?: LivingSubtitleWord;
     /** The target word's meaning, kept after its card closes. */
     targetDefinition?: string;
-    englishVisible: boolean;
-    translation: LivingSubtitleResult;
     definition: LivingSubtitleResult;
     mining: LivingSubtitleResult;
 }
@@ -43,8 +41,8 @@ export type LivingSubtitleMineOutcome = 'saved' | 'dialog';
 
 interface Actions {
     pause(): void;
-    lookup(operation: 'translate' | 'define', sentence: string, word?: string): Promise<string>;
-    replay(target: LivingSubtitleTarget): void;
+    /** The word's meaning; rejects with a `livingSubtitle.error` key. */
+    define(word: string): Promise<string>;
     /** Resolves when a card is saved or a dialog takes it over, never on message acknowledgement. */
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     render(state: Readonly<LivingSubtitleState>): void;
@@ -52,8 +50,6 @@ interface Actions {
 
 const initialState = (): LivingSubtitleState => ({
     captured: false,
-    englishVisible: false,
-    translation: { status: 'idle' },
     definition: { status: 'idle' },
     mining: { status: 'idle' },
 });
@@ -144,7 +140,7 @@ export default class LivingSubtitleController {
         const generation = this.generation;
         this.state.definition = { status: 'pending' };
         this.emit();
-        const result = await this.lookup('define', target.cue.text, word.text);
+        const result = await this.define(word.text);
         if (generation !== this.generation) return;
         // Chosen as target while its meaning was loading: keep it even if the card has closed since.
         const forTarget = result.status === 'success' && this.state.targetWord?.start === word.start;
@@ -161,53 +157,12 @@ export default class LivingSubtitleController {
         this.emit();
     }
 
-    async toggleEnglish() {
-        if (this.disposed || !this.state.target) return;
-        this.capture();
-        this.state.englishVisible = !this.state.englishVisible;
-        this.emit();
-        await this.fetchTranslation();
-    }
-
-    async retryTranslation() {
-        if (this.disposed || !this.state.target || this.state.translation.status !== 'error') return;
-        await this.fetchTranslation();
-    }
-
-    private async fetchTranslation() {
-        if (
-            !this.state.target ||
-            !this.state.englishVisible ||
-            this.state.translation.status === 'pending' ||
-            this.state.translation.status === 'success'
-        ) {
-            return;
-        }
-        const generation = this.generation;
-        this.state.translation = { status: 'pending' };
-        this.emit();
-        const result = await this.lookup('translate', this.state.target.cue.text);
-        if (generation !== this.generation) return;
-        this.state.translation = result;
-        this.emit();
-    }
-
-    private async lookup(
-        operation: 'translate' | 'define',
-        sentence: string,
-        word?: string
-    ): Promise<LivingSubtitleResult> {
+    private async define(word: string): Promise<LivingSubtitleResult> {
         try {
-            return { status: 'success', text: await this.actions.lookup(operation, sentence, word) };
+            return { status: 'success', text: await this.actions.define(word) };
         } catch (error) {
             return { status: 'error', message: error instanceof Error ? error.message : String(error) };
         }
-    }
-
-    replay() {
-        if (this.disposed || !this.state.target) return;
-        this.actions.replay(this.state.target);
-        this.clear();
     }
 
     async mine() {

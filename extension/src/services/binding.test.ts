@@ -1335,8 +1335,6 @@ describe('Binding playback mode integration', () => {
                 .mineLivingSubtitle({
                     target: { video: binding.registeredVideoSrc, cue: mined, surrounding: [] },
                     captured: true,
-                    englishVisible: false,
-                    translation: { status: 'idle' },
                     definition: { status: 'idle' },
                     mining: { status: 'idle' },
                 })
