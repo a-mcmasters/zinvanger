@@ -913,6 +913,7 @@
         "useAsTarget": "Use as target word",
         "targetWord": "Target word",
         "meaningInContext": "Dutch → English",
+        "openLookupSettings": "Open lookup settings",
         "error": {
             "unavailable": "The local lookup service is not running",
             "unauthorized": "The local lookup token is missing or invalid",

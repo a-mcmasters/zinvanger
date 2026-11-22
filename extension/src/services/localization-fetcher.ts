@@ -16,11 +16,14 @@ export interface Localization {
 }
 
 export const fetchLocalization = async (lang: string): Promise<Localization> => {
-    return (
-        (await cachedStringsForLang(lang)) ??
-        (await bundledStringsForLang(lang)) ??
-        (await bundledStringsForLang(project.defaultLanguage))!
-    );
+    const [cached, bundled] = await Promise.all([
+        cachedStringsForLang(lang),
+        bundledStringsForLang(lang).then(
+            async (strings) => strings ?? (await bundledStringsForLang(project.defaultLanguage))!
+        ),
+    ]);
+    // The cache can predate the current build, or contain only the strings translated for a remote locale.
+    return cached ? { lang: cached.lang, strings: mergeStrings(bundled.strings, cached.strings) } : bundled;
 };
 
 export const fetchSupportedLanguages = async (): Promise<string[]> => {

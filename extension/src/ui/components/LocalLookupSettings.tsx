@@ -3,7 +3,7 @@ import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import { useTranslation } from 'react-i18next';
-import { getLocalLookupToken, localLookupTokenKey } from '@/services/local-lookup-token';
+import { getLocalLookupToken, localLookupTokenKey, localLookupTokenSettingsId } from '@/services/local-lookup-token';
 
 export default function LocalLookupSettings() {
     const { t } = useTranslation();
@@ -38,7 +38,7 @@ export default function LocalLookupSettings() {
 
     const tooShort = token.trim().length > 0 && token.trim().length < 32;
     return (
-        <Stack direction="row" spacing={2} alignItems="flex-start" sx={{ mt: 2 }}>
+        <Stack id={localLookupTokenSettingsId} direction="row" spacing={2} alignItems="flex-start" sx={{ mt: 2 }}>
             <TextField
                 fullWidth
                 type="password"

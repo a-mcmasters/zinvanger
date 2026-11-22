@@ -31,7 +31,7 @@ In the Chromium extension, the Anki dialog fills in the English translation of t
 
 1. Generate a token with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 2. Before starting the server, set `ASB_LOOKUP_TOKEN` to that token in the same terminal. In PowerShell, use `$env:ASB_LOOKUP_TOKEN = "<token>"`. In Bash, use `export ASB_LOOKUP_TOKEN='<token>'`.
-3. In the extension's **Anki** settings, paste the same token into **Local lookup token** and click **Save**.
+3. In Zinvanger's toolbar popup or extension options, scroll to **Local lookup token** at the bottom of the **Anki** section. Paste the same token and click **Save**. You can also choose **Open lookup settings** from a subtitle lookup error to jump directly to the field.
 4. Add a custom asbplayer field named exactly `Sentence Translation` and map it to the corresponding field in your Anki note type. The translation box appears once the mapping is set.
 5. Mine a subtitle and open the Anki dialog. Review the translation and edit it before exporting. Fill in the word definition yourself.
 

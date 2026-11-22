@@ -9,6 +9,7 @@ import { alpha, ThemeProvider } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { localLookupTokenSettingsId } from '@/services/local-lookup-token';
 import type Bridge from '@/ui/bridge';
 import type { LivingSubtitleResult } from '@/controllers/living-subtitle-controller';
 
@@ -114,6 +115,17 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
     const word = model.wordIndex === undefined ? undefined : model.words[model.wordIndex];
     const errorText = (result: LivingSubtitleResult) =>
         result.status === 'error' ? t(`livingSubtitle.error.${result.message}`, { defaultValue: result.message }) : '';
+    const lookupSettingsLink = (result: LivingSubtitleResult) =>
+        result.status === 'error' && result.message === 'unauthorized' ? (
+            <Button
+                size="small"
+                href={`${browser.runtime.getURL('/options.html')}#${localLookupTokenSettingsId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                {t('livingSubtitle.openLookupSettings')}
+            </Button>
+        ) : null;
     const handleKeyDown = (event: React.KeyboardEvent) => {
         if (event.key === 'Escape') send('escape');
         else if (model.wordNavigation && event.key === 'ArrowLeft') send('word-previous');
@@ -250,6 +262,7 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
                                         <Button size="small" onClick={() => send('retry-translation')}>
                                             {t('livingSubtitle.retry')}
                                         </Button>
+                                        {lookupSettingsLink(model.translation)}
                                     </Typography>
                                 )}
                             </Box>
@@ -304,6 +317,7 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
                                         <Button size="small" onClick={() => send('retry-definition')}>
                                             {t('livingSubtitle.retry')}
                                         </Button>
+                                        {lookupSettingsLink(model.definition)}
                                     </Typography>
                                 )}
                             </Box>
