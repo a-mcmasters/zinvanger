@@ -88,10 +88,14 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
     useLayoutEffect(() => {
         const element = rootRef.current;
         if (!element) return;
-        const observer = new ResizeObserver(() => {
+        const reportSize = () => {
             const { width, height } = element.getBoundingClientRect();
             bridge.sendMessageFromServer({ command: 'size', width, height } as any);
-        });
+        };
+        // Chromium can defer ResizeObserver callbacks in hidden cross-origin frames. The host needs
+        // this first measurement to reveal the frame, which lets the observer track later changes.
+        reportSize();
+        const observer = new ResizeObserver(reportSize);
         observer.observe(element);
         return () => observer.disconnect();
     }, [bridge, loaded]);
