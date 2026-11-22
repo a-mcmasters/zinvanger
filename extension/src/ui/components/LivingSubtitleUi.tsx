@@ -164,7 +164,7 @@ export default function LivingSubtitleUi({ bridge }: Props) {
                             </Typography>
                         )}
                     </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                         <Button
                             variant="contained"
                             size="small"
