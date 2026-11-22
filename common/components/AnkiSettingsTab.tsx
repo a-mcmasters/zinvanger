@@ -84,6 +84,9 @@ interface Props {
     testCard?: () => Promise<CardModel>;
 }
 
+/** Padding below 0 would cut into the subtitle; blank or invalid input keeps the last value. */
+const nonNegativeMs = (value: number) => (Number.isFinite(value) ? Math.max(0, value) : undefined);
+
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : typeof e === 'string' ? e : String(e));
 
 // S13/U2: only the connection, deck, note type, the five fields this workflow fills and the audio padding are configurable.
@@ -422,6 +425,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
                 label={t('settings.audioPaddingStart')}
                 fullWidth
                 value={audioPaddingStart}
+                normalizeValue={nonNegativeMs}
                 onValueChange={(value) => void onSettingChanged('audioPaddingStart', value)}
                 slotProps={{
                     htmlInput: { min: 0, step: 1 },
@@ -432,6 +436,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
                 label={t('settings.audioPaddingEnd')}
                 fullWidth
                 value={audioPaddingEnd}
+                normalizeValue={nonNegativeMs}
                 onValueChange={(value) => void onSettingChanged('audioPaddingEnd', value)}
                 slotProps={{
                     htmlInput: { min: 0, step: 1 },
