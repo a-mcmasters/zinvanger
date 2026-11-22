@@ -1,5 +1,5 @@
 import type { IndexedSubtitleModel } from '@project/common';
-import LivingSubtitleController, { livingSubtitleWords } from '@/controllers/living-subtitle-controller';
+import LivingSubtitleController, { distinctLemma, livingSubtitleWords } from '@/controllers/living-subtitle-controller';
 import type { LivingSubtitleState, LivingSubtitleTarget } from '@/controllers/living-subtitle-controller';
 
 const cue = (text: string, overrides: Partial<IndexedSubtitleModel> = {}): IndexedSubtitleModel => ({
@@ -63,6 +63,15 @@ describe('livingSubtitleWords', () => {
             'ze',
         ]);
         expect(livingSubtitleWords('—').length).toBe(0);
+    });
+});
+
+describe('distinctLemma', () => {
+    it('shows only a dictionary form that is a different word', () => {
+        expect(distinctLemma('hadden', 'hebben')).toBe('hebben');
+        expect(distinctLemma('Hij', 'hij')).toBeUndefined();
+        expect(distinctLemma('zet', undefined)).toBeUndefined();
+        expect(distinctLemma('zet', '')).toBeUndefined();
     });
 });
 
@@ -183,6 +192,11 @@ describe('LivingSubtitleController', () => {
         await flush();
         expect(state().mining).toEqual({ status: 'error', message: 'Anki is closed' });
         expect(state().word?.text).toBe('zet');
+        void controller.selectWord(0);
+        expect(state().mining).toEqual({ status: 'idle' }); // the error was about "zet"
+        void controller.selectWord(1);
+        lookups.at(-1)!.result.resolve('puts');
+        await flush();
 
         void controller.mine();
         mines[1].result.resolve('');

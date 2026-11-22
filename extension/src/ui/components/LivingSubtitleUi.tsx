@@ -175,7 +175,8 @@ export default function LivingSubtitleUi({ bridge }: Props) {
                             variant="contained"
                             size="small"
                             sx={{ borderRadius: 99, px: 2 }}
-                            disabled={model.mining.status === 'pending'}
+                            // wait for the meaning, so the card is not mined without its definition
+                            disabled={model.mining.status === 'pending' || model.definition.status === 'pending'}
                             onClick={() => send('mine')}
                         >
                             {t(

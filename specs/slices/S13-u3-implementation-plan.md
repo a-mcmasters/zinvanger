@@ -42,7 +42,7 @@ The current backend has sentence translation only. Extend `transcriber/server.py
 
 Extend `transcriber/test_server.py` with mocked provider calls for valid input, auth failure, invalid/oversized input, busy/timeout behavior and cache separation. Tests must not invoke a paid/live provider. Update `transcriber/README.md` with the new contract.
 
-In the view, selecting a word opens the card and requests its definition; moving the pointer alone never calls the service. Word navigation uses a roving focus position so every word is not a separate page tab stop. Preserve internal apostrophes/hyphens and diacritics; keep punctuation out of the target-word field. “Use as target word” works during loading or failure and is independent of whether a definition exists.
+In the view, selecting a word opens the card and requests its definition; moving the pointer alone never calls the service. Word navigation uses a roving focus position so every word is not a separate page tab stop. Preserve internal apostrophes/hyphens and diacritics; keep punctuation out of the target-word field. (Superseded 2026-11-22: the clicked word is the target word; there is no separate action.) “Use as target word” works during loading or failure and is independent of whether a definition exists.
 
 Tests: Dutch punctuation/diacritics, changing words while a request runs, explicit-only requests, unavailable service, retry and selecting a target without a result.
 

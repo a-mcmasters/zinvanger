@@ -20,6 +20,10 @@ export const livingSubtitleWords = (text: string): LivingSubtitleWord[] =>
         text: match[0].normalize('NFC'),
     }));
 
+/** The dictionary form to show beside a word, or undefined when it is the word itself ("Hij" → "hij" is not). */
+export const distinctLemma = (word: string, lemma?: string) =>
+    lemma && lemma.toLowerCase() !== word.toLowerCase() ? lemma : undefined;
+
 export type LivingSubtitleResult =
     | { status: 'idle' | 'pending' }
     /** `lemma`: the dictionary form the meaning belongs to, when it differs from the word. */
@@ -140,6 +144,8 @@ export default class LivingSubtitleController {
         if (this.disposed || !target || !word) return;
         this.capture();
         this.state.word = word;
+        // "Mined" or a mining error belongs to the previous word.
+        if (this.state.mining.status !== 'pending') this.state.mining = { status: 'idle' };
         const request = ++this.definitionRequest;
         const generation = this.generation;
         this.state.definition = { status: 'pending' };
