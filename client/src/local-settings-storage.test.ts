@@ -46,11 +46,12 @@ it('busts the cache without notifying settings callbacks for playback-owned stor
     const onSettingsUpdated = jest.fn();
     const unsubscribe = settingsStorage.onSettingsUpdated(onSettingsUpdated);
 
-    await settingsStorage.set({ lastSubtitleOffset: 100 });
-    localStorage.setItem('lastSubtitleOffset', '200');
-    window.dispatchEvent(new StorageEvent('storage', { key: 'lastSubtitleOffset' }));
+    await settingsStorage.set({ lastPlaybackPositions: [] });
+    const lastPlaybackPositions = [{ fileName: 'video.mp4', position: 30_000 }];
+    localStorage.setItem('lastPlaybackPositions', JSON.stringify(lastPlaybackPositions));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'lastPlaybackPositions' }));
     expect(onSettingsUpdated).not.toHaveBeenCalled();
-    expect(await settingsStorage.get({ lastSubtitleOffset: 0 })).toEqual({ lastSubtitleOffset: 200 });
+    expect(await settingsStorage.get({ lastPlaybackPositions: [] })).toEqual({ lastPlaybackPositions });
 
     window.dispatchEvent(new StorageEvent('storage', { key: 'playbackRate' }));
     expect(onSettingsUpdated).toHaveBeenCalledTimes(1);

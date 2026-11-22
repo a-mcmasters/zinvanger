@@ -248,6 +248,19 @@ describe('Binding playback mode integration', () => {
         for (const listener of runtimeListeners) listener(request, {}, () => undefined);
     };
 
+    const saveSubtitleOffset = async (offset: number) => {
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        binding.bind();
+        try {
+            sendSubtitles(binding, [makeSubtitle()]);
+            await flushPlaybackTiming();
+            binding.subtitleOffsetChanged(offset, { notifyPlayer: false });
+        } finally {
+            binding.unbind();
+        }
+        await flushPlaybackTiming();
+    };
+
     const sendPlaybackRate = (binding: Binding, value: number) => {
         const request = {
             sender: 'asbplayer-extension-to-video',
@@ -917,6 +930,7 @@ describe('Binding playback mode integration', () => {
                 loadId: 'stream',
                 cues: [{ cueId: 0, start: 1000, end: 2000, text: 'First' }],
             });
+            await flushPlaybackTiming();
             expect(showSnackbar).toHaveBeenCalledTimes(1);
             if (action === 'timeout') binding.notificationController.onTimeout?.();
             else binding.notificationController.onClose?.();
@@ -1020,7 +1034,6 @@ describe('Binding playback mode integration', () => {
     it.each([0, 500, -500])(
         'uses the video offset %s for app-owned snapshots and later cue batches',
         async (offset) => {
-            await storage.set({ rememberSubtitleOffset: false });
             const binding = new Binding(createVideo(), bindingOptions(false, false));
             binding.bind();
             await flushPlaybackTiming();
@@ -1078,85 +1091,80 @@ describe('Binding playback mode integration', () => {
         }
     );
 
-    it.each([true, false])(
-        'preserves progressive cue offsets and replay with remembering %s',
-        async (rememberSubtitleOffset) => {
-            await storage.set({ rememberSubtitleOffset });
-            const binding = new Binding(createVideo(), bindingOptions(false, false));
-            binding.bind();
+    it('preserves progressive cue offsets and replay', async () => {
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        binding.bind();
+        await flushPlaybackTiming();
+        try {
+            binding.updateSubtitleSource({ type: 'start', track: 0, loadId: 'stream', name: 'progressive.srt' });
+            binding.updateSubtitleSource({
+                type: 'cues',
+                track: 0,
+                loadId: 'stream',
+                cues: [{ cueId: 0, start: 1000, end: 2000, text: 'First' }],
+            });
+            expect(binding.subtitleController.subtitles).toMatchObject([
+                { text: 'First', source: { loadId: 'stream', cueId: 0 } },
+            ]);
             await flushPlaybackTiming();
-            try {
-                binding.updateSubtitleSource({ type: 'start', track: 0, loadId: 'stream', name: 'progressive.srt' });
-                binding.updateSubtitleSource({
-                    type: 'cues',
-                    track: 0,
-                    loadId: 'stream',
-                    cues: [{ cueId: 0, start: 1000, end: 2000, text: 'First' }],
-                });
-                expect(binding.subtitleController.subtitles).toMatchObject([
-                    { text: 'First', source: { loadId: 'stream', cueId: 0 } },
-                ]);
-                binding.subtitleOffsetChanged(500, { notifyPlayer: false });
-                const requestSource = () => {
-                    for (const listener of runtimeListeners) {
-                        listener(
-                            {
-                                sender: 'asbplayer-extension-to-video',
-                                src: binding.registeredVideoSrc,
-                                message: { command: 'requestSubtitleSource' },
-                            },
-                            {},
-                            () => undefined
-                        );
-                    }
-                };
-                requestSource();
-                const calls = sendRuntimeMessage.mock.calls as unknown as [{ message?: SubtitleSourceMessage }][];
-                const replay = calls
-                    .map(([command]) => command.message)
-                    .findLast((message) => message?.command === 'subtitleSource');
-                expect(replay?.update).toMatchObject({
-                    type: 'snapshot',
-                    offset: 500,
-                    tracks: [
+            binding.subtitleOffsetChanged(500, { notifyPlayer: false });
+            const requestSource = () => {
+                for (const listener of runtimeListeners) {
+                    listener(
                         {
-                            name: 'progressive.srt',
-                            status: 'loading',
-                            loadId: 'stream',
-                            cues: [{ cueId: 0, text: 'First', start: 1000, end: 2000 }],
+                            sender: 'asbplayer-extension-to-video',
+                            src: binding.registeredVideoSrc,
+                            message: { command: 'requestSubtitleSource' },
                         },
-                    ],
-                });
-                binding.updateSubtitleSource({
-                    type: 'cues',
-                    track: 0,
-                    loadId: 'stream',
-                    cues: [{ cueId: 1, start: 3000, end: 4000, text: 'Second' }],
-                });
-                expect(binding.subtitleController.subtitles.map((cue) => cue.start)).toEqual([1500, 3500]);
-                sendSubtitles(binding, [
-                    { text: 'File', start: 0, end: 1000, originalStart: 0, originalEnd: 1000, track: 0, index: 0 },
-                ]);
-                binding.updateSubtitleSource({
-                    type: 'cues',
-                    track: 0,
-                    loadId: 'stream',
-                    cues: [{ cueId: 1, start: 3000, end: 4000, text: 'Stale' }],
-                });
-                expect(binding.subtitleController.subtitles.map((cue) => cue.text)).toEqual(['File']);
-                requestSource();
-                expect(
-                    calls
-                        .map(([command]) => command.message)
-                        .findLast((message) => message?.command === 'subtitleSource')
-                ).toMatchObject({
-                    update: { type: 'snapshot', tracks: [{ cues: [{ text: 'File' }] }] },
-                });
-            } finally {
-                binding.unbind();
-            }
+                        {},
+                        () => undefined
+                    );
+                }
+            };
+            requestSource();
+            const calls = sendRuntimeMessage.mock.calls as unknown as [{ message?: SubtitleSourceMessage }][];
+            const replay = calls
+                .map(([command]) => command.message)
+                .findLast((message) => message?.command === 'subtitleSource');
+            expect(replay?.update).toMatchObject({
+                type: 'snapshot',
+                offset: 500,
+                tracks: [
+                    {
+                        name: 'progressive.srt',
+                        status: 'loading',
+                        loadId: 'stream',
+                        cues: [{ cueId: 0, text: 'First', start: 1000, end: 2000 }],
+                    },
+                ],
+            });
+            binding.updateSubtitleSource({
+                type: 'cues',
+                track: 0,
+                loadId: 'stream',
+                cues: [{ cueId: 1, start: 3000, end: 4000, text: 'Second' }],
+            });
+            expect(binding.subtitleController.subtitles.map((cue) => cue.start)).toEqual([1500, 3500]);
+            sendSubtitles(binding, [
+                { text: 'File', start: 0, end: 1000, originalStart: 0, originalEnd: 1000, track: 0, index: 0 },
+            ]);
+            binding.updateSubtitleSource({
+                type: 'cues',
+                track: 0,
+                loadId: 'stream',
+                cues: [{ cueId: 1, start: 3000, end: 4000, text: 'Stale' }],
+            });
+            expect(binding.subtitleController.subtitles.map((cue) => cue.text)).toEqual(['File']);
+            requestSource();
+            expect(
+                calls.map(([command]) => command.message).findLast((message) => message?.command === 'subtitleSource')
+            ).toMatchObject({
+                update: { type: 'snapshot', tracks: [{ cues: [{ text: 'File' }] }] },
+            });
+        } finally {
+            binding.unbind();
         }
-    );
+    });
 
     it.each(['ordinary', 'progressive'] as const)(
         'replays existing annotations after the source snapshot on late attachment to %s subtitles',
@@ -1354,7 +1362,6 @@ describe('Binding playback mode integration', () => {
     });
 
     it.each([0, 500, -500])('refreshes subtitles with their current offset %s and flattened tracks', async (offset) => {
-        await storage.set({ rememberSubtitleOffset: false });
         const video = createVideo();
         const binding = new Binding(video, bindingOptions(false, false));
         binding.bind();
@@ -1854,6 +1861,7 @@ describe('Binding playback mode integration', () => {
             makeSubtitle({ start: 0, end: 200 }),
             makeSubtitle({ start: 3000, end: 4000, originalStart: 3000, originalEnd: 4000, index: 1 }),
         ]);
+        await flushPlaybackTiming();
         video.currentTime = 1.5;
         video.playbackRate = 1.5;
 
@@ -1987,6 +1995,7 @@ describe('Binding playback mode integration', () => {
                 makeSubtitle({ text: 'word', start: 1000, end: 2000 }),
                 makeSubtitle({ text: 'other', start: 4000, end: 5000, index: 1 }),
             ]);
+            await flushPlaybackTiming();
             video.currentTime = 1.5;
             binding.togglePlayMode(PlayMode.fastForward);
             await flushPlaybackTiming();
@@ -2104,6 +2113,7 @@ describe('Binding playback mode integration', () => {
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
         const notification = jest.spyOn(binding.subtitleController, 'notification').mockImplementation(() => {});
 
         binding.togglePlayMode(PlayMode.fastForward);
@@ -2240,6 +2250,8 @@ describe('Binding playback mode integration', () => {
         await jest.advanceTimersByTimeAsync(0);
         video.dispatchEvent(new Event('durationchange'));
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
+        binding.subtitleOffsetChanged(5000, { notifyPlayer: false });
         const requestSubtitles = jest.spyOn(binding.videoDataSyncController, 'requestSubtitles');
 
         video.dispatchEvent(new Event('durationchange')); // same episode
@@ -2250,6 +2262,10 @@ describe('Binding playback mode integration', () => {
         video.dispatchEvent(new Event('durationchange'));
         await jest.advanceTimersByTimeAsync(0);
         expect(requestSubtitles).toHaveBeenCalledWith({ kind: 'reload', videoChanged: true });
+        const subtitle = makeSubtitle();
+        sendSubtitles(binding, [subtitle]);
+        await flushPlaybackTiming();
+        expect(binding.subtitleController.subtitles[0].start).toBe(subtitle.originalStart);
         binding.unbind();
     });
 
@@ -2278,6 +2294,7 @@ describe('Binding playback mode integration', () => {
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         sendSubtitles(binding, [makeSubtitle({ end: 120_000, originalEnd: 120_000 })], ['subtitle.srt', 'Empty.srt']);
+        await flushPlaybackTiming();
 
         video.currentTime = 62;
         await advancePlaybackTimers(10_000);
@@ -2294,6 +2311,7 @@ describe('Binding playback mode integration', () => {
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
 
         const sendMessage = (globalThis as any).browser.runtime.sendMessage as jest.Mock;
         sendMessage.mockClear();
@@ -2410,6 +2428,7 @@ describe('Binding playback mode integration', () => {
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         sendSubtitles(binding, [makeSubtitle({ start: 1000, end: 2000 })]);
+        await flushPlaybackTiming();
         binding.togglePlayMode(PlayMode.autoPause);
 
         video.presentFrame(750);
@@ -2424,7 +2443,8 @@ describe('Binding playback mode integration', () => {
     });
 
     it('applies an initially loaded subtitle offset to playback timing', async () => {
-        await storage.set({ autoPausePreference: AutoPausePreference.atStart, lastSubtitleOffset: 1000 });
+        await saveSubtitleOffset(1000);
+        await storage.set({ autoPausePreference: AutoPausePreference.atStart });
         const video = createVideo();
         const binding = new Binding(video, bindingOptions(false, false));
         const pause = jest.spyOn(binding, 'pause').mockImplementation(() => {});
@@ -2439,6 +2459,7 @@ describe('Binding playback mode integration', () => {
                 originalEnd: 2000,
             }),
         ]);
+        await flushPlaybackTiming();
         binding.togglePlayMode(PlayMode.autoPause);
 
         video.presentFrame(1500);
@@ -2452,6 +2473,86 @@ describe('Binding playback mode integration', () => {
         binding.unbind();
     });
 
+    it('restores an offset saved before the duration was known when it later becomes known', async () => {
+        const open = async (initialDuration: number, offset?: number) => {
+            const video = createVideo();
+            let duration = initialDuration;
+            Object.defineProperty(video, 'duration', { get: () => duration, configurable: true });
+            const binding = new Binding(video, {
+                ...bindingOptions(true, false),
+                durationChangesIndicateNewVideo: true,
+            });
+            binding.bind();
+            const subtitle = makeSubtitle();
+            sendSubtitles(binding, [subtitle]);
+            await flushPlaybackTiming();
+            duration = 3042.4;
+            video.dispatchEvent(new Event('durationchange'));
+            await flushPlaybackTiming();
+            if (offset !== undefined) binding.subtitleOffsetChanged(offset, { notifyPlayer: false });
+            const start = binding.subtitleController.subtitles[0].start - subtitle.originalStart;
+            binding.unbind();
+            await flushPlaybackTiming();
+            return start;
+        };
+        await open(NaN, 4000); // subtitles arrived before metadata
+        expect(await open(3042.4)).toBe(4000); // next session already knows the duration
+    });
+
+    it('keeps an offset set before the duration was known once the duration arrives', async () => {
+        const video = createVideo();
+        let duration = NaN;
+        Object.defineProperty(video, 'duration', { get: () => duration, configurable: true });
+        const binding = new Binding(video, { ...bindingOptions(true, false), durationChangesIndicateNewVideo: true });
+        binding.bind();
+        const subtitle = makeSubtitle();
+        try {
+            sendSubtitles(binding, [subtitle]);
+            await flushPlaybackTiming();
+            binding.subtitleOffsetChanged(2500, { notifyPlayer: false });
+            duration = 3042.4;
+            video.dispatchEvent(new Event('durationchange'));
+            await flushPlaybackTiming();
+            expect(binding.subtitleController.subtitles[0].start).toBe(subtitle.originalStart + 2500);
+        } finally {
+            binding.unbind();
+        }
+    });
+
+    it('restores an offset when reopening the same video and main subtitle track', async () => {
+        await saveSubtitleOffset(5000);
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        const subtitle = makeSubtitle();
+        binding.bind();
+        try {
+            sendSubtitles(binding, [subtitle], ['subtitles.srt', 'other-secondary.srt']);
+            await flushPlaybackTiming();
+            expect(binding.subtitleController.subtitles[0].start).toBe(subtitle.originalStart + 5000);
+
+            sendSubtitles(binding, [subtitle], ['other-main.srt', 'other-secondary.srt']);
+            await flushPlaybackTiming();
+            expect(binding.subtitleController.subtitles[0].start).toBe(subtitle.originalStart);
+
+            sendSubtitles(binding, [subtitle]);
+            await flushPlaybackTiming();
+            expect(binding.subtitleController.subtitles[0].start).toBe(subtitle.originalStart + 5000);
+        } finally {
+            binding.unbind();
+        }
+
+        const otherVideo = createVideo();
+        otherVideo.src = 'https://example.com/next-video.mp4';
+        const next = new Binding(otherVideo, bindingOptions(false, false));
+        next.bind();
+        try {
+            sendSubtitles(next, [subtitle]);
+            await flushPlaybackTiming();
+            expect(next.subtitleController.subtitles[0].start).toBe(subtitle.originalStart);
+        } finally {
+            next.unbind();
+        }
+    });
+
     it('uses playback mode offsets for repeat without auto-pause', async () => {
         await storage.set({
             subtitleTriggerStartOffset: -250,
@@ -2463,6 +2564,7 @@ describe('Binding playback mode integration', () => {
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         sendSubtitles(binding, [makeSubtitle({ start: 1000, end: 2000 })]);
+        await flushPlaybackTiming();
         binding.togglePlayMode(PlayMode.repeat);
 
         video.presentFrame(2398);
@@ -2494,6 +2596,7 @@ describe('Binding playback mode integration', () => {
             binding.bind();
             await jest.advanceTimersByTimeAsync(0);
             sendSubtitles(binding, [makeSubtitle({ start: 1000, end: 2000, originalStart: 1000, originalEnd: 2000 })]);
+            await flushPlaybackTiming();
             binding.togglePlayMode(PlayMode.repeat);
 
             video.presentFrame(1999);
@@ -2544,6 +2647,7 @@ describe('Binding playback mode integration', () => {
             binding.bind();
             await jest.advanceTimersByTimeAsync(0);
             sendSubtitles(binding, [makeSubtitle({ start: 61_000, end: 62_000 })]);
+            await flushPlaybackTiming();
             binding.togglePlayMode(PlayMode.repeat);
 
             video.presentFrame(61_999);
@@ -2577,6 +2681,7 @@ describe('Binding playback mode integration', () => {
             makeSubtitle(),
             makeSubtitle({ start: 4000, end: 5000, originalStart: 4000, originalEnd: 5000, index: 1 }),
         ]);
+        await flushPlaybackTiming();
         binding.togglePlayMode(PlayMode.condensed);
 
         video.presentFrame(1500);
@@ -2675,6 +2780,7 @@ describe('Binding playback mode integration', () => {
         await Promise.resolve();
 
         sendSubtitles(binding, [makeSubtitle({ start: 1000, end: 2000 })]);
+        await flushPlaybackTiming();
         binding.togglePlayMode(PlayMode.fastForward);
         video.presentFrame(0);
         await flushPlaybackTiming();
@@ -2698,6 +2804,7 @@ describe('Binding playback mode integration', () => {
         const notification = jest.spyOn(binding.subtitleController, 'notification').mockImplementation(() => {});
 
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
 
         expect(notification).toHaveBeenCalledWith({
             text: 'settings.playbackModes:\ncontrols.fastForwardMode',
@@ -2707,10 +2814,10 @@ describe('Binding playback mode integration', () => {
     });
 
     it('separates initial playback mode summary from offset and rate notifications', async () => {
+        await saveSubtitleOffset(375);
         await storage.set({
             rememberPlaybackModes: true,
             lastPlaybackModes: [PlayMode.fastForward],
-            lastSubtitleOffset: 375,
             playbackRate: 1.4,
         });
         const binding = new Binding(createVideo(), bindingOptions(false, false));
@@ -2719,6 +2826,7 @@ describe('Binding playback mode integration', () => {
         const notification = jest.spyOn(binding.subtitleController, 'notification').mockImplementation(() => {});
 
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
 
         expect(notification).toHaveBeenCalledTimes(1);
         expect(notification.mock.calls[0][0]).toMatchObject({ autoHideDuration: 6000 });
@@ -2729,13 +2837,15 @@ describe('Binding playback mode integration', () => {
     });
 
     it('shows remembered offset and playback rate notifications on the first subtitle load', async () => {
-        await storage.set({ lastSubtitleOffset: 375, playbackRate: 1.4 });
+        await saveSubtitleOffset(375);
+        await storage.set({ playbackRate: 1.4 });
         const binding = new Binding(createVideo(), bindingOptions(false, false));
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         const notification = jest.spyOn(binding.subtitleController, 'notification').mockImplementation(() => {});
 
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
 
         expect(notification).toHaveBeenCalledTimes(1);
         expect(notification.mock.calls[0][0]).toEqual({
@@ -2751,13 +2861,15 @@ describe('Binding playback mode integration', () => {
     });
 
     it('respects the playback rate notification setting on the first subtitle load', async () => {
-        await storage.set({ lastSubtitleOffset: 375, playbackRate: 1.4, playbackRateNotificationEnabled: false });
+        await saveSubtitleOffset(375);
+        await storage.set({ playbackRate: 1.4, playbackRateNotificationEnabled: false });
         const binding = new Binding(createVideo(), bindingOptions(false, false));
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         const notification = jest.spyOn(binding.subtitleController, 'notification').mockImplementation(() => {});
 
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
 
         expect(notification).toHaveBeenCalledWith({ text: '+375 ms', autoHideDuration: 6000 });
         binding.unbind();
@@ -2785,6 +2897,7 @@ describe('Binding playback mode integration', () => {
             binding.bind();
             await jest.advanceTimersByTimeAsync(0);
             sendSubtitles(binding, [makeSubtitle({ start: 1000, end: 2000 })]);
+            await flushPlaybackTiming();
             if (!rememberPlaybackModes) binding.togglePlayMode(PlayMode.fastForward);
 
             video.presentFrame(750);
@@ -2820,6 +2933,7 @@ describe('Binding playback mode integration', () => {
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
 
         sendPlaybackRate(binding, 1);
         sendPlaybackRate(binding, 1.5);
@@ -2839,6 +2953,7 @@ describe('Binding playback mode integration', () => {
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
         const notification = jest.spyOn(binding.subtitleController, 'notification').mockImplementation(() => {});
 
         Object.defineProperty(video, 'playbackRate', { configurable: true, value: 1.3, writable: true });
@@ -2855,6 +2970,7 @@ describe('Binding playback mode integration', () => {
         binding.bind();
         await jest.advanceTimersByTimeAsync(0);
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
         const notification = jest.spyOn(binding.subtitleController, 'notification').mockImplementation(() => {});
 
         binding.adjustPlaybackRate(0.05);
@@ -2880,6 +2996,7 @@ describe('Binding playback mode integration', () => {
             makeSubtitle({ start: 0, end: 200 }),
             makeSubtitle({ start: 3000, end: 4000, originalStart: 3000, originalEnd: 4000, index: 1 }),
         ]);
+        await flushPlaybackTiming();
         const notification = jest.spyOn(binding.subtitleController, 'notification').mockImplementation(() => {});
 
         binding.togglePlayMode(PlayMode.fastForward);
@@ -2906,6 +3023,7 @@ describe('Binding playback mode integration', () => {
 
         expect(video.playbackRate).toBe(1);
         sendSubtitles(binding, [makeSubtitle()]);
+        await flushPlaybackTiming();
         expect(video.playbackRate).toBe(1.4);
         binding.unbind();
     });

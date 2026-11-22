@@ -16,11 +16,7 @@ export const activeProfileKey = 'activeSettingsProfile';
 export const profilesKey = 'settingsProfiles';
 
 // Settings visible in UI probably shouldn't ever be here to prevent user confusion.
-export const saveOnlySettings: readonly (keyof AsbplayerSettings)[] = [
-    'lastSubtitleOffset',
-    'lastPlaybackModes',
-    'lastPlaybackPositions',
-];
+export const saveOnlySettings: readonly (keyof AsbplayerSettings)[] = ['lastPlaybackModes', 'lastPlaybackPositions'];
 
 export const isSaveOnlySettings = (settings: Partial<AsbplayerSettings>): boolean => {
     const changedKeys = Object.keys(settings) as (keyof AsbplayerSettings)[];
@@ -126,7 +122,6 @@ export interface MiscSettings {
     readonly lastPlaybackModes: PlayMode[];
     readonly lastPlaybackPositions: PlaybackPosition[];
     readonly keyBindSet: KeyBindSet;
-    readonly rememberSubtitleOffset: boolean;
     readonly autoCopyCurrentSubtitle: boolean;
     readonly alwaysPlayOnSubtitleRepeat: boolean;
     readonly subtitleHtml: SubtitleHtml;
@@ -137,7 +132,6 @@ export interface MiscSettings {
     readonly language: string;
     readonly clickToMineDefaultAction: PostMineAction;
     readonly postMiningPlaybackState: PostMinePlayback;
-    readonly lastSubtitleOffset: number;
     readonly lastSelectedAnkiExportMode: AnkiExportMode;
     readonly tabName: string;
     readonly pauseOnHoverMode: PauseOnHoverMode;

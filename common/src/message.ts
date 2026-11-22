@@ -439,6 +439,7 @@ export interface ReadyToVideoMessage extends Message {
     readonly command: 'ready';
     readonly duration: number;
     readonly videoFileName?: string;
+    readonly videoOffsetIdentity?: string;
 }
 
 export interface PlayFromVideoMessage extends Message {
@@ -536,6 +537,7 @@ export interface SubtitlesToVideoMessage extends Message {
     readonly value: SubtitleModel[];
     readonly name?: string;
     readonly names: string[];
+    readonly mainTrackOffsetIdentity?: string;
 }
 
 export interface SubtitlesUpdatedToVideoMessage extends Message {

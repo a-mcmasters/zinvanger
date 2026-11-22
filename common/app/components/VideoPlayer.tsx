@@ -1,4 +1,5 @@
 import { displaySubtitleSnapshot, SubtitleStream, subtitleKey } from '@project/common/subtitle-reader/subtitle-stream';
+import { mainSubtitleOffsetIdentity, subtitleOffsetKey } from '@project/common/playback/subtitle-offset-storage';
 import { AudioClip } from '@project/common/audio-clip';
 import { canMineWithAudio } from '@project/common/audio-transcode/mining-audio';
 import { usesConvertedAudio } from '@project/common/audio-transcode';
@@ -482,6 +483,7 @@ export default function VideoPlayer({
     lengthMsRef.current = lengthMs;
     const [videoFileName, setVideoFileName] = useState<string>();
     const videoFileNameRef = useRef(videoFileName);
+    const videoOffsetIdentityRef = useRef<string>(undefined);
     videoFileNameRef.current = videoFileName;
     const [videoWidth, setVideoWidth] = useState<number>(); // width and height are original width and height from metadata
     const [videoHeight, setVideoHeight] = useState<number>();
@@ -749,6 +751,17 @@ export default function VideoPlayer({
         setSubtitles(shiftedSubtitles);
     }, []);
 
+    const selectSubtitleOffset = useCallback(() => {
+        const engine = playbackEngineRef.current;
+        void engine?.subtitleOffsetKeyChanged(
+            subtitleOffsetKey(
+                videoOffsetIdentityRef.current,
+                mainSubtitleOffsetIdentity(subtitleStream.current.sourceStates())
+            )
+        );
+        return engine?.currentSubtitleOffset ?? 0;
+    }, []);
+
     useEffect(() => {
         if (!video) return;
 
@@ -759,7 +772,6 @@ export default function VideoPlayer({
         });
         const playbackEngine = new PlaybackEngine({
             settingsProvider,
-            appIntegration: extension.supportsAppIntegration,
             autoPauseCorrectionDisabled: false,
             subtitles: subtitlesRef.current,
             sources: subtitleStream.current.sourceStates(),
@@ -850,8 +862,10 @@ export default function VideoPlayer({
                 setPlaybackRate: (playbackRate) => {
                     if (video.playbackRate !== playbackRate) video.playbackRate = playbackRate;
                 },
-                setSubtitleOffset: (offset, options, notificationKey) =>
-                    updateSubtitlesWithOffset(offset, options.notifyPlayer, notificationKey),
+                setSubtitleOffset: (offset, options, notificationKey) => {
+                    updateSubtitlesWithOffset(offset, options.notifyPlayer, notificationKey);
+                    if (options.restored) playerChannel.offset(offset);
+                },
                 playbackStateChanged: (state) => {
                     containerRef.current?.classList.toggle(ASB_PLAYBACK_PAUSED_CLASS, state.paused);
                     playbackStateChangedRef.current(state);
@@ -948,6 +962,7 @@ export default function VideoPlayer({
         });
 
         playbackEngineRef.current = playbackEngine;
+        selectSubtitleOffset();
         playbackEngine.externalAudioChanged(externalAudioStateRef.current);
         asbTrace('playback/video-player', 'Binding video playback owner');
         playbackEngine.bind();
@@ -966,6 +981,7 @@ export default function VideoPlayer({
         handlePlaybackRateChanged,
         handlePlaybackModesChanged,
         playerChannel,
+        selectSubtitleOffset,
         settingsProvider,
         updatePlayerState,
         updateSubtitlesWithOffset,
@@ -1020,7 +1036,7 @@ export default function VideoPlayer({
 
     useEffect(() => {
         asbTrace('playback/video-player', 'Subscribing to player channel');
-        playerChannel.onReady((duration, videoFileName) => {
+        playerChannel.onReady((duration, videoFileName, videoOffsetIdentity) => {
             asbTrace('playback/video-player', 'Received player-channel ready event', {
                 durationMs: duration,
                 hasVideoFileName: videoFileName !== undefined,
@@ -1028,6 +1044,8 @@ export default function VideoPlayer({
             setLengthMs(duration);
             setVideoFileName(videoFileName);
             videoFileNameRef.current = videoFileName;
+            videoOffsetIdentityRef.current = videoOffsetIdentity ?? videoFileName;
+            selectSubtitleOffset();
             playbackEngineRef.current?.playbackPositionKeysChanged(videoFileName ? [videoFileName] : [], {
                 isNewSource: true,
             });
@@ -1075,19 +1093,20 @@ export default function VideoPlayer({
 
         playerChannel.onSubtitleSource((update) => {
             if (!subtitleStream.current.update(update)) return;
+            const offset = selectSubtitleOffset();
             const snapshot = subtitleStream.current.snapshot();
-            const current = displaySubtitleSnapshot(snapshot, subtitlesRef.current, offsetRef.current);
+            const current = displaySubtitleSnapshot(snapshot, subtitlesRef.current, offset);
             subtitlesRef.current = current;
             setSubtitles(current);
             setTrackCount(snapshot.tracks.reduce((count, track) => Math.max(count, track.track + 1), 0));
         });
 
-        playerChannel.onSubtitles((subtitles) => {
+        playerChannel.onSubtitles((subtitles, names, mainTrackOffsetIdentity) => {
             asbTrace('playback/video-player', 'Received subtitles from player channel', {
                 subtitleCount: subtitles.length,
             });
-            subtitleStream.current.replace(subtitles, []);
-            const offset = playbackEngineRef.current?.lastSubtitleOffset ?? 0;
+            subtitleStream.current.replace(subtitles, names, mainTrackOffsetIdentity);
+            const offset = selectSubtitleOffset();
             const videoSubtitles = subtitles.map((s, i) => ({
                 ...s,
                 start: s.originalStart + offset,
@@ -1155,7 +1174,15 @@ export default function VideoPlayer({
             asbTrace('playback/video-player', 'Closing player channel');
             playerChannel.close();
         };
-    }, [clock, playerChannel, requestFullscreen, togglePlaybackMode, updatePlaybackRate, updateSubtitlesWithOffset]);
+    }, [
+        clock,
+        playerChannel,
+        requestFullscreen,
+        selectSubtitleOffset,
+        togglePlaybackMode,
+        updatePlaybackRate,
+        updateSubtitlesWithOffset,
+    ]);
 
     const handlePlay = useCallback(() => {
         if (videoRef.current) {

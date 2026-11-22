@@ -1,6 +1,7 @@
 import type { DisplaySubtitleModel, LoadableSubtitleTrack, SubtitleSourceMessage } from '@project/common';
 import type { FileWithId } from '@project/common/file-selector';
 import type { SubtitleReader } from '@project/common/subtitle-reader';
+import { subtitleOffsetTrackIdentity } from '@project/common/playback/subtitle-offset-storage';
 import type VideoChannel from '@project/common/app/services/video-channel';
 import {
     displaySubtitleSnapshot,
@@ -154,6 +155,7 @@ export class SubtitleTracksController {
         this.activity = activity;
         this.notifyTrackStateChanged();
         const names = tracks.map(({ fileParts }) => fileParts[0]?.file.name ?? '');
+        const mainTrackOffsetIdentity = subtitleOffsetTrackIdentity(tracks[0]?.fileParts.map(({ file }) => file) ?? []);
         asbTrace('playback/player', 'Loading player subtitles', {
             subtitleTrackCount: tracks.length,
             subtitleFileCount: tracks.reduce((count, { fileParts }) => count + fileParts.length, 0),
@@ -168,7 +170,8 @@ export class SubtitleTracksController {
             if (this.activity !== activity) return;
             this.stream.replace(
                 nodes.map((cue) => ({ ...cue, originalStart: cue.start, originalEnd: cue.end })),
-                names
+                names,
+                mainTrackOffsetIdentity
             );
             asbTrace('playback/player', 'Loaded player subtitles', {
                 subtitleCount: nodes.length,
@@ -178,7 +181,7 @@ export class SubtitleTracksController {
             if (this.activity !== activity) return;
             asbTrace('playback/player', 'Failed to load player subtitles', { error });
             this.options.onError(error);
-            this.stream.replace([], names);
+            this.stream.replace([], names, mainTrackOffsetIdentity);
         }
         if (this.activity !== activity) return;
         this.activity = { kind: 'files' };
@@ -274,6 +277,6 @@ export class SubtitleTracksController {
             trackCount: snapshot.tracks.length,
             subtitleFileNames: names,
         });
-        channel.subtitles(displayed, names);
+        channel.subtitles(displayed, names, snapshot.tracks.find(({ track }) => track === 0)?.offsetIdentity);
     }
 }

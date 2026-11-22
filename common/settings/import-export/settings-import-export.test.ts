@@ -738,8 +738,6 @@ it('validates exported settings', () => {
         subtitleListTimestampDisplay: 'startAndEnd',
         copyToClipboardOnMine: false,
         lastPlaybackPositions: [{ fileName: 'example.mp4', position: 1200 }],
-        rememberSubtitleOffset: true,
-        lastSubtitleOffset: 0,
         autoCopyCurrentSubtitle: false,
         alwaysPlayOnSubtitleRepeat: true,
         subtitleRegexFilter: '',

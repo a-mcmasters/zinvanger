@@ -8,6 +8,8 @@ export interface SubtitleSourceState {
     readonly track: number;
     readonly loadId: string;
     readonly name: string;
+    /** Stable file identity for offset persistence. A load ID only identifies cues within one load. */
+    readonly offsetIdentity?: string;
     readonly status: SubtitleSourceStatus;
     readonly error?: string;
 }
@@ -61,7 +63,7 @@ export interface SubtitleStreamSnapshot {
  * rejecting stale load IDs only prevents obsolete work from modifying the replacement.
  */
 export type SubtitleSourceUpdate =
-    | { readonly type: 'start'; readonly track: number; readonly loadId: string; readonly name: string }
+    | ({ readonly type: 'start' } & Pick<SubtitleSourceState, 'track' | 'loadId' | 'name' | 'offsetIdentity'>)
     | {
           readonly type: 'cues';
           readonly track: number;
@@ -230,7 +232,7 @@ export const displaySubtitleSnapshot = (
 export class SubtitleStream {
     private tracks = new Map<number, { state: SubtitleSourceState; cues: Map<number, IndexedSubtitleModel> }>();
 
-    replace(subtitles: readonly SubtitleModel[], names: readonly string[]): void {
+    replace(subtitles: readonly SubtitleModel[], names: readonly string[], mainTrackOffsetIdentity?: string): void {
         this.tracks.clear();
         const count = subtitles.reduce((count, cue) => Math.max(count, cue.track + 1), names.length);
         for (let track = 0; track < count; track++) {
@@ -240,7 +242,18 @@ export class SubtitleStream {
                 const cueId = cue.source?.loadId === loadId ? cue.source.cueId : cues.size;
                 cues.set(cueId, { ...cue, source: { loadId, cueId }, index: cueId });
             }
-            this.tracks.set(track, { state: { track, loadId, name: names[track] ?? '', status: 'complete' }, cues });
+            this.tracks.set(track, {
+                state: {
+                    track,
+                    loadId,
+                    name: names[track] ?? '',
+                    status: 'complete',
+                    ...(track === 0 && mainTrackOffsetIdentity !== undefined
+                        ? { offsetIdentity: mainTrackOffsetIdentity }
+                        : {}),
+                },
+                cues,
+            });
         }
     }
 
@@ -270,7 +283,13 @@ export class SubtitleStream {
             if (typeof update.name !== 'string') throw new Error('Invalid subtitle name');
             if (this.tracks.get(update.track)?.state.loadId === update.loadId) return false;
             this.tracks.set(update.track, {
-                state: { track: update.track, loadId: update.loadId, name: update.name, status: 'loading' },
+                state: {
+                    track: update.track,
+                    loadId: update.loadId,
+                    name: update.name,
+                    status: 'loading',
+                    ...(update.offsetIdentity === undefined ? {} : { offsetIdentity: update.offsetIdentity }),
+                },
                 cues: new Map(),
             });
             return true;
