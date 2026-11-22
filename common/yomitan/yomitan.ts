@@ -306,7 +306,8 @@ const structuredContentText = (content: TermStructuredContent): string => {
     if (Array.isArray(content)) return content.map(structuredContentText).join('');
 
     const { tag } = content;
-    if (tag === 'img' || tag === 'rp' || tag === 'rt') return '';
+    // <details> is collapsed extra material (examples, etymology), not the meaning itself.
+    if (tag === 'img' || tag === 'rp' || tag === 'rt' || tag === 'details') return '';
     const text = content.content === undefined ? '' : structuredContentText(content.content);
     return STRUCTURED_CONTENT_BLOCK_TAGS.has(tag) || STRUCTURED_CONTENT_INLINE_BOUNDARY_TAGS.has(tag)
         ? ` ${text} `

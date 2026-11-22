@@ -1019,7 +1019,24 @@ describe('Yomitan', () => {
                                                     content: [
                                                         {
                                                             tag: 'li',
-                                                            content: [{ tag: 'div', content: ['good morning'] }],
+                                                            content: [
+                                                                {
+                                                                    tag: 'div',
+                                                                    content: [
+                                                                        'good morning',
+                                                                        {
+                                                                            tag: 'details',
+                                                                            content: [
+                                                                                {
+                                                                                    tag: 'summary',
+                                                                                    content: '1 example',
+                                                                                },
+                                                                                'Goedemorgen allemaal! Good morning, all!',
+                                                                            ],
+                                                                        },
+                                                                    ],
+                                                                },
+                                                            ],
                                                         },
                                                     ],
                                                 },
