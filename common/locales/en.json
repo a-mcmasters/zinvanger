@@ -892,5 +892,21 @@
         "incomingRequest": "An external extension is requesting to connect to Zinvanger.",
         "extensionDetailsHelper": "Extension details can be viewed at <0>{{address}}</0>.",
         "warning": "Once approved, extension <0>{{id}}</0> will be able to control Zinvanger. Only approve if you recognize it."
+    },
+    "livingSubtitle": {
+        "actions": "Word lookup",
+        "mine": "Mine",
+        "mining": "Mining…",
+        "mined": "Mined",
+        "loading": "Looking up…",
+        "retry": "Retry",
+        "noResult": "No meaning found",
+        "closeWord": "Close word lookup",
+        "meaningInContext": "Dictionary",
+        "error": {
+            "noDictionary": "Set a Yomitan URL for subtitle track 1 to look up words",
+            "dictionaryUnavailable": "Yomitan is not reachable. Is the Yomitan API running?",
+            "mining": "Mining failed: {{message}}"
+        }
     }
 }

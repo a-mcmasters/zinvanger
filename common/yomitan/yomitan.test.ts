@@ -994,6 +994,83 @@ describe('Yomitan', () => {
         await expect(yomitan.gloss('alpha')).resolves.toBe('best choice');
     });
 
+    it('reads the glosses of Wiktionary (wty) dictionaries, not their etymology, labels or backlink', async () => {
+        const fetcher = new MockFetcher();
+        fetcher.fetch.mockResolvedValue({
+            dictionaryEntries: [
+                makeEntry({
+                    definitions: [
+                        makeDefinition({
+                            entries: [
+                                {
+                                    type: 'structured-content',
+                                    content: [
+                                        {
+                                            tag: 'div',
+                                            content: [
+                                                {
+                                                    tag: 'div',
+                                                    data: { content: 'preamble' },
+                                                    content: 'Etymology Univerbation of goede + morgen.',
+                                                },
+                                                {
+                                                    tag: 'ol',
+                                                    data: { content: 'glosses' },
+                                                    content: [
+                                                        {
+                                                            tag: 'li',
+                                                            content: [
+                                                                {
+                                                                    tag: 'div',
+                                                                    content: [
+                                                                        {
+                                                                            tag: 'div',
+                                                                            data: { content: 'tags' },
+                                                                            content: [
+                                                                                { tag: 'span', content: 'interj' },
+                                                                            ],
+                                                                        },
+                                                                        'good morning',
+                                                                        {
+                                                                            tag: 'details',
+                                                                            content: [
+                                                                                {
+                                                                                    tag: 'summary',
+                                                                                    content: '1 example',
+                                                                                },
+                                                                                'Goedemorgen allemaal! Good morning, all!',
+                                                                            ],
+                                                                        },
+                                                                    ],
+                                                                },
+                                                            ],
+                                                        },
+                                                    ],
+                                                },
+                                                {
+                                                    tag: 'div',
+                                                    data: { content: 'backlink' },
+                                                    content: [
+                                                        { tag: 'span', content: 'Wiktionary' },
+                                                        ' | ',
+                                                        { tag: 'span', content: 'Kaikki' },
+                                                    ],
+                                                },
+                                            ],
+                                        },
+                                    ],
+                                },
+                            ],
+                        }),
+                    ],
+                }),
+            ],
+        });
+        const yomitan = new Yomitan(testDictionaryTrack(), fetcher);
+
+        await expect(yomitan.gloss('alpha')).resolves.toBe('good morning');
+    });
+
     it('falls back to block-aware flattening for generic structured content', async () => {
         const fetcher = new MockFetcher();
         fetcher.fetch.mockResolvedValue({

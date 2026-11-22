@@ -1,8 +1,5 @@
 import type { Command, GetLocalDefinitionMessage, Message } from '@project/common';
-import project from '@project/common/project';
-import { getLocalLookupToken } from '@/services/local-lookup-token';
-
-const { host, port } = project.services.transcriber;
+import { localLookup } from '@/services/local-lookup-client';
 
 // Only the extension-owned Anki dialog can spend local lookup quota.
 export default class GetLocalDefinitionHandler {
@@ -24,26 +21,10 @@ export default class GetLocalDefinitionHandler {
 
         const { sentence } = command.message as GetLocalDefinitionMessage;
 
-        this._lookup(sentence)
-            .then(sendResponse)
+        localLookup(sentence)
+            .then((response) => sendResponse('text' in response ? { translation: response.text } : undefined))
             .catch(() => sendResponse(undefined));
 
         return true;
-    }
-
-    private async _lookup(sentence: string) {
-        const token = await getLocalLookupToken();
-        if (token.length < 32) {
-            return undefined;
-        }
-
-        const query = new URLSearchParams({ sentence });
-        return fetch(`http://${host}:${port}/translate?${query}`, {
-            headers: { Authorization: `Bearer ${token}` },
-            redirect: 'error',
-        }).then(async (response) => {
-            const json = await response.json().catch(() => ({}));
-            return response.ok && typeof json.translation === 'string' ? { translation: json.translation } : undefined;
-        });
     }
 }

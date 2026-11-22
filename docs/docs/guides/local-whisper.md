@@ -27,12 +27,24 @@ In Chrome, **Load Subtitles → Transcribe this episode** records the episode ta
 
 ## Set up automatic Anki lookups
 
-In the Chromium extension, the Anki dialog fills in the English translation of the mined sentence. After each transcription, the server translates the whole episode once and saves it as `<key>.en.ai.srt`, so opening a card costs nothing. If you save an English subtitle file as `<key>.en.srt` in the transcripts folder, it is used instead, matched to the Dutch lines by time. Only a sentence found in neither file is translated on demand. Translation uses your logged-in Codex CLI by default. Set `ASB_DEFINE_PROVIDER=claude` before starting the server to use Claude Code. The provider uses your subscription quota. An NVIDIA GPU is only needed for Whisper transcription.
+In the Chromium extension, the Anki dialog fills in the English translation of the mined sentence. After each transcription, the server translates the whole episode once and saves it as `<key>.en.ai.srt`, so opening a card costs nothing. If you save an English subtitle file as `<key>.en.srt` in the transcripts folder, it is used instead, matched to the Dutch lines by time. Only a sentence found in neither file is translated on demand. Translation uses your logged-in Claude Code by default, with its tools turned off. Set `ASB_DEFINE_PROVIDER=codex` before starting the server to use the Codex CLI instead. Codex can still read files on your computer, so a hostile subtitle could make it copy one into a translation. The provider uses your subscription quota. An NVIDIA GPU is only needed for Whisper transcription.
 
 1. Generate a token with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 2. Before starting the server, set `ASB_LOOKUP_TOKEN` to that token in the same terminal. In PowerShell, use `$env:ASB_LOOKUP_TOKEN = "<token>"`. In Bash, use `export ASB_LOOKUP_TOKEN='<token>'`.
-3. In the extension's **Anki** settings, paste the same token into **Local lookup token** and click **Save**.
+3. In Zinvanger's toolbar popup or extension options, scroll to **Local lookup token** at the bottom of the **Anki** section. Paste the same token and click **Save**. You can also choose **Open lookup settings** from a subtitle lookup error to jump directly to the field.
 4. Add a custom asbplayer field named exactly `Sentence Translation` and map it to the corresponding field in your Anki note type. The translation box appears once the mapping is set.
 5. Mine a subtitle and open the Anki dialog. Review the translation and edit it before exporting. Fill in the word definition yourself.
 
 The lookup-enabled dialog runs in the extension's own frame, where page-injected dictionary popups are unavailable. Clear the token in **Anki** settings to use the dialog with those popups again.
+
+## Word lookup on the video
+
+On desktop, click a word in the first subtitle track. Playback pauses, the word is highlighted, and a card opens above the line with its dictionary meaning from [Yomitan](annotation.md) (no model tokens).
+
+**Mine** mines exactly this sentence, without joining neighboring lines, using your usual audio padding and click-to-mine action. The clicked word goes to the Anki card's word field, and its meaning, once shown, to the definition field.
+
+The dictionary links an inflected form to its base form, so the card shows the base form's meaning: _hadden_ shows the meaning of _hebben_ (to have).
+
+Close the card with **×** or Escape. Resuming or seeking closes it too.
+
+Word meanings need a [Yomitan URL](annotation.md) on subtitle track 1 and a Dutch dictionary in Yomitan, such as a Dutch Wiktionary dictionary from [wiktionary-to-yomitan](https://yomidevs.github.io/wiktionary-to-yomitan/download/). Yomitan has no Dutch deinflection, so an inflected form is found only when the dictionary lists it. Without Yomitan, the card shows an error with **Retry**, and **Mine** keeps working.

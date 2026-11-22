@@ -80,7 +80,7 @@ const _intersectsVisibleChild = (clientX: number, clientY: number, element: HTML
     );
 };
 
-class VideoFetcher implements Fetcher {
+export class VideoFetcher implements Fetcher {
     private readonly videoSrcCB: () => string;
 
     constructor(videoSrcCB: () => string) {
@@ -147,6 +147,8 @@ export default class SubtitleController {
     onOffsetChange?: (offset: number, previousOffset: number) => Promise<void>;
     onMouseOver?: (event: MouseEvent) => void;
     onMouseOut?: (event: MouseEvent) => void;
+    /** After the shown subtitles are rendered or hidden; read `displayedSubtitles` for the result. */
+    onDisplayedSubtitlesChanged?: () => void;
 
     constructor(context: Binding, dictionary: DictionaryProvider, settings: SettingsProvider) {
         this.context = context;
@@ -565,7 +567,25 @@ export default class SubtitleController {
         this.refreshShowingSubtitles();
     }
 
+    /** The text cues currently on screen, in display order; empty while subtitles are hidden. */
+    get displayedSubtitles(): readonly IndexedSubtitleModel[] {
+        return this._displaySubtitles && !this._forceHideSubtitles ? (this.showingSubtitles ?? []) : [];
+    }
+
+    /** The subtitle overlay containers currently in the document. */
+    subtitleContainers(): HTMLElement[] {
+        return [
+            this.bottomSubtitlesElementOverlay.containerElement,
+            this.topSubtitlesElementOverlay.containerElement,
+        ].filter((container): container is HTMLElement => container !== undefined);
+    }
+
     refreshShowingSubtitles(): void {
+        this._refreshShowingSubtitles();
+        this.onDisplayedSubtitlesChanged?.();
+    }
+
+    private _refreshShowingSubtitles(): void {
         if (this.showingLoadedMessage) return;
 
         const showingSubtitles = this.timelineShowingSubtitles
@@ -770,6 +790,7 @@ export default class SubtitleController {
         this.notificationElementOverlay.dispose();
         this.onOffsetChange = undefined;
         this.onMouseOver = undefined;
+        this.onDisplayedSubtitlesChanged = undefined;
         this.onMouseOut = undefined;
     }
 

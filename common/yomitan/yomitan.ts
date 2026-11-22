@@ -306,7 +306,10 @@ const structuredContentText = (content: TermStructuredContent): string => {
     if (Array.isArray(content)) return content.map(structuredContentText).join('');
 
     const { tag } = content;
-    if (tag === 'img' || tag === 'rp' || tag === 'rt') return '';
+    // <details> is collapsed extra material (examples, etymology), not the meaning itself.
+    if (tag === 'img' || tag === 'rp' || tag === 'rt' || tag === 'details') return '';
+    // Part-of-speech labels such as "vt" (wty dictionaries) are not part of the meaning.
+    if (content.data?.content === 'tags') return '';
     const text = content.content === undefined ? '' : structuredContentText(content.content);
     return STRUCTURED_CONTENT_BLOCK_TAGS.has(tag) || STRUCTURED_CONTENT_INLINE_BOUNDARY_TAGS.has(tag)
         ? ` ${text} `
@@ -323,7 +326,8 @@ const firstSemanticGloss = (content: TermStructuredContent): string | null => {
         return null;
     }
 
-    if (content.data?.content === 'glossary') {
+    // 'glosses' is the Wiktionary (wty) dictionaries' list; it sits after an etymology preamble and before a backlink.
+    if (content.data?.content === 'glossary' || content.data?.content === 'glosses') {
         const children =
             content.content === undefined ? [] : Array.isArray(content.content) ? content.content : [content.content];
         const listItems = children.filter(

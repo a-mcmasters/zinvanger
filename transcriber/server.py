@@ -5,8 +5,8 @@
     python transcriber/server.py translate --key "<name>"           # translate a stored transcript
 
 It also translates each transcript into English (<key>.en.ai.srt) and serves GET /translate?sentence=, which the Anki
-dialog uses to fill the sentence translation field. Translation runs your logged-in Codex CLI (ChatGPT plan) or, with ASB_DEFINE_PROVIDER=claude, Claude
-Code (Claude plan), so it uses your subscription rather than per-token API billing.
+dialog uses to fill the sentence translation field. Translation runs your logged-in Claude Code (Claude plan) or, with ASB_DEFINE_PROVIDER=codex, the Codex
+CLI (ChatGPT plan), so it uses your subscription rather than per-token API billing.
 
 Transcripts are stored as <ASB_TRANSCRIPTS_DIR or ~/asbplayer-transcripts>/<key>.srt, where the key is the video
 name asbplayer reports (e.g. "Invincible.S3.E1 - ...").
@@ -37,17 +37,19 @@ LANGUAGE = os.environ.get("ASB_WHISPER_LANGUAGE", "nl")
 PROMPT = os.environ.get("ASB_WHISPER_PROMPT", "Ja man, dat is echt weird. Oké, nice, chill, sorry, whatever.")
 TRANSCRIPTS_DIR = Path(os.environ.get("ASB_TRANSCRIPTS_DIR", Path.home() / "asbplayer-transcripts"))
 
-DEFINE_PROVIDER = os.environ.get("ASB_DEFINE_PROVIDER", "codex")
+DEFINE_PROVIDER = os.environ.get("ASB_DEFINE_PROVIDER", "claude")
 LOOKUP_TOKEN = os.environ.get("ASB_LOOKUP_TOKEN", "")
 DEFINE_LANGUAGE = os.environ.get("ASB_DEFINE_LANGUAGE", "English")
 DEFINE_TIMEOUT = 60
-# The prompt goes in on stdin ("-" for codex). Run with no tools and no saved session: this is a lookup, not an agent.
+# The prompt goes in on stdin ("-" for codex). Subtitle text comes from web pages, so it can carry instructions:
+# claude runs with no tools and no MCP servers. Codex cannot turn off all of its tools (code exec, MCP), and its read-only
+# sandbox still reads any file, so a hostile subtitle could make it quote local files into a definition.
 # Defaults are the most accurate of each plan's models on context-dependent Dutch words, measured 2026-11-20.
 DEFINE_COMMANDS = {
     # "priority" is Codex's Fast tier (1.5x on gpt-6.1-terra, no extra usage listed).
     "codex": ["codex", "exec", "--ephemeral", "--skip-git-repo-check", "-s", "read-only", "-m", "{model}",
               "-c", "model_reasoning_effort=low", "-c", 'service_tier="priority"', "-o", "{out}", "-"],
-    "claude": ["claude", "-p", "--model", "{model}", "--effort", "low", "--tools", "", "--no-session-persistence"],
+    "claude": ["claude", "-p", "--model", "{model}", "--effort", "low", "--tools", "", "--strict-mcp-config", "--no-session-persistence"],
 }
 DEFINE_MODEL = os.environ.get("ASB_DEFINE_MODEL", {"codex": "gpt-6.1-terra", "claude": "claude-opus-5-5"}.get(DEFINE_PROVIDER))
 

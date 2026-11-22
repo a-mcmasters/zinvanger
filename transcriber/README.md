@@ -31,8 +31,8 @@ After each transcription, the server translates the whole transcript into `<key>
 
 Translation runs a logged-in subscription CLI, so there is no API key and no per-token billing:
 
-- **Default:** Codex (`codex login` with your ChatGPT plan), using `gpt-6.1-terra` on the Fast tier.
-- **Alternative:** set `ASB_DEFINE_PROVIDER=claude` to use Claude Code on your Claude plan, with `claude-opus-5-5`.
+- **Default:** Claude Code on your Claude plan, using `claude-opus-5-5` with every tool and MCP server turned off.
+- **Alternative:** set `ASB_DEFINE_PROVIDER=codex` to use Codex (`codex login` with your ChatGPT plan), using `gpt-6.1-terra` on the Fast tier. Codex cannot run without tools, and its read-only sandbox can still read your files. Subtitle text comes from websites, so a hostile subtitle could make Codex copy a local file into a definition or translation.
 - **Other settings:** `ASB_DEFINE_MODEL` picks another model, and `ASB_DEFINE_LANGUAGE` translates into a language other than English.
 
 To enable lookups in Chromium, generate a token with `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Set `ASB_LOOKUP_TOKEN` to that token before starting the server, then enter the same value in the extension's **Anki → Local lookup token** setting and click **Save**. See the [setup guide](../docs/docs/guides/local-whisper.md#set-up-automatic-anki-lookups) for shell commands and field mapping.

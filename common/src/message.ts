@@ -148,6 +148,10 @@ export interface GetLocalDefinitionMessage extends Message {
     readonly sentence: string;
 }
 
+export type LocalLookupError = 'unavailable' | 'unauthorized' | 'busy' | 'timeout' | 'invalid' | 'malformed';
+
+export type LocalLookupResponse = { readonly text: string } | { readonly error: LocalLookupError };
+
 export interface EncodeMp3Message extends MessageWithId {
     readonly command: 'encode-mp3';
     readonly messageId: string;
