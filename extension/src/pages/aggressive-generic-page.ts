@@ -535,6 +535,8 @@ export class AggressiveGenericPageDiscovery implements VideoDataProvider {
     private originalJsonParse?: typeof JSON.parse;
     private hintedInlineJson?: { page: string; discovery: JsonDiscovery };
 
+    constructor(private readonly subtitleUrlKey?: (url: string) => string) {}
+
     install(): () => void {
         const cleanup: Array<() => void> = [];
         let active = true;
@@ -870,7 +872,11 @@ export class AggressiveGenericPageDiscovery implements VideoDataProvider {
             })
             .sort((left, right) => right.score - left.score || left.order - right.order)
             .map(({ track }) => track);
-        return { error: '', basename: base.basename, subtitles: deduplicateTracks(rankedTracks) };
+        return {
+            error: '',
+            basename: base.basename,
+            subtitles: deduplicateTracks(rankedTracks, undefined, this.subtitleUrlKey),
+        };
     }
 
     private async tracksFromHlsManifest(
@@ -1070,8 +1076,11 @@ export class AggressiveGenericPageDiscovery implements VideoDataProvider {
     }
 }
 
-export function installAggressiveGenericPageDiscovery(eventTarget: Document = document): () => void {
-    const discovery = new AggressiveGenericPageDiscovery();
+export function installAggressiveGenericPageDiscovery(
+    eventTarget: Document = document,
+    subtitleUrlKey?: (url: string) => string
+): () => void {
+    const discovery = new AggressiveGenericPageDiscovery(subtitleUrlKey);
     const uninstallDiscovery = discovery.install();
     const unbind = bindVideoDataDiscovery(discovery, eventTarget);
     return () => {

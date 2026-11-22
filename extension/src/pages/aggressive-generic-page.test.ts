@@ -6,6 +6,7 @@ jest.mock('@project/common/subtitle-reader/subtitles-to-srt', () => ({
 }));
 
 import { AggressiveGenericPageDiscovery } from '@project/extension/src/pages/aggressive-generic-page';
+import { videolandSubtitleUrlKey } from '@project/extension/src/pages/videoland';
 
 function appendJson(value: unknown) {
     const script = document.createElement('script');
@@ -1352,12 +1353,14 @@ it('discovers extensionless DASH subtitles using representation MIME metadata', 
     }
 });
 
-it('discovers fragmented MP4 (stpp) TTML subtitles in a DASH manifest', async () => {
+it('discovers distinct stpp TTML tracks across Videoland CDN mirrors', async () => {
     // Shape of Videoland's Unified Streaming manifests: separate tracks share one representation id.
     const video = document.createElement('video');
     document.body.append(video);
     const originalFetch = window.fetch;
-    const manifestUrl = 'https://cdn.example/media/static/manifest.mpd';
+    const cdn = 'https://edge-cf.vod.videoland.bedrock.tech';
+    const mirror = 'https://edge-fastly.vod.videoland.bedrock.tech';
+    const manifestPath = '/media/static/manifest.mpd';
     const textSet = (name: string, roles: string[]) => `
     <AdaptationSet contentType="text" lang="nld" mimeType="application/mp4" codecs="stpp.ttml.im1t">
       ${roles.map((role) => `<Role schemeIdUri="urn:mpeg:dash:role:2011" value="${role}"/>`).join('')}
@@ -1372,30 +1375,32 @@ it('discovers fragmented MP4 (stpp) TTML subtitles in a DASH manifest', async ()
   <Period id="1" duration="PT2M">${textSet('opencaption', ['subtitle'])}${textSet('sdh', ['caption', 'subtitle'])}
   </Period>
 </MPD>`;
-    const response = {
-        ok: true,
-        status: 200,
-        url: manifestUrl,
-        headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/dash+xml' : null) },
-        clone() {
-            return this;
-        },
-        text: async () => manifest,
-    } as unknown as Response;
+    const response = (url: string) =>
+        ({
+            ok: true,
+            status: 200,
+            url,
+            headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/dash+xml' : null) },
+            clone() {
+                return this;
+            },
+            text: async () => manifest,
+        }) as unknown as Response;
     Object.defineProperty(window, 'fetch', {
         configurable: true,
         writable: true,
-        value: jest.fn(async () => response),
+        value: jest.fn(async (url: string) => response(url)),
     });
-    const discovery = new AggressiveGenericPageDiscovery();
+    const discovery = new AggressiveGenericPageDiscovery(videolandSubtitleUrlKey);
     const uninstall = discovery.install();
     const segments = (name: string) => [
-        `https://cdn.example/media/${name}.ism/dash/${name}-textstream_nld=1000-0.dash`,
-        `https://cdn.example/media/${name}.ism/dash/${name}-textstream_nld=1000-60000.dash`,
+        `${cdn}/media/${name}.ism/dash/${name}-textstream_nld=1000-0.dash`,
+        `${cdn}/media/${name}.ism/dash/${name}-textstream_nld=1000-60000.dash`,
     ];
 
     try {
-        await window.fetch(manifestUrl);
+        await window.fetch(cdn + manifestPath);
+        await window.fetch(mirror + manifestPath);
 
         const { subtitles } = await discovery.videoData(video);
         expect(subtitles?.map(({ label, language, extension, url }) => ({ label, language, extension, url }))).toEqual([
