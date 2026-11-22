@@ -3,6 +3,7 @@ import FormHelperText from '@mui/material/FormHelperText';
 import AnkiConnectTutorialBubble from '@project/common/components/AnkiConnectTutorialBubble';
 import DeckFieldTutorialBubble from '@project/common/components/DeckFieldTutorialBubble';
 import SettingsTextField from '@project/common/components/SettingsTextField';
+import NumericSettingInput from '@project/common/components/NumericSettingInput';
 import SettingsStatus from '@project/common/components/SettingsStatus';
 import { Trans, useTranslation } from 'react-i18next';
 import AnkiSelect from '@project/common/components/AnkiSelect';
@@ -85,7 +86,7 @@ interface Props {
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : typeof e === 'string' ? e : String(e));
 
-// S13/U2: only the connection, deck, note type and the five fields this workflow fills are configurable.
+// S13/U2: only the connection, deck, note type, the five fields this workflow fills and the audio padding are configurable.
 // Other Anki settings (tags, extra and custom fields, field order) keep their stored values but have no UI.
 const AnkiSettingsTab: React.FC<Props> = ({
     settings,
@@ -117,6 +118,8 @@ const AnkiSettingsTab: React.FC<Props> = ({
         audioField,
         wordField,
         customAnkiFields,
+        audioPaddingStart,
+        audioPaddingEnd,
     } = settings;
 
     const requestAnkiConnect = useCallback(async () => {
@@ -414,6 +417,26 @@ const AnkiSettingsTab: React.FC<Props> = ({
                 value={audioField}
                 selections={fieldNames}
                 onValueChange={(value) => onSettingChanged('audioField', value)}
+            />
+            <NumericSettingInput
+                label={t('settings.audioPaddingStart')}
+                fullWidth
+                value={audioPaddingStart}
+                onValueChange={(value) => void onSettingChanged('audioPaddingStart', value)}
+                slotProps={{
+                    htmlInput: { min: 0, step: 1 },
+                    input: { endAdornment: <InputAdornment position="end">ms</InputAdornment> },
+                }}
+            />
+            <NumericSettingInput
+                label={t('settings.audioPaddingEnd')}
+                fullWidth
+                value={audioPaddingEnd}
+                onValueChange={(value) => void onSettingChanged('audioPaddingEnd', value)}
+                slotProps={{
+                    htmlInput: { min: 0, step: 1 },
+                    input: { endAdornment: <InputAdornment position="end">ms</InputAdornment> },
+                }}
             />
             {testCard && (
                 <TutorialBubble
