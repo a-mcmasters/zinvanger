@@ -1027,9 +1027,9 @@ describe('Yomitan', () => {
                                                     tag: 'div',
                                                     data: { content: 'backlink' },
                                                     content: [
-                                                        { tag: 'a', content: 'Wiktionary' },
+                                                        { tag: 'span', content: 'Wiktionary' },
                                                         ' | ',
-                                                        { tag: 'a', content: 'Kaikki' },
+                                                        { tag: 'span', content: 'Kaikki' },
                                                     ],
                                                 },
                                             ],
