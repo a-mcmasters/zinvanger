@@ -92,7 +92,7 @@ const setup = () => {
         resolve: (target: any) => target,
         pause: jest.fn(),
         mine: jest.fn(async (): Promise<'saved' | 'dialog'> => 'saved'),
-        define: jest.fn(async (word: string) => `meaning of ${word}`),
+        define: jest.fn(async (word: string) => ({ text: `meaning of ${word}`, lemma: 'zetten' })),
     };
     const host = new LivingSubtitleHost(context);
     host.bind({ language: 'en', themeType: 'dark' });
@@ -134,7 +134,7 @@ describe('LivingSubtitleHost', () => {
         expect(lastModel()).toMatchObject({
             words: ['Hij', 'zet', 'koffie'],
             wordIndex: 1,
-            definition: { status: 'success', text: 'meaning of zet' },
+            definition: { status: 'success', text: 'meaning of zet', lemma: 'zetten' },
             mining: { status: 'idle' },
         });
         host.unbind();

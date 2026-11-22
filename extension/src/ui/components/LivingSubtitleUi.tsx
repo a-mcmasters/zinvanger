@@ -125,6 +125,12 @@ export default function LivingSubtitleUi({ bridge }: Props) {
                                 sx={{ display: 'block', fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.2 }}
                             >
                                 {word}
+                                {model.definition.status === 'success' && model.definition.lemma && (
+                                    <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary' }}>
+                                        {' → '}
+                                        {model.definition.lemma}
+                                    </Box>
+                                )}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
                                 {t('livingSubtitle.meaningInContext')}

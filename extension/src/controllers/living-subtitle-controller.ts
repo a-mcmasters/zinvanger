@@ -22,7 +22,8 @@ export const livingSubtitleWords = (text: string): LivingSubtitleWord[] =>
 
 export type LivingSubtitleResult =
     | { status: 'idle' | 'pending' }
-    | { status: 'success'; text: string }
+    /** `lemma`: the dictionary form the meaning belongs to, when it differs from the word. */
+    | { status: 'success'; text: string; lemma?: string }
     | { status: 'error'; message: string };
 
 export interface LivingSubtitleState {
@@ -34,13 +35,18 @@ export interface LivingSubtitleState {
     mining: LivingSubtitleResult;
 }
 
+export interface LivingSubtitleDefinition {
+    readonly text: string;
+    readonly lemma?: string;
+}
+
 /** `dialog`: the Anki dialog took over the card, so nothing is mined yet. */
 export type LivingSubtitleMineOutcome = 'saved' | 'dialog';
 
 interface Actions {
     pause(): void;
     /** The word's meaning; rejects with a `livingSubtitle.error` key. */
-    define(word: string): Promise<string>;
+    define(word: string): Promise<LivingSubtitleDefinition>;
     /** Resolves when a card is saved or a dialog takes it over, never on message acknowledgement. */
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     render(state: Readonly<LivingSubtitleState>): void;
@@ -146,7 +152,7 @@ export default class LivingSubtitleController {
 
     private async define(word: string): Promise<LivingSubtitleResult> {
         try {
-            return { status: 'success', text: await this.actions.define(word) };
+            return { status: 'success', ...(await this.actions.define(word)) };
         } catch (error) {
             return { status: 'error', message: error instanceof Error ? error.message : String(error) };
         }

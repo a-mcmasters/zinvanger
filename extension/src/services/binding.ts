@@ -125,7 +125,11 @@ import { SubtitleReader } from '@project/common/subtitle-reader';
 import AnkiUiController from '@project/extension/src/controllers/anki-ui-controller';
 import LivingSubtitleHost from '@/controllers/living-subtitle-host';
 import { Yomitan } from '@project/common/yomitan';
-import type { LivingSubtitleMineOutcome, LivingSubtitleState } from '@/controllers/living-subtitle-controller';
+import type {
+    LivingSubtitleDefinition,
+    LivingSubtitleMineOutcome,
+    LivingSubtitleState,
+} from '@/controllers/living-subtitle-controller';
 import ControlsController from '@project/extension/src/controllers/controls-controller';
 import DragController from '@project/extension/src/controllers/drag-controller';
 import { MobileGestureController } from '@project/extension/src/controllers/mobile-gesture-controller';
@@ -1870,7 +1874,7 @@ export default class Binding {
     }
 
     /** The meaning of a main-track word from the Yomitan dictionaries set for subtitle track 1; no model tokens. */
-    private async _defineWithYomitan(word: string): Promise<string> {
+    private async _defineWithYomitan(word: string): Promise<LivingSubtitleDefinition> {
         const dt = (await this.settings.getSingle('dictionaryTracks'))[0];
         const url = dt?.dictionaryYomitanUrl?.trim();
         if (!dt || !url) throw new Error('noDictionary');
@@ -1879,7 +1883,11 @@ export default class Binding {
             this._livingSubtitleYomitan = { url, yomitan: new Yomitan(dt, fetcher) }; // keeps its gloss cache
         }
         try {
-            return (await this._livingSubtitleYomitan.yomitan.gloss(word)) ?? '';
+            const { yomitan } = this._livingSubtitleYomitan;
+            const text = (await yomitan.gloss(word)) ?? '';
+            // Read from the same Yomitan response as the gloss, so normally no second request.
+            const lemma = (await yomitan.lemmatize(word))?.[0];
+            return { text, lemma: lemma && lemma.toLowerCase() !== word.toLowerCase() ? lemma : undefined };
         } catch {
             throw new Error('dictionaryUnavailable');
         }

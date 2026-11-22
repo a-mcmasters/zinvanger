@@ -37,7 +37,7 @@ const setup = () => {
         define: jest.fn((word: string) => {
             const result = deferred();
             lookups.push({ word, result });
-            return result.promise;
+            return result.promise.then((text) => ({ text }));
         }),
         mine: jest.fn((state: LivingSubtitleState) => {
             const result = deferred();

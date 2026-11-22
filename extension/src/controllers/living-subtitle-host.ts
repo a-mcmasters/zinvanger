@@ -2,6 +2,7 @@ import type { IndexedSubtitleModel } from '@project/common';
 import { ASB_SUBTITLE_INDEX_ATTRIBUTE } from '@project/common/annotations/dom-annotations';
 import LivingSubtitleController, { livingSubtitleWords } from '@/controllers/living-subtitle-controller';
 import type {
+    LivingSubtitleDefinition,
     LivingSubtitleMineOutcome,
     LivingSubtitleState,
     LivingSubtitleTarget,
@@ -24,7 +25,7 @@ export interface LivingSubtitleHostContext {
     pause(): void;
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     /** The word's dictionary meaning ('' when the dictionary has none); rejects with a `livingSubtitle.error` key. */
-    define(word: string): Promise<string>;
+    define(word: string): Promise<LivingSubtitleDefinition>;
 }
 
 const gap = 4;
