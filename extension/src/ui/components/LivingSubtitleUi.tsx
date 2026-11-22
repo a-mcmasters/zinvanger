@@ -276,30 +276,47 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
                             aria-label={word}
                             sx={{
                                 ...surface,
-                                borderRadius: 2,
-                                p: 2,
-                                width: 280,
+                                borderRadius: 3,
+                                px: 2.25,
+                                pt: 1.75,
+                                pb: 1.5,
+                                width: 300,
                                 maxWidth: '100%',
                                 maxHeight: 240,
                                 overflowY: 'auto',
                             }}
                         >
-                            <Typography variant="overline" color="primary" sx={{ lineHeight: 1 }}>
-                                {t('livingSubtitle.meaningInContext')}
-                            </Typography>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Typography variant="h6" component="strong" sx={{ fontWeight: 650 }}>
-                                    {word}
-                                </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography
+                                        component="strong"
+                                        sx={{ display: 'block', fontSize: '1.3rem', fontWeight: 700, lineHeight: 1.2 }}
+                                    >
+                                        {word}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {t('livingSubtitle.meaningInContext')}
+                                    </Typography>
+                                </Box>
                                 <IconButton
                                     size="small"
                                     aria-label={t('livingSubtitle.closeWord')}
                                     onClick={() => send('close-word')}
+                                    sx={{ mt: -0.5, mr: -1, color: 'text.secondary' }}
                                 >
                                     ×
                                 </IconButton>
                             </Box>
-                            <Box sx={{ my: 1, minHeight: 24 }}>
+                            <Box
+                                sx={{
+                                    mt: 1.25,
+                                    mb: 1.5,
+                                    pl: 1.25,
+                                    minHeight: 24,
+                                    borderLeft: 2,
+                                    borderColor: 'primary.main',
+                                }}
+                            >
                                 {model.definition.status === 'pending' && (
                                     <Typography variant="body2" color="text.secondary">
                                         <CircularProgress size={12} sx={{ mr: 1 }} />
@@ -307,7 +324,7 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
                                     </Typography>
                                 )}
                                 {model.definition.status === 'success' && (
-                                    <Typography variant="body2">
+                                    <Typography sx={{ fontSize: '0.95rem', lineHeight: 1.45 }}>
                                         {model.definition.text || t('livingSubtitle.noResult')}
                                     </Typography>
                                 )}
@@ -323,8 +340,9 @@ export default function LivingSubtitleUi({ bridge, part }: Props) {
                             </Box>
                             <Button
                                 fullWidth
-                                variant="outlined"
+                                variant={model.targetWordIndex === model.wordIndex ? 'contained' : 'outlined'}
                                 size="small"
+                                sx={{ borderRadius: 99 }}
                                 aria-pressed={model.targetWordIndex === model.wordIndex}
                                 onClick={() => send('use-target')}
                             >

@@ -323,7 +323,8 @@ const firstSemanticGloss = (content: TermStructuredContent): string | null => {
         return null;
     }
 
-    if (content.data?.content === 'glossary') {
+    // 'glosses' is the Wiktionary (wty) dictionaries' list; it sits after an etymology preamble and before a backlink.
+    if (content.data?.content === 'glossary' || content.data?.content === 'glosses') {
         const children =
             content.content === undefined ? [] : Array.isArray(content.content) ? content.content : [content.content];
         const listItems = children.filter(
