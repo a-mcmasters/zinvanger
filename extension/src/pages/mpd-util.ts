@@ -20,7 +20,10 @@ interface InferTracksFromMpdOptions {
 
 export interface MpdTrackMetadata {
     mimeType?: string;
+    codecs?: string;
     language?: string;
+    /** DASH Role value, e.g. `caption` or `forced-subtitle`. */
+    role?: string;
 }
 
 type MpdTrackExtractor = (
@@ -32,11 +35,25 @@ type MpdTrackExtractor = (
 function parseMpdManifest(manifest: string, manifestUri: string) {
     const parsedManifestInfo = inheritAttributes(stringToMpdXml(manifest), { manifestUri });
     const dashPlaylists = toPlaylists(parsedManifestInfo.representationInfo);
+    // mpd-parser merges playlists sharing id and language, meaning the same track in later periods. Videoland reuses
+    // one representation id for separate tracks in a period, so number repeats within a period to keep them apart.
+    const repeats = new Map<string, number>();
+    for (const { attributes } of dashPlaylists) {
+        const key = `${attributes.periodStart}|${attributes.id}|${attributes.lang}`;
+        const count = repeats.get(key) ?? 0;
+        repeats.set(key, count + 1);
+        if (count > 0) attributes.id = `${attributes.id}#${count}`;
+    }
     const metadata = new Map<string, MpdTrackMetadata>();
     for (const playlist of dashPlaylists) {
-        const { id, mimeType, lang } = playlist.attributes;
+        const { id, mimeType, codecs, lang, role } = playlist.attributes;
         if (typeof id === 'string') {
-            metadata.set(id, { mimeType, language: typeof lang === 'string' ? lang : undefined });
+            metadata.set(id, {
+                mimeType,
+                codecs,
+                language: typeof lang === 'string' ? lang : undefined,
+                role: typeof role?.value === 'string' ? role.value : undefined,
+            });
         }
     }
     return {

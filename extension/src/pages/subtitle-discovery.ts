@@ -459,18 +459,16 @@ export async function responseTextWithinLimit(response: Response, maximumLength:
     return new TextDecoder().decode(bytes);
 }
 
-function trackResourceKey(track: VideoDataSubtitleTrack) {
-    return Array.isArray(track.url) ? track.url.join('|') : track.url;
-}
-
 export function deduplicateTracks(
     tracks: readonly VideoDataSubtitleTrack[],
-    mergeDuplicate?: (preferred: VideoDataSubtitleTrack, duplicate: VideoDataSubtitleTrack) => VideoDataSubtitleTrack
+    mergeDuplicate?: (preferred: VideoDataSubtitleTrack, duplicate: VideoDataSubtitleTrack) => VideoDataSubtitleTrack,
+    urlKey: (url: string) => string = (url) => url
 ) {
     const byResource = new Map<string, VideoDataSubtitleTrack>();
     for (const track of tracks) {
-        const key = trackResourceKey(track);
-        if (key === undefined) continue;
+        const { url } = track;
+        if (url === undefined) continue;
+        const key = Array.isArray(url) ? url.map(urlKey).join('|') : urlKey(url);
         const preferred = byResource.get(key);
         if (preferred === undefined) byResource.set(key, track);
         else if (mergeDuplicate !== undefined) byResource.set(key, mergeDuplicate(preferred, track));

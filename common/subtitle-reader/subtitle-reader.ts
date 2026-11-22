@@ -534,37 +534,45 @@ export default class SubtitleReader {
         }
 
         if (subtitleSourceFile.name.endsWith('.dfxp') || subtitleSourceFile.name.endsWith('ttml2')) {
-            const text = await subtitleSourceFile.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(text, 'application/xml');
-            const nodes = this._xmlNodePath(doc.documentElement, ['body', 'div']);
-            const timing = this._ttmlTiming(doc.documentElement);
+            const fileText = await subtitleSourceFile.text();
+            // DASH stpp segments are fragmented MP4 whose mdat holds plain UTF-8 TTML documents. Decoding the
+            // binary as UTF-8 never consumes ASCII bytes, so each document survives intact in the decoded text.
+            const documents = /^\uFEFF?\s*</.test(fileText)
+                ? [fileText]
+                : (fileText.match(/<\?xml[\s\S]*?<\/(?:[\w-]+:)?tt>|<(?:[\w-]+:)?tt\b[\s\S]*?<\/(?:[\w-]+:)?tt>/g) ??
+                  []);
             const subtitles: SubtitleNode[] = [];
 
-            for (let index = 0, length = nodes.length; index < length; index++) {
-                const elm = nodes[index];
-                const beginAttribute = elm.getAttribute('begin');
-                const endAttribute = elm.getAttribute('end');
+            for (const documentText of documents) {
+                const doc = new DOMParser().parseFromString(documentText, 'application/xml');
+                const nodes = this._xmlNodePath(doc.documentElement, ['body', 'div']);
+                const timing = this._ttmlTiming(doc.documentElement);
 
-                if (beginAttribute === null || endAttribute === null) {
-                    continue;
+                for (let index = 0, length = nodes.length; index < length; index++) {
+                    const elm = nodes[index];
+                    const beginAttribute = elm.getAttribute('begin');
+                    const endAttribute = elm.getAttribute('end');
+
+                    if (beginAttribute === null || endAttribute === null) {
+                        continue;
+                    }
+
+                    const start = this._parseTtmlTimestamp(beginAttribute, timing);
+                    const end = this._parseTtmlTimestamp(endAttribute, timing);
+
+                    // Skip cues whose timestamps did not parse to a finite number.
+                    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+                        continue;
+                    }
+
+                    const text = removeSubtitleHtmlSafely(elm.innerHTML);
+                    subtitles.push({
+                        text: this._filterText(text),
+                        start,
+                        end,
+                        track,
+                    });
                 }
-
-                const start = this._parseTtmlTimestamp(beginAttribute, timing);
-                const end = this._parseTtmlTimestamp(endAttribute, timing);
-
-                // Skip cues whose timestamps did not parse to a finite number.
-                if (!Number.isFinite(start) || !Number.isFinite(end)) {
-                    continue;
-                }
-
-                const text = removeSubtitleHtmlSafely(elm.innerHTML);
-                subtitles.push({
-                    text: this._filterText(text),
-                    start,
-                    end,
-                    track,
-                });
             }
 
             return subtitles;
