@@ -137,19 +137,17 @@ describe('LivingSubtitleController', () => {
         expect(state().word).toBeUndefined();
     });
 
-    it('keeps the target word selectable while the definition fails, and retries', async () => {
+    it('keeps the word while the definition fails, and retries', async () => {
         const { controller, lookups, state } = setup();
         controller.hover(target('Hij zet.'));
         void controller.selectWord(1);
-        controller.useTargetWord();
-        expect(state().targetWord?.text).toBe('zet');
         lookups[0].result.reject(new Error('unavailable'));
         await flush();
         expect(state().definition).toEqual({ status: 'error', message: 'unavailable' });
 
         controller.retryDefinition();
         expect(lookups).toHaveLength(2);
-        expect(state().targetWord?.text).toBe('zet');
+        expect(state().word?.text).toBe('zet');
     });
 
     it('escape closes the word card, then the interaction', () => {
@@ -166,22 +164,25 @@ describe('LivingSubtitleController', () => {
         expect(state().target).toBeUndefined();
     });
 
-    it('mines once per request with a snapshot, and keeps the target on failure', async () => {
-        const { controller, mines, state } = setup();
+    it('mines the clicked word once per request with a snapshot, and keeps it on failure', async () => {
+        const { controller, lookups, mines, state } = setup();
         controller.hover(target('Hij zet.'));
+        void controller.mine();
+        expect(mines).toHaveLength(0); // no word clicked yet
         void controller.selectWord(1);
-        controller.useTargetWord();
+        lookups[0].result.resolve('puts');
+        await flush();
         void controller.mine();
         void controller.mine();
         expect(mines).toHaveLength(1);
-        expect(mines[0].state.targetWord?.text).toBe('zet');
+        expect(mines[0].state).toMatchObject({ word: { text: 'zet' }, definition: { text: 'puts' } });
         expect(state().mining.status).toBe('pending');
         expect(state().captured).toBe(true); // the next cue cannot replace a sentence being mined
 
         mines[0].result.reject(new Error('Anki is closed'));
         await flush();
         expect(state().mining).toEqual({ status: 'error', message: 'Anki is closed' });
-        expect(state().targetWord?.text).toBe('zet');
+        expect(state().word?.text).toBe('zet');
 
         void controller.mine();
         mines[1].result.resolve('');
@@ -192,33 +193,6 @@ describe('LivingSubtitleController', () => {
         mines[2].result.resolve('dialog'); // the Anki dialog may still be cancelled
         await flush();
         expect(state().mining.status).toBe('idle');
-    });
-
-    it('keeps the target word meaning after its card closes', async () => {
-        const { controller, lookups, state } = setup();
-        controller.hover(target('Hij zet koffie.'));
-        void controller.selectWord(1);
-        controller.useTargetWord(); // chosen while the meaning is still loading
-        lookups[0].result.resolve('puts');
-        await flush();
-        controller.closeWord();
-        expect(state()).toMatchObject({ targetWord: { text: 'zet' }, targetDefinition: 'puts' });
-
-        void controller.selectWord(2); // looking at another word keeps the target's meaning
-        lookups[1].result.resolve('coffee');
-        await flush();
-        expect(state().targetDefinition).toBe('puts');
-    });
-
-    it('keeps a target meaning that arrives after its card closed', async () => {
-        const { controller, lookups, state } = setup();
-        controller.hover(target('Hij zet koffie.'));
-        void controller.selectWord(1);
-        controller.useTargetWord();
-        controller.closeWord();
-        lookups[0].result.resolve('puts');
-        await flush();
-        expect(state()).toMatchObject({ word: undefined, definition: { status: 'idle' }, targetDefinition: 'puts' });
     });
 
     it('renders nothing after dispose and ignores late results', async () => {

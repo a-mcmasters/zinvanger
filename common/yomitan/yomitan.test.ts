@@ -994,7 +994,7 @@ describe('Yomitan', () => {
         await expect(yomitan.gloss('alpha')).resolves.toBe('best choice');
     });
 
-    it('reads the glosses of Wiktionary (wty) dictionaries, not their etymology or backlink', async () => {
+    it('reads the glosses of Wiktionary (wty) dictionaries, not their etymology, labels or backlink', async () => {
         const fetcher = new MockFetcher();
         fetcher.fetch.mockResolvedValue({
             dictionaryEntries: [
@@ -1023,6 +1023,13 @@ describe('Yomitan', () => {
                                                                 {
                                                                     tag: 'div',
                                                                     content: [
+                                                                        {
+                                                                            tag: 'div',
+                                                                            data: { content: 'tags' },
+                                                                            content: [
+                                                                                { tag: 'span', content: 'interj' },
+                                                                            ],
+                                                                        },
                                                                         'good morning',
                                                                         {
                                                                             tag: 'details',

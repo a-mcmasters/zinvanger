@@ -17,7 +17,6 @@ export interface LivingSubtitleViewModel {
     readonly themeType: 'light' | 'dark';
     readonly words: readonly string[];
     readonly wordIndex: number;
-    readonly targetWordIndex?: number;
     readonly definition: LivingSubtitleResult;
     readonly mining: LivingSubtitleResult;
     /** Widest the card may be (visible video width). */
@@ -26,7 +25,7 @@ export interface LivingSubtitleViewModel {
     readonly maxHeight: number;
 }
 
-export type LivingSubtitleAction = 'mine' | 'use-target' | 'close-word' | 'escape' | 'retry-definition';
+export type LivingSubtitleAction = 'mine' | 'close-word' | 'escape' | 'retry-definition';
 
 interface Props {
     readonly bridge: Bridge;
@@ -34,7 +33,7 @@ interface Props {
 
 const glass = (mode: 'light' | 'dark') => (mode === 'dark' ? 'rgba(28, 24, 38, 0.94)' : 'rgba(252, 249, 255, 0.96)');
 
-/** The word card: a clicked word's dictionary meaning, the target-word choice and Mine. */
+/** The word card: a clicked word's dictionary meaning and Mine, with the word as the card's target. */
 export default function LivingSubtitleUi({ bridge }: Props) {
     const { t } = useTranslation();
     const [model, setModel] = useState<LivingSubtitleViewModel>();
@@ -74,7 +73,6 @@ export default function LivingSubtitleUi({ bridge }: Props) {
     if (!model) return null;
 
     const word = model.words[model.wordIndex];
-    const isTarget = model.targetWordIndex === model.wordIndex;
     const surface = {
         bgcolor: glass(model.themeType),
         color: 'text.primary',
@@ -166,16 +164,7 @@ export default function LivingSubtitleUi({ bridge }: Props) {
                             </Typography>
                         )}
                     </Box>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                            variant={isTarget ? 'contained' : 'outlined'}
-                            size="small"
-                            sx={{ flex: 1, borderRadius: 99, whiteSpace: 'nowrap' }}
-                            aria-pressed={isTarget}
-                            onClick={() => send('use-target')}
-                        >
-                            {isTarget ? `✓ ${t('livingSubtitle.targetWord')}` : `＋ ${t('livingSubtitle.useAsTarget')}`}
-                        </Button>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <Button
                             variant="contained"
                             size="small"

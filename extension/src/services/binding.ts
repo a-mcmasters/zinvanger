@@ -1890,7 +1890,7 @@ export default class Binding {
      * flow reports a card or opens the dialog, not when the request is queued.
      */
     mineLivingSubtitle(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome> {
-        const { target, targetWord, targetDefinition } = state;
+        const { target, word, definition } = state;
         if (!target) return Promise.reject(new Error('No subtitle'));
         if (this.recordMedia && this.recordingMedia) return Promise.reject(new Error('Recording in progress'));
         this._settleLivingSubtitleMine(new Error('superseded'));
@@ -1921,8 +1921,8 @@ export default class Binding {
                 postMineAction,
                 subtitle: target.cue,
                 surroundingSubtitles: [...target.surrounding],
-                word: targetWord?.text,
-                definition: targetWord ? targetDefinition : undefined,
+                word: word?.text,
+                definition: definition.status === 'success' && definition.text ? definition.text : undefined,
             },
             { exactText: true, onSent: (promise) => void (sent = promise) }
         )

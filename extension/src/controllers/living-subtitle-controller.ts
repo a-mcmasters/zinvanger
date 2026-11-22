@@ -28,10 +28,8 @@ export type LivingSubtitleResult =
 export interface LivingSubtitleState {
     target?: LivingSubtitleTarget;
     captured: boolean;
+    /** The clicked word: the card's word and the mined card's target word. */
     word?: LivingSubtitleWord;
-    targetWord?: LivingSubtitleWord;
-    /** The target word's meaning, kept after its card closes. */
-    targetDefinition?: string;
     definition: LivingSubtitleResult;
     mining: LivingSubtitleResult;
 }
@@ -141,19 +139,8 @@ export default class LivingSubtitleController {
         this.state.definition = { status: 'pending' };
         this.emit();
         const result = await this.define(word.text);
-        if (generation !== this.generation) return;
-        // Chosen as target while its meaning was loading: keep it even if the card has closed since.
-        const forTarget = result.status === 'success' && this.state.targetWord?.start === word.start;
-        if (forTarget) this.state.targetDefinition = result.text;
-        if (request === this.definitionRequest) this.state.definition = result;
-        if (forTarget || request === this.definitionRequest) this.emit();
-    }
-
-    useTargetWord() {
-        if (this.disposed || !this.state.word) return;
-        this.state.targetWord = this.state.word;
-        this.state.targetDefinition =
-            this.state.definition.status === 'success' ? this.state.definition.text : undefined;
+        if (generation !== this.generation || request !== this.definitionRequest) return;
+        this.state.definition = result;
         this.emit();
     }
 
@@ -166,7 +153,7 @@ export default class LivingSubtitleController {
     }
 
     async mine() {
-        if (this.disposed || !this.state.target || this.state.mining.status === 'pending') return;
+        if (this.disposed || !this.state.word || this.state.mining.status === 'pending') return;
         this.capture(); // hold the sentence, so the next cue cannot replace it while the card exports
         const generation = this.generation;
         const snapshot = { ...this.state };

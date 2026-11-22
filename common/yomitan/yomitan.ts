@@ -308,6 +308,8 @@ const structuredContentText = (content: TermStructuredContent): string => {
     const { tag } = content;
     // <details> is collapsed extra material (examples, etymology), not the meaning itself.
     if (tag === 'img' || tag === 'rp' || tag === 'rt' || tag === 'details') return '';
+    // Part-of-speech labels such as "vt" (wty dictionaries) are not part of the meaning.
+    if (content.data?.content === 'tags') return '';
     const text = content.content === undefined ? '' : structuredContentText(content.content);
     return STRUCTURED_CONTENT_BLOCK_TAGS.has(tag) || STRUCTURED_CONTENT_INLINE_BOUNDARY_TAGS.has(tag)
         ? ` ${text} `

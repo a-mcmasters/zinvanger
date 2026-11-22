@@ -222,9 +222,6 @@ export default class LivingSubtitleHost {
             case 'mine':
                 void this.mine();
                 break;
-            case 'use-target':
-                this.controller.useTargetWord();
-                break;
             case 'close-word':
             case 'escape':
                 this.controller.closeWord();
@@ -341,10 +338,7 @@ export default class LivingSubtitleHost {
         const rangesFor = (index?: number) =>
             index === undefined ? [] : dom.filter((w) => w.modelIndex === index).map((w) => w.range);
         const wordIndex = state.word ? words.findIndex((w) => w.start === state.word!.start) : undefined;
-        const targetWordIndex = state.targetWord
-            ? words.findIndex((w) => w.start === state.targetWord!.start)
-            : undefined;
-        this.highlight('asbplayer-living-subtitle-word', rangesFor(targetWordIndex ?? wordIndex));
+        this.highlight('asbplayer-living-subtitle-word', rangesFor(wordIndex));
         if (wordIndex === undefined) {
             this.hideFrame();
             return;
@@ -360,7 +354,6 @@ export default class LivingSubtitleHost {
             themeType: this.themeType,
             words: words.map((w) => w.text),
             wordIndex,
-            targetWordIndex,
             definition: state.definition,
             mining: state.mining,
             maxWidth: Math.max(0, visibleRight - visibleLeft),

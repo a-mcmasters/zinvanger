@@ -39,10 +39,11 @@ The lookup-enabled dialog runs in the extension's own frame, where page-injected
 
 ## Word lookup on the video
 
-On desktop, click a word in the first subtitle track. Playback pauses, the word is highlighted, and a card opens above the line with its dictionary meaning from [Yomitan](annotation.md) (no model tokens):
+On desktop, click a word in the first subtitle track. Playback pauses, the word is highlighted, and a card opens above the line with its dictionary meaning from [Yomitan](annotation.md) (no model tokens).
 
-- **Use as target word** sends the word, and its meaning when shown, to the Anki card's word and definition fields. You can pick it without waiting for the meaning.
-- **Mine** mines exactly this sentence, without joining neighboring lines, using your usual audio padding and click-to-mine action.
+**Mine** mines exactly this sentence, without joining neighboring lines, using your usual audio padding and click-to-mine action. The clicked word goes to the Anki card's word field, and its meaning, once shown, to the definition field.
+
+The dictionary links an inflected form to its base form, so the card shows the base form's meaning: _hadden_ shows the meaning of _hebben_ (to have).
 
 Close the card with **×** or Escape. Resuming or seeking closes it too.
 

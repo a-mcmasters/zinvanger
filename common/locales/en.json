@@ -902,8 +902,6 @@
         "retry": "Retry",
         "noResult": "No meaning found",
         "closeWord": "Close word lookup",
-        "useAsTarget": "Use as target word",
-        "targetWord": "Target word",
         "meaningInContext": "Dictionary",
         "error": {
             "noDictionary": "Set a Yomitan URL for subtitle track 1 to look up words",
