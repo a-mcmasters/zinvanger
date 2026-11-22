@@ -51,6 +51,7 @@ import type {
     AnkiUiSavedState,
     AudioBase64Message,
     CardExportedMessage,
+    CardModel,
     CardSavedMessage,
     CardUpdatedMessage,
     CopySubtitleMessage,
@@ -122,6 +123,9 @@ import type { AsbplayerSettings, SeekableTracks, StreamingMediaFragmentFormatSet
 import { SubtitleReader } from '@project/common/subtitle-reader';
 
 import AnkiUiController from '@project/extension/src/controllers/anki-ui-controller';
+import LivingSubtitleHost from '@/controllers/living-subtitle-host';
+import type { LivingSubtitleMineOutcome, LivingSubtitleState } from '@/controllers/living-subtitle-controller';
+import { sentenceTranslationField } from '@project/common/components/settings-model';
 import ControlsController from '@project/extension/src/controllers/controls-controller';
 import DragController from '@project/extension/src/controllers/drag-controller';
 import { MobileGestureController } from '@project/extension/src/controllers/mobile-gesture-controller';
@@ -226,6 +230,13 @@ interface SubtitleSource {
     offset: number;
 }
 
+interface PendingLivingSubtitleMine {
+    readonly postMineAction: PostMineAction;
+    readonly subtitle: SubtitleModel;
+    resolve: (outcome: LivingSubtitleMineOutcome) => void;
+    reject: (error: Error) => void;
+}
+
 export default class Binding {
     private readonly subtitleStream = new SubtitleStream();
 
@@ -252,6 +263,9 @@ export default class Binding {
     private recordingMediaStartedTimestamp?: number;
     private recordingMediaWithScreenshot: boolean;
     private pausedDueToHover = false;
+    /** Desktop only: hover-driven sentence actions make no sense on touch devices. */
+    readonly livingSubtitleHost?: LivingSubtitleHost;
+    private pendingLivingSubtitleMine?: PendingLivingSubtitleMine;
     private _seekDurationMs = 3000;
     private _speedChangeStep = 0.1;
     private _lastProfile?: string;
@@ -352,6 +366,7 @@ export default class Binding {
         };
         this.mobileGestureController = new MobileGestureController(this);
         this.bulkExportController = new BulkExportController(this);
+        if (!isMobile) this.livingSubtitleHost = this._createLivingSubtitleHost();
         this._disablePauseOnHover = false;
         this.hoveredToken = new HoveredToken();
         this.recordMedia = true;
@@ -470,6 +485,7 @@ export default class Binding {
             ...options,
             sources: this.subtitleStream.sourceStates(),
         });
+        this.livingSubtitleHost?.subtitlesChanged();
     }
 
     adjustPlaybackRate(delta: number): void {
@@ -609,6 +625,7 @@ export default class Binding {
                         };
                         void browser.runtime.sendMessage(command);
                         this.pausedDueToHover = false;
+                        this.livingSubtitleHost?.playbackResumedOrSeeked();
                     },
                     onPause: () => {
                         const command: VideoToExtensionCommand<PauseFromVideoMessage> = {
@@ -902,6 +919,7 @@ export default class Binding {
         this.video.addEventListener('pause', this.recordingPauseListener);
 
         this.seekedListener = () => {
+            this.livingSubtitleHost?.playbackResumedOrSeeked();
             const currentTimeCommand: VideoToExtensionCommand<CurrentTimeFromVideoMessage> = {
                 sender: 'asbplayer-video',
                 message: {
@@ -1003,7 +1021,9 @@ export default class Binding {
                 this.mouseMoveListener = (e: MouseEvent) => {
                     if (
                         this._shouldAutoResumeOnSubtitlesMouseOut &&
-                        !this.subtitleController.intersects(e.clientX, e.clientY)
+                        !this.subtitleController.intersects(e.clientX, e.clientY) &&
+                        // A captured sentence stays paused while the pointer moves to its actions.
+                        !this.livingSubtitleHost?.captured
                     ) {
                         void this.play();
                         this.pausedDueToHover = false;
@@ -1015,6 +1035,7 @@ export default class Binding {
             this.hoveredToken.handleMouseOver(mouseEvent);
         };
         this.subtitleController.onMouseOut = (mouseEvent: MouseEvent) => this.hoveredToken.handleMouseOut(mouseEvent);
+        this.subtitleController.onDisplayedSubtitlesChanged = () => this.livingSubtitleHost?.subtitlesChanged();
 
         if (this.hasPageScript) {
             const debouncedChangeListener = debounced(
@@ -1283,6 +1304,12 @@ export default class Binding {
                             | CardUpdatedMessage
                             | CardExportedMessage
                             | CardSavedMessage;
+                        this._settleLivingSubtitleMine(
+                            cardMessage.command === 'card-exported' && cardMessage.exportError
+                                ? new Error(cardMessage.exportError)
+                                : undefined,
+                            { card: cardMessage }
+                        );
                         let locKey: string;
                         switch (cardMessage.command) {
                             case 'card-updated':
@@ -1345,6 +1372,7 @@ export default class Binding {
                     }
                     case 'notify-error': {
                         const notifyErrorMessage = request.message as NotifyErrorMessage;
+                        this._settleLivingSubtitleMine(new Error(notifyErrorMessage.message));
                         this.subtitleController.notification({
                             locKey: 'info.error',
                             replacements: { message: notifyErrorMessage.message },
@@ -1355,6 +1383,9 @@ export default class Binding {
                         this.recordingState = RecordingState.started;
                         break;
                     case 'recording-finished':
+                        if (this.pendingLivingSubtitleMine?.postMineAction === PostMineAction.none) {
+                            this._settleLivingSubtitleMine();
+                        }
                         this.recordingState = RecordingState.notRecording;
                         this.recordingMediaStartedTimestamp = undefined;
 
@@ -1377,11 +1408,13 @@ export default class Binding {
                         break;
                     case 'show-anki-ui': {
                         const showAnkiUiMessage = request.message as ShowAnkiUiMessage;
+                        this._settleLivingSubtitleMine('dialog', { card: showAnkiUiMessage }); // the dialog owns the card now
                         void this.ankiUiController.show(this, showAnkiUiMessage);
                         break;
                     }
                     case 'show-card-select-ui': {
                         const showCardSelectUiMessage = request.message as ShowCardSelectUiMessage;
+                        this._settleLivingSubtitleMine('dialog', { card: showCardSelectUiMessage });
                         void this.ankiUiController.showCardSelect(this, showCardSelectUiMessage);
                         break;
                     }
@@ -1634,6 +1667,10 @@ export default class Binding {
         );
         this.postMinePlayback = currentSettings.postMiningPlaybackState;
         this.keyBindings.setKeyBindSet(this, currentSettings.keyBindSet);
+        // A refresh that outlived unbind() must not reattach the host's document listeners.
+        if (this.subscribed) {
+            this.livingSubtitleHost?.bind({ language: currentSettings.language, themeType: currentSettings.themeType });
+        }
 
         if (currentSettings.streamingSubsDragAndDrop) {
             this.dragController.bind(this);
@@ -1769,6 +1806,8 @@ export default class Binding {
         this.mobileGestureController.unbind();
         this.notificationController.unbind();
         this.bulkExportController.unbind();
+        this.livingSubtitleHost?.unbind();
+        this._settleLivingSubtitleMine(new Error('unbound'));
         this.subscribed = false;
 
         this._notifyVideoDisappeared(this._registeredVideoSrc);
@@ -1800,6 +1839,129 @@ export default class Binding {
         this.ankiUiSavedState = undefined;
     }
 
+    private _createLivingSubtitleHost() {
+        return new LivingSubtitleHost({
+            video: this.video,
+            containers: () => this.subtitleController.subtitleContainers(),
+            displayed: () => this.subtitleController.displayedSubtitles,
+            cueAt: (index) => this.subtitleController.subtitles[index],
+            targetFor: (cue) => ({
+                video: this._registeredVideoSrc,
+                cue,
+                surrounding: this.subtitleController.subtitleAtIndex(cue.index)[1] ?? [],
+            }),
+            resolve: (target) => {
+                if (target.video !== this._registeredVideoSrc) return undefined;
+                const cue = resolveSubtitleReference(this.subtitleController.subtitles, target.cue);
+                // Progressive transcripts add cues; the card's context must come from the current list too.
+                return (
+                    cue && { ...target, cue, surrounding: this.subtitleController.subtitleAtIndex(cue.index)[1] ?? [] }
+                );
+            },
+            recording: () => this.recordingMedia,
+            pause: () => {
+                // A captured sentence stays paused: leaving the subtitles must not auto-resume it.
+                this.pausedDueToHover = false;
+                this.pause();
+            },
+            // Cue times already include the subtitle offset.
+            replay: (target) =>
+                void this.playbackEngine
+                    .replay(target.cue.start, target.cue.end)
+                    .catch((error) => asbError('playback/binding', 'Living subtitle replay failed', error)),
+            mine: (state) => this.mineLivingSubtitle(state),
+        });
+    }
+
+    /**
+     * Mines exactly the captured sentence (no sentence expansion) with the chosen word. Resolves when the export
+     * flow reports a card or opens the dialog, not when the request is queued.
+     */
+    mineLivingSubtitle(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome> {
+        const { target, targetWord, targetDefinition, translation } = state;
+        if (!target) return Promise.reject(new Error('No subtitle'));
+        if (this.recordMedia && this.recordingMedia) return Promise.reject(new Error('Recording in progress'));
+        this._settleLivingSubtitleMine(new Error('superseded'));
+        const translationMapped = Boolean(
+            this.ankiUiController.settings?.customAnkiFields[sentenceTranslationField]?.trim()
+        );
+        const postMineAction = this.clickToMineDefaultAction;
+        let request: PendingLivingSubtitleMine;
+        const completion = new Promise<LivingSubtitleMineOutcome>((resolve, reject) => {
+            const timeout = setTimeout(
+                () => this._settleLivingSubtitleMine(new Error('timeout'), { request }),
+                120_000
+            );
+            request = this.pendingLivingSubtitleMine = {
+                postMineAction,
+                subtitle: target.cue,
+                resolve: (outcome) => {
+                    clearTimeout(timeout);
+                    resolve(outcome);
+                },
+                reject: (error) => {
+                    clearTimeout(timeout);
+                    reject(error);
+                },
+            };
+        });
+        let sent: Promise<unknown> | undefined;
+        this._copySubtitle(
+            {
+                command: 'copy-subtitle',
+                postMineAction,
+                subtitle: target.cue,
+                surroundingSubtitles: [...target.surrounding],
+                word: targetWord?.text,
+                definition: targetWord ? targetDefinition : undefined,
+                customFieldValues:
+                    translationMapped && translation.status === 'success'
+                        ? { [sentenceTranslationField]: translation.text }
+                        : undefined,
+            },
+            { exactText: true, onSent: (promise) => void (sent = promise) }
+        )
+            .then(async () => {
+                if (sent === undefined) throw new Error('Not sent'); // _copySubtitle skipped it, e.g. recording began
+                await sent;
+                // With no post-mine action, card-saved is sent only when mining history is on; the request is the
+                // whole job, unless recording still has to finish.
+                if (postMineAction === PostMineAction.none && !this.recordMedia) {
+                    this._settleLivingSubtitleMine('saved', { request });
+                }
+            })
+            .catch((error) =>
+                this._settleLivingSubtitleMine(error instanceof Error ? error : new Error(String(error)), { request })
+            );
+        return completion;
+    }
+
+    /**
+     * Settles the pending mine. `request`: only if it is still that mine. `card`: only if the event is about its
+     * subtitle, so an earlier mine still exporting cannot settle a newer one.
+     * shortcut: notify-error, recording-finished and two exports of the same subtitle carry no request id, so they
+     * settle whichever mine is pending; thread an id through the background card events if that proves confusing.
+     */
+    private _settleLivingSubtitleMine(
+        result: Error | LivingSubtitleMineOutcome = 'saved',
+        { card, request }: { card?: CardModel; request?: PendingLivingSubtitleMine } = {}
+    ) {
+        const pending = this.pendingLivingSubtitleMine;
+        if (request && request !== pending) return;
+        if (
+            card &&
+            pending &&
+            (card.subtitle.start !== pending.subtitle.start ||
+                card.subtitle.track !== pending.subtitle.track ||
+                card.subtitle.text !== pending.subtitle.text)
+        ) {
+            return;
+        }
+        this.pendingLivingSubtitleMine = undefined;
+        if (result instanceof Error) pending?.reject(result);
+        else pending?.resolve(result);
+    }
+
     private _copySentence(message: CopySubtitleMessage, selected: IndexedSubtitleModel, surrounding: SubtitleModel[]) {
         const [subtitle, surroundingSubtitles] = expandToSentence(
             this.subtitleController.subtitles,
@@ -1813,17 +1975,24 @@ export default class Binding {
         });
     }
 
-    async _copySubtitle({
-        postMineAction,
-        subtitle,
-        surroundingSubtitles,
-        text,
-        definition,
-        word,
-        customFieldValues,
-        isBulkExport,
-        noteId,
-    }: CopySubtitleMessage) {
+    /**
+     * `exactText`: the sentence is the subtitle's own text, not every cue across tracks that overlaps it.
+     * `onSent`: receives the request once it is sent; it is not called when mining is skipped.
+     */
+    async _copySubtitle(
+        {
+            postMineAction,
+            subtitle,
+            surroundingSubtitles,
+            text,
+            definition,
+            word,
+            customFieldValues,
+            isBulkExport,
+            noteId,
+        }: CopySubtitleMessage,
+        { exactText = false, onSent }: { exactText?: boolean; onSent?: (sent: Promise<unknown>) => void } = {}
+    ) {
         if (!subtitle || !surroundingSubtitles) {
             return;
         }
@@ -1867,7 +2036,9 @@ export default class Binding {
             await this.play();
         }
 
-        if (this.alwaysUseSubtitleForSentence || !text || subtitle.text.includes(text.trim())) {
+        if (exactText) {
+            text = subtitle.text;
+        } else if (this.alwaysUseSubtitleForSentence || !text || subtitle.text.includes(text.trim())) {
             text = extractText(subtitle, surroundingSubtitles);
         }
 
@@ -1901,7 +2072,9 @@ export default class Binding {
             src: this._registeredVideoSrc,
         };
 
-        void browser.runtime.sendMessage(command);
+        const sent = browser.runtime.sendMessage(command);
+        onSent?.(sent);
+        void sent;
     }
 
     // Public helper for controllers to reuse copy-subtitle flow (e.g., bulk export)

@@ -160,6 +160,7 @@ export default defineConfig({
                         'npo-start-page.js',
                         'anki-ui.js',
                         'anki-lookup.html',
+                        'living-subtitle.html',
                         'mp3-encoder-worker.js',
                         'pgs-parser-worker.js',
                         'video-data-sync-ui.js',

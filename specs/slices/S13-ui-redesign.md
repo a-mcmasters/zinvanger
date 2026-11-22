@@ -45,7 +45,7 @@ Target: **one screen, 20 or fewer controls, no tabs.**
 | U0 | **Pick a direction.** Throwaway HTML mocks of directions 1–3 over a paused NPO frame (use the `prototype` skill). You pick one, and the result is written below under "Chosen direction". | A decision, no product code |
 | U1 | **Design tokens.** Replace `common/theme/theme.ts` with the chosen palette, type scale, radius and spacing, plus light and dark modes. Every MUI screen picks it up for free. | A new look everywhere, small diff |
 | U2 | **One settings screen.** A new single-screen settings form with the table above. The old tabs are no longer routed to. | Fixes option overload |
-| U3 | **Video UI.** The chosen in-video interaction (living subtitle, or whatever U0 picked) replaces the hover controls. | Fixes clunky menus over the video |
+| U3 | **Video UI.** Living subtitle controls for replay, word lookup, on-demand English and mining. [Detailed spec](S13-u3-living-subtitle.md). | Fixes clunky menus over the video |
 | U4 | **Menus.** The popup and the subtitle picker are folded into the chosen menu pattern (command bar, or whatever U0 picked). | Fixes the remaining clunky menus |
 | U5 | **Anki dialog.** The mining dialog is redesigned in the chosen direction (sentence, word, translation and audio at a glance, one Mine button). S2–S4 keep only the behavior this doesn't cover. | Fixes the last clunky screen |
 

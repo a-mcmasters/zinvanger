@@ -80,6 +80,7 @@ class Translate(unittest.TestCase):
         self.dir = tempfile.TemporaryDirectory()
         server.TRANSCRIPTS_DIR = Path(self.dir.name)
         server._translations.clear()
+        server._definitions.clear()
 
     def tearDown(self):
         server.DEFINE_COMMANDS.clear()
@@ -109,6 +110,35 @@ class Translate(unittest.TestCase):
         self.use("pass")
         with self.assertRaises(DefineError):
             translate("Hij zet.")
+
+
+class Define(Translate):
+    def test_defines_a_word_in_context_and_caches_per_sentence(self):
+        self.use("import sys; p = sys.stdin.read(); print('to put' if 'koffie' in p else 'other')")
+        self.assertEqual(server.define("zet", "Hij zet de koffie op tafel."), "to put")
+        self.assertEqual(server.define("zet", "Iets anders zet."), "other")
+        self.use("raise SystemExit('should not run again')")
+        self.assertEqual(server.define(" zet ", "Hij zet de koffie op tafel."), "to put")
+
+    def test_rejects_missing_or_oversized_input(self):
+        for word, sentence in (("", "Zin."), ("zet", ""), ("zet", "x" * 501), ("x" * 81, "Zin.")):
+            with self.assertRaises(ValueError):
+                server.define(word, sentence)
+
+    def test_busy_and_failing_cli_are_errors(self):
+        self.use("raise SystemExit('not logged in')")
+        with self.assertRaises(DefineError) as failed:
+            server.define("zet", "Hij zet.")
+        self.assertEqual(failed.exception.status, 502)
+        for _ in range(4):
+            server._lookup_requests.acquire()
+        try:
+            with self.assertRaises(DefineError) as busy:
+                server.define("zet", "Hij zet het.")
+            self.assertEqual(busy.exception.status, 429)
+        finally:
+            for _ in range(4):
+                server._lookup_requests.release()
 
 
 class StoredTranslations(Translate):
@@ -162,6 +192,22 @@ class Http(Translate):
 
         url = f"http://127.0.0.1:{self.httpd.server_port}{path}"
         return urllib.request.urlopen(urllib.request.Request(url, data=body, method="POST" if body is not None else "GET"), timeout=5)
+
+    def test_define_requires_the_token(self):
+        import json
+        import urllib.error
+        import urllib.request
+        from unittest import mock
+
+        url = f"http://127.0.0.1:{self.httpd.server_port}/define?word=zet&sentence=Hij%20zet."
+        token = "t" * 32
+        with mock.patch.object(server, "LOOKUP_TOKEN", token):
+            with self.assertRaises(urllib.error.HTTPError) as denied:
+                urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": "Bearer wrong"}), timeout=5)
+            self.assertEqual(denied.exception.code, 401)
+            self.use("print('to put')")
+            response = urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"}), timeout=5)
+            self.assertEqual(json.load(response), {"definition": "to put"})
 
     def test_job_status_is_served(self):
         import urllib.error

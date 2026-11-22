@@ -892,5 +892,35 @@
         "incomingRequest": "An external extension is requesting to connect to Zinvanger.",
         "extensionDetailsHelper": "Extension details can be viewed at <0>{{address}}</0>.",
         "warning": "Once approved, extension <0>{{id}}</0> will be able to control Zinvanger. Only approve if you recognize it."
+    },
+    "livingSubtitle": {
+        "region": "Subtitle actions: {{sentence}}",
+        "noSubtitle": "No subtitle at this time",
+        "actions": "Sentence actions",
+        "replay": "Replay",
+        "replayUnavailable": "Replay is unavailable while recording",
+        "lookUp": "Look up word",
+        "wordNavigation": "Word {{index}} of {{count}}: {{word}}. Use Left and Right to move, Enter to look up, Escape to stop.",
+        "english": "English",
+        "hideEnglish": "Hide English",
+        "mine": "Mine",
+        "mining": "Mining…",
+        "mined": "Mined",
+        "loading": "Looking up…",
+        "retry": "Retry",
+        "noResult": "No meaning found",
+        "closeWord": "Close word lookup",
+        "useAsTarget": "Use as target word",
+        "targetWord": "Target word",
+        "meaningInContext": "Dutch → English",
+        "error": {
+            "unavailable": "The local lookup service is not running",
+            "unauthorized": "The local lookup token is missing or invalid",
+            "busy": "The local lookup service is busy. Try again shortly",
+            "timeout": "The lookup took too long",
+            "invalid": "This text cannot be looked up",
+            "malformed": "The lookup service returned an unexpected answer",
+            "mining": "Mining failed: {{message}}"
+        }
     }
 }

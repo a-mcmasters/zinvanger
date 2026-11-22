@@ -1308,6 +1308,72 @@ describe('Binding playback mode integration', () => {
         }
     });
 
+    it('settles a living-subtitle mine only on the card for its own sentence', async () => {
+        await storage.set({ streamingRecordMedia: false, streamingTakeScreenshot: false });
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        binding.bind();
+        await flushPlaybackTiming();
+        try {
+            binding.updateSubtitleSource({
+                type: 'snapshot',
+                tracks: [
+                    {
+                        track: 0,
+                        loadId: 'complete',
+                        name: 'primary.srt',
+                        status: 'complete',
+                        cues: [
+                            { cueId: 0, start: 1000, end: 2000, text: 'Mined' },
+                            { cueId: 1, start: 3000, end: 4000, text: 'Other' },
+                        ],
+                    },
+                ],
+            });
+            const [mined, other] = binding.subtitleController.subtitles;
+            let settled: string | undefined;
+            const mine = binding
+                .mineLivingSubtitle({
+                    target: { video: binding.registeredVideoSrc, cue: mined, surrounding: [] },
+                    captured: true,
+                    englishVisible: false,
+                    translation: { status: 'idle' },
+                    definition: { status: 'idle' },
+                    mining: { status: 'idle' },
+                })
+                .then((outcome) => (settled = outcome));
+            const cardSaved = (subtitle: IndexedSubtitleModel) => {
+                for (const listener of runtimeListeners) {
+                    listener(
+                        {
+                            sender: 'asbplayer-extension-to-video',
+                            src: binding.registeredVideoSrc,
+                            message: {
+                                command: 'card-saved',
+                                cardName: subtitle.text,
+                                subtitle,
+                                surroundingSubtitles: [],
+                                subtitleFileName: 'primary.srt',
+                                mediaTimestamp: subtitle.start,
+                            },
+                        },
+                        {},
+                        () => undefined
+                    );
+                }
+            };
+
+            cardSaved(other); // an earlier, unrelated mine finishing
+            await flushPlaybackTiming();
+            expect(settled).toBeUndefined();
+
+            cardSaved(mined);
+            await mine;
+            expect(settled).toBe('saved');
+        } finally {
+            binding.unbind();
+        }
+    });
+
     it('does not replace the current subtitles when progressive setup has been cancelled', async () => {
         const binding = new Binding(createVideo(), bindingOptions(false, false));
         binding.bind();

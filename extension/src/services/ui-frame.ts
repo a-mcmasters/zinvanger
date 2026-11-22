@@ -39,6 +39,8 @@ export default class UiFrame {
     private _language: string = project.defaultLanguage;
     private _dirty = true;
     private _bound = false;
+    /** Where the frame is inserted; moving an iframe reloads it, so change it only with `unbind()`. */
+    parent: () => HTMLElement = () => document.body;
 
     constructor(frameInitializer: FrameInitializer, expectedOrigin?: string, useRuntimeMessages = false) {
         this._frameInitializer = frameInitializer;
@@ -105,7 +107,7 @@ export default class UiFrame {
             this._expectedOrigin,
             this._useRuntimeMessages
         );
-        document.body.appendChild(this._frame);
+        this.parent().appendChild(this._frame);
 
         await Promise.all([this._client.bind(), this._frameInitializer(this._frame, this._language)]);
         return true;

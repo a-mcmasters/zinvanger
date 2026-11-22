@@ -11,7 +11,7 @@ The fork is a Chrome extension for learning Dutch from streaming video. A line y
 - Built for one user first, possibly shared with others later. The user is a Dutch beginner (A1–A2), so translations matter on most lines. Dutch is a European language, so no furigana, readings or word segmentation are needed.
 - Uses the browser extension on streaming sites in Chromium (Chrome, Edge or Brave). Doesn't use the web app with local files, the side panel, Firefox, or mobile.
 - Sites: YouTube, Netflix, Amazon Prime, Disney+, NPO Start, and Stremio (maybe; it has little Dutch content).
-- Anki through AnkiConnect. Card fields used: **sentence, audio clip, target word**. An external agent writes the **definition**, so the extension does not look anything up.
+- Anki through AnkiConnect. Card fields used: **sentence, audio clip, target word**. The living subtitle controls can also look up a word in context and show an English translation on request through the local lookup service. Mining can include those results when the corresponding Anki fields are configured.
 
 ## 3. Problems to solve, ranked
 

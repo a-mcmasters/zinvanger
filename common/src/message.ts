@@ -148,6 +148,20 @@ export interface GetLocalDefinitionMessage extends Message {
     readonly sentence: string;
 }
 
+export type LivingSubtitleLookupOperation = 'translate' | 'define';
+
+/** Sent only by the video content script (see LivingSubtitleLookupHandler for why not by a frame). */
+export interface LivingSubtitleLookupMessage extends Message {
+    readonly command: 'living-subtitle-lookup';
+    readonly operation: LivingSubtitleLookupOperation;
+    readonly sentence: string;
+    readonly word?: string;
+}
+
+export type LocalLookupError = 'unavailable' | 'unauthorized' | 'busy' | 'timeout' | 'invalid' | 'malformed';
+
+export type LocalLookupResponse = { readonly text: string } | { readonly error: LocalLookupError };
+
 export interface EncodeMp3Message extends MessageWithId {
     readonly command: 'encode-mp3';
     readonly messageId: string;
