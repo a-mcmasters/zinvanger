@@ -222,7 +222,7 @@ interface AnkiDialogProps {
     showQuickSelectFtue?: boolean;
     onDismissShowQuickSelectFtue?: () => void;
     inTutorial?: boolean;
-    /** Looks up the word's meaning as used in the sentence, to pre-fill the definition field. */
+    /** Translates the current sentence to pre-fill the Sentence Translation field. */
     onRequestTranslation?: (sentence: string) => Promise<string | undefined>;
 }
 

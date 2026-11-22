@@ -142,6 +142,54 @@ class StoredTranslations(Translate):
         self.assertEqual(translate("Iets anders."), "live")
 
 
+class GoogleTranslation(unittest.TestCase):
+    def setUp(self):
+        server._google_translations.clear()
+
+    def test_translates_sentence_and_caches_decoded_response(self):
+        from unittest import mock
+        import io
+        import json
+        payload = json.dumps({"data": {"translations": [{"translatedText": "It&#39;s good."}]}}).encode()
+        with mock.patch.object(server, "GOOGLE_TRANSLATE_API_KEY", "test-key"), mock.patch.object(
+            server, "urlopen", return_value=io.BytesIO(payload)
+        ) as request:
+            self.assertEqual(server.google_translate(" Het is goed. "), "It's good.")
+            self.assertEqual(server.google_translate("Het is goed."), "It's good.")
+            request.assert_called_once()
+            self.assertEqual(json.loads(request.call_args.args[0].data), {
+                "q": "Het is goed.", "target": server.TRANSLATE_LANGUAGE, "format": "text"
+            })
+
+    def test_long_sentence_and_network_call_outside_cache_lock(self):
+        from unittest import mock
+        import io
+        def respond(*args, **kwargs):
+            self.assertTrue(server._google_translation_lock.acquire(blocking=False))
+            server._google_translation_lock.release()
+            return io.BytesIO(b'{"data":{"translations":[{"translatedText":"Long sentence"}]}}')
+        with mock.patch.object(server, "GOOGLE_TRANSLATE_API_KEY", "test-key"), mock.patch.object(
+            server, "urlopen", side_effect=respond
+        ):
+            self.assertEqual(server.google_translate("x" * 501), "Long sentence")
+
+    def test_missing_key_and_bad_response_do_not_use_cli(self):
+        from unittest import mock
+        import io
+        with mock.patch.object(server, "run_cli") as cli:
+            with mock.patch.object(server, "GOOGLE_TRANSLATE_API_KEY", ""):
+                with self.assertRaises(DefineError) as error:
+                    server.google_translate("Hoi.")
+                self.assertEqual(error.exception.status, 503)
+            with mock.patch.object(server, "GOOGLE_TRANSLATE_API_KEY", "test-key"), mock.patch.object(
+                server, "urlopen", return_value=io.BytesIO(b'{}')
+            ):
+                with self.assertRaises(DefineError) as error:
+                    server.google_translate("Hoi.")
+                self.assertEqual(error.exception.status, 502)
+            cli.assert_not_called()
+
+
 class Http(Translate):
     def setUp(self):
         import threading

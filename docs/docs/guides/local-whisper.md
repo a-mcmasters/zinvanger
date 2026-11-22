@@ -27,11 +27,15 @@ In Chrome, **Load Subtitles → Transcribe this episode** records the episode ta
 
 ## Set up automatic Anki lookups
 
-In the Chromium extension, the Anki dialog fills in the English translation of the mined sentence. After each transcription, the server translates the whole episode once and saves it as `<key>.en.ai.srt`, so opening a card costs nothing. If you save an English subtitle file as `<key>.en.srt` in the transcripts folder, it is used instead, matched to the Dutch lines by time. Only a sentence found in neither file is translated on demand. Translation uses your logged-in Claude Code by default, with its tools turned off. Set `ASB_DEFINE_PROVIDER=codex` before starting the server to use the Codex CLI instead. Codex can still read files on your computer, so a hostile subtitle could make it copy one into a translation. The provider uses your subscription quota. An NVIDIA GPU is only needed for Whisper transcription.
+In the Chromium extension, the Anki dialog automatically translates the current **Sentence** field using Google Cloud Translation Basic. It fills **Sentence Translation** after a short pause when you edit the sentence, preserving manually entered translations. Successful translations are cached while the server runs.
+
+Enable Cloud Translation API and billing in your Google Cloud project. Before starting the server, set `ASB_GOOGLE_TRANSLATE_API_KEY` to your API key in its environment (PowerShell: `$env:ASB_GOOGLE_TRANSLATE_API_KEY = "<key>"`). Restart the server after changing it. The key stays on the local server. `ASB_TRANSLATE_LANGUAGE` sets the target language code, default `en`; Google detects the source language. Sentence lookups do not fall back to the LLM.
+
+Whole-transcript translation and contextual word meanings still use the configured subscription CLI. An NVIDIA GPU is only needed for Whisper transcription.
 
 1. Generate a token with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 2. Before starting the server, set `ASB_LOOKUP_TOKEN` to that token in the same terminal. In PowerShell, use `$env:ASB_LOOKUP_TOKEN = "<token>"`. In Bash, use `export ASB_LOOKUP_TOKEN='<token>'`.
-3. In Zinvanger's toolbar popup or extension options, scroll to **Local lookup token** at the bottom of the **Anki** section. Paste the same token and click **Save**. You can also choose **Open lookup settings** from a subtitle lookup error to jump directly to the field.
+3. In the extension's **Anki** settings, paste the same token into **Local lookup token** and click **Save**.
 4. Add a custom asbplayer field named exactly `Sentence Translation` and map it to the corresponding field in your Anki note type. The translation box appears once the mapping is set.
 5. Mine a subtitle and open the Anki dialog. Review the translation and edit it before exporting. Fill in the word definition yourself.
 

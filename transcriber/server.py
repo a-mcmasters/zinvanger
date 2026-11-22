@@ -15,6 +15,7 @@ name asbplayer reports (e.g. "Invincible.S3.E1 - ...").
 import argparse
 import glob
 import hmac
+import html
 import json
 import os
 import re
@@ -28,6 +29,8 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 HOST = "127.0.0.1"
 PORT = 8767  # project.json services.transcriber
@@ -41,6 +44,51 @@ DEFINE_PROVIDER = os.environ.get("ASB_DEFINE_PROVIDER", "claude")
 LOOKUP_TOKEN = os.environ.get("ASB_LOOKUP_TOKEN", "")
 DEFINE_LANGUAGE = os.environ.get("ASB_DEFINE_LANGUAGE", "English")
 DEFINE_TIMEOUT = 60
+GOOGLE_TRANSLATE_API_KEY = os.environ.get("ASB_GOOGLE_TRANSLATE_API_KEY", "")
+TRANSLATE_LANGUAGE = os.environ.get("ASB_TRANSLATE_LANGUAGE", "en")
+_google_translations = {}
+_google_translation_lock = threading.Lock()
+
+
+def google_translate(sentence):
+    """Translate the current sentence field using Cloud Translation Basic."""
+    sentence = sentence.strip()
+    if not sentence:
+        raise ValueError("sentence is required")
+    if not GOOGLE_TRANSLATE_API_KEY:
+        raise DefineError(503, "Set ASB_GOOGLE_TRANSLATE_API_KEY on the local server")
+    if not _lookup_requests.acquire(blocking=False):
+        raise DefineError(429, "Translation is busy")
+    try:
+        key = (TRANSLATE_LANGUAGE, sentence)
+        with _google_translation_lock:
+            if key in _google_translations:
+                return _google_translations[key]
+        request = Request(
+            "https://translation.googleapis.com/language/translate/v2",
+            data=json.dumps({"q": sentence, "target": TRANSLATE_LANGUAGE, "format": "text"}).encode(),
+            headers={"Content-Type": "application/json", "X-Goog-Api-Key": GOOGLE_TRANSLATE_API_KEY},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=20) as response:
+                result = json.load(response)["data"]["translations"][0]["translatedText"]
+            if not isinstance(result, str) or not result.strip():
+                raise ValueError("empty translation")
+        except HTTPError as error:
+            raise DefineError(429 if error.code == 429 else 502, "Google translation request failed") from None
+        except TimeoutError:
+            raise DefineError(504, "Google translation timed out") from None
+        except (URLError, ValueError, KeyError, IndexError, TypeError):
+            raise DefineError(502, "Google translation unavailable or invalid response") from None
+        result = html.unescape(result)
+        with _google_translation_lock:
+            if len(_google_translations) >= 5000:
+                _google_translations.clear()
+            _google_translations[key] = result
+        return result
+    finally:
+        _lookup_requests.release()
 # The prompt goes in on stdin ("-" for codex). Subtitle text comes from web pages, so it can carry instructions:
 # claude runs with no tools and no MCP servers. Codex cannot turn off all of its tools (code exec, MCP), and its read-only
 # sandbox still reads any file, so a hostile subtitle could make it quote local files into a definition.
@@ -485,7 +533,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not sentence:
                     raise ValueError("sentence is required")
 
-                self._send(200, json.dumps({"translation": translate(sentence)}).encode())
+                self._send(200, json.dumps({"translation": google_translate(sentence)}).encode())
             elif url.path == "/jobs":
                 key = self._key(query)
 

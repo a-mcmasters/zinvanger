@@ -27,7 +27,13 @@ transcriber/.venv/Scripts/python transcriber/server.py transcribe episode.m4a --
 
 ## Sentence translations
 
-After each transcription, the server translates the whole transcript into `<key>.en.ai.srt`, about 60 lines per CLI call. The Anki dialog's `Sentence Translation` field is filled from that file, so opening a card makes no call. An English SRT you save as `<key>.en.srt` takes priority and is matched to the Dutch lines by time. A sentence found in neither file is translated on demand. To translate an older transcript, run `python transcriber/server.py translate --key "<name>"`.
+The Anki dialog automatically translates the current **Sentence** field through Google Cloud Translation Basic into **Sentence Translation**, after a 600 ms pause. Editing the sentence updates an automatically generated translation; manually entered translations are preserved. Map the `Sentence Translation` custom field in Anki settings.
+
+Enable Cloud Translation API and billing in your Google Cloud project. Set `ASB_GOOGLE_TRANSLATE_API_KEY` in the local server's environment, then restart the server. The key stays on the server. `ASB_TRANSLATE_LANGUAGE` selects the target language code (default `en`); Google detects the source language. Successful translations are cached in memory. Missing credentials or failed requests do not fall back to the LLM.
+
+The `/translate` endpoint uses Google for sentence lookups. The following whole-transcript workflow remains separate:
+
+After each transcription, the server translates the whole transcript into `<key>.en.ai.srt`, about 60 lines per CLI call. An English SRT you save as `<key>.en.srt` takes priority for this transcript workflow. To translate an older transcript, run `python transcriber/server.py translate --key "<name>"`.
 
 Translation runs a logged-in subscription CLI, so there is no API key and no per-token billing:
 
@@ -36,8 +42,6 @@ Translation runs a logged-in subscription CLI, so there is no API key and no per
 - **Other settings:** `ASB_DEFINE_MODEL` picks another model, and `ASB_DEFINE_LANGUAGE` translates into a language other than English.
 
 To enable lookups in Chromium, generate a token with `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Set `ASB_LOOKUP_TOKEN` to that token before starting the server, then enter the same value in the extension's **Anki → Local lookup token** setting and click **Save**. See the [setup guide](../docs/docs/guides/local-whisper.md#set-up-automatic-anki-lookups) for shell commands and field mapping.
-
-Add an asbplayer custom field named exactly `Sentence Translation` and map it to the desired field in your Anki note type to enable the translation box.
 
 ## Tests
 
