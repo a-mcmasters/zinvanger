@@ -299,6 +299,17 @@
             "autoSync": {
                 "enabled": true
             }
+        },
+        {
+            "key": "videoland",
+            "host": "(v2\\.|www\\.)?videoland\\.com",
+            "pageScript": "videoland-page.js",
+            "subtitleDiscoveryRequestTarget": "video",
+            "syncAllowedAtPath": ".*",
+            "refreshSubtitleDataOnPickerOpen": true,
+            "autoSync": {
+                "enabled": true
+            }
         }
     ]
 }

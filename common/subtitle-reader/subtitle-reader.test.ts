@@ -869,6 +869,35 @@ describe('SubtitleReader dfxp timestamp handling', () => {
             { start, end: stop, text: 'Hallo', track: 0 },
         ]);
     });
+
+    it('reads TTML out of fragmented MP4 (stpp) segments', async () => {
+        const doc = (begin: string, end: string, text: string) =>
+            `<?xml version="1.0" encoding="utf-8"?><tt xmlns="http://www.w3.org/ns/ttml">` +
+            `<body><div><p begin="${begin}" end="${end}">${text}</p></div></body></tt>`;
+        // Binary box headers around the mdat payload, including bytes that are invalid UTF-8.
+        const binary = (payload: string) => `\u0000\u0000\u0000\u0018stypÿþ\u0000moof\u0000\u0001mdat${payload}`;
+        const segment = (text: string) => ({ name: 'segment.ttml2', text: async () => text }) as unknown as File;
+
+        await expect(
+            createReader().subtitles([
+                {
+                    fileParts: [
+                        segment(binary(doc('00:00:01.000', '00:00:02.000', 'Eerste'))),
+                        segment(
+                            binary(
+                                doc('00:00:03.000', '00:00:04.000', 'Tweede') +
+                                    doc('00:00:05.000', '00:00:06.000', 'Derde')
+                            )
+                        ),
+                    ],
+                },
+            ])
+        ).resolves.toEqual([
+            { start: 1000, end: 2000, text: 'Eerste', track: 0 },
+            { start: 3000, end: 4000, text: 'Tweede', track: 0 },
+            { start: 5000, end: 6000, text: 'Derde', track: 0 },
+        ]);
+    });
 });
 
 describe('SubtitleReader WebVTT timestamp stripping', () => {

@@ -278,6 +278,7 @@ export const defaultSettings: AsbplayerSettings = {
         vkvideo: {},
         dreaming: {},
         npoStart: {},
+        videoland: {},
     },
     webSocketClientEnabled: false,
     webSocketServerUrl: `ws://${project.services.webSocket.host}:${project.services.webSocket.port}${project.services.webSocket.path}`,

@@ -158,6 +158,7 @@ export default defineConfig({
                         'vkvideo-page.js',
                         'dreaming-page.js',
                         'npo-start-page.js',
+                        'videoland-page.js',
                         'anki-ui.js',
                         'anki-lookup.html',
                         'living-subtitle.html',
