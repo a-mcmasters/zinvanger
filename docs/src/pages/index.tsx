@@ -21,10 +21,18 @@ const FirefoxIcon = () => (
 );
 
 const WebAppIcon = () => (
-    <svg role="img" viewBox="0 0 28 28" className={styles.pillIconLogo}>
+    <svg role="img" viewBox="0 0 128 128" className={styles.pillIconLogo}>
+        <path
+            d="M92 52V40a12 12 0 0 0-12-12H34a12 12 0 0 0-12 12v26a12 12 0 0 0 12 12h10"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="10"
+        />
+        <path fill="currentColor" d="m44 40 16 9c3 2 3 4 0 6l-16 9c-3 1-5 0-5-3V43c0-3 2-4 5-3Z" />
         <path
             fill="currentColor"
-            d="M 0 0 L 0 20 L 4 21 A 1 1 0 0 0 8 21 L 8 6 A 1 1 0 0 0 4 6 L 4 21 L 0 20 L 0 0 L 12 0 L 12 23 L 22 23 A 1 1 0 0 0 22 19 L 16 19 L 16 6 A 1 1 0 0 0 12 6 L 12 0 L 20 0 L 20 13 A 1 1 0 0 0 24 13 L 24 6 A 1 1 0 0 0 20 6 L 20 0"
+            fillRule="evenodd"
+            d="M63 60h38a12 12 0 0 1 12 12v24a12 12 0 0 1-12 12H63a12 12 0 0 1-12-12V72a12 12 0 0 1 12-12ZM66 72h32a5 5 0 0 1 0 10H66a5 5 0 0 1 0-10Zm0 14h20a5 5 0 0 1 0 10H66a5 5 0 0 1 0-10Z"
         />
     </svg>
 );

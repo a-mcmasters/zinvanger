@@ -51,3 +51,8 @@
 .header-discord-link:hover::before {
   background-color: var(--ifm-navbar-link-hover-color);
 }
+
+/* Violet links are close in lightness to body text, so underline them in prose. */
+.markdown a:not(.button):not(.hash-link):not(.card) {
+  text-decoration: underline;
+}

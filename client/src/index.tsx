@@ -11,7 +11,7 @@ const fetcher = new HttpFetcher();
 createRoot(document.querySelector('#root')!).render(
     <WebsiteApp
         origin={location.pathname}
-        logoUrl={`${location.pathname === '/' ? '' : location.pathname}/logo512.png`}
+        logoUrl={`${import.meta.env.BASE_URL.replace(/\/?$/, '/')}logo512.png`}
         fetcher={fetcher}
     />
 );
