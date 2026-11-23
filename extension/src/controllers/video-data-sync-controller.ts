@@ -365,7 +365,11 @@ export default class VideoDataSyncController {
               // See asbplayer-tutorial-page.ts
               ['1', '-', '-']
             : autoSelectedTracks.map((subtitle) => subtitle.id || '-');
-        const defaultCheckboxState = !this._isTutorial && subs.completeMatch;
+        // A remembered all-empty choice can't match zero tracks, but it is still the remembered choice.
+        // Kept out of completeMatch so it never triggers auto-sync.
+        const rememberedEmptyChoice =
+            subtitleTrackChoices.length === 0 && !this.lastLanguagesSynced.some((lang) => lang !== '-');
+        const defaultCheckboxState = !this._isTutorial && (subs.completeMatch || rememberedEmptyChoice);
         const themeType = await this._context.settings.getSingle('themeType');
         const profilesPromise = this._context.settings.profiles();
         const activeProfilePromise = this._context.settings.activeProfile();
@@ -446,28 +450,22 @@ export default class VideoDataSyncController {
             return tracks;
         }
 
-        const emptyChoice = !this.lastLanguagesSynced.some((lang) => lang !== '-');
-
-        if (!subtitleTrackChoices.length && emptyChoice) {
-            tracks.completeMatch = true;
-        } else {
-            let matches: number = 0;
-            for (let i = 0; i < this.lastLanguagesSynced.length; i++) {
-                const language = this.lastLanguagesSynced[i];
-                for (let j = 0; j < subtitleTrackChoices.length; j++) {
-                    if (language === '-') {
-                        matches++;
-                        break;
-                    } else if (language === subtitleTrackChoices[j].language) {
-                        tracks.autoSelectedTracks[i] = subtitleTrackChoices[j];
-                        matches++;
-                        break;
-                    }
+        let matches: number = 0;
+        for (let i = 0; i < this.lastLanguagesSynced.length; i++) {
+            const language = this.lastLanguagesSynced[i];
+            for (let j = 0; j < subtitleTrackChoices.length; j++) {
+                if (language === '-') {
+                    matches++;
+                    break;
+                } else if (language === subtitleTrackChoices[j].language) {
+                    tracks.autoSelectedTracks[i] = subtitleTrackChoices[j];
+                    matches++;
+                    break;
                 }
             }
-            if (matches === this.lastLanguagesSynced.length) {
-                tracks.completeMatch = true;
-            }
+        }
+        if (matches === this.lastLanguagesSynced.length) {
+            tracks.completeMatch = true;
         }
 
         return tracks;
