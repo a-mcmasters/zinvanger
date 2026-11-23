@@ -13,6 +13,8 @@ type TranscodedAudio = AudioConversion & {
     /** Every audio track in the file when conversion is required, for choosing which one to convert. */
     readonly tracks?: ProbedAudioTrack[];
     readonly selectedTrackIndex?: number;
+    /** Changes with every conversion started, so playback can tell a superseded conversion's events apart. */
+    readonly attempt: number;
     readonly selectTrack: (index: number) => void;
     readonly fail: (error: unknown) => void;
 };
@@ -34,6 +36,7 @@ export const useTranscodedAudio = (
     // Read synchronously so two choices delivered before a re-render don't both restart conversion.
     const selectionRef = useRef<{ index?: number; failed: boolean }>({ failed: false });
     const abortControllerRef = useRef<AbortController>(undefined);
+    const [attempt, setAttempt] = useState(0);
 
     /** Never rejects: failures become the 'failed' state unless the conversion was superseded. */
     const convert = useCallback(async (videoFile: FileWithId, trackIndex: number, host: AudioTranscodeHost) => {
@@ -41,6 +44,7 @@ export const useTranscodedAudio = (
         abortControllerRef.current?.abort();
         abortControllerRef.current = abortController;
         const { signal } = abortController;
+        setAttempt((attempt) => attempt + 1);
         setConversion({ state: 'transcoding' });
 
         try {
@@ -164,9 +168,10 @@ export const useTranscodedAudio = (
             codecName: track === undefined ? undefined : audioCodecDisplayName(track.codec),
             tracks: selectable ? tracks : undefined,
             selectedTrackIndex,
+            attempt,
             selectTrack,
             fail,
         }),
-        [conversion, track, tracks, selectable, selectedTrackIndex, selectTrack, fail]
+        [conversion, track, tracks, selectable, selectedTrackIndex, attempt, selectTrack, fail]
     );
 };

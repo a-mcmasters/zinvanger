@@ -105,6 +105,35 @@ describe('PlayerChannel playback state', () => {
         owner.close();
     });
 
+    it('tells the owner which conversion failed and which converted audio a copy was checked against', () => {
+        const player = new PlayerChannel('test-channel');
+        const broadcastChannel = TestBroadcastChannel.instance!;
+        const protocol: VideoProtocol = { postMessage() {}, close() {} };
+        const owner = new VideoChannel(protocol);
+        const failedAttempts: (number | undefined)[] = [];
+        const copiedAudio: unknown[] = [];
+        owner.onAudioConversionFailed((attempt) => failedAttempts.push(attempt));
+        owner.onCopy((...args) => copiedAudio.push(args[9]));
+        const checked = { state: 'ready', required: true, audio: new Blob(['english']), attempt: 1 } as const;
+
+        player.audioConversionFailed(3);
+        player.copy(
+            { text: 'Hallo', start: 0, end: 1000, originalStart: 0, originalEnd: 1000, track: 0 },
+            [],
+            {},
+            'a.srt',
+            0,
+            PostMineAction.none,
+            checked
+        );
+        for (const data of broadcastChannel.sent) protocol.onMessage?.({ data });
+
+        expect(failedAttempts).toEqual([3]);
+        expect(copiedAudio).toEqual([checked]);
+        player.close();
+        owner.close();
+    });
+
     it('delivers recipe and playback setting changes until the subscription is removed', () => {
         const channel = new PlayerChannel('test-channel');
         const broadcastChannel = TestBroadcastChannel.instance!;

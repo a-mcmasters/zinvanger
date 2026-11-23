@@ -213,11 +213,12 @@ export interface PlayerRef {
 
 const Player = React.memo(React.forwardRef<PlayerRef, PlayerProps>(PlayerComponent));
 
-const convertedAudioTrackId = (index: number) => `converted-${index}`;
+const convertedAudioTrackPrefix = 'converted-';
+const convertedAudioTrackId = (index: number) => `${convertedAudioTrackPrefix}${index}`;
 
 /** Send only playback data across documents, preserving the relationship between state and audio. */
 function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAudio>): TranscodedAudioPayload {
-    const { required, codecName, selectedTrackIndex } = conversion;
+    const { required, codecName, selectedTrackIndex, attempt } = conversion;
     const tracks = conversion.tracks?.map(({ index, language, name }) => ({
         id: convertedAudioTrackId(index),
         language: language ?? '',
@@ -227,11 +228,19 @@ function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAud
     switch (conversion.state) {
         case 'idle':
         case 'failed':
-            return { state: conversion.state, required, codecName, tracks, selectedTrack };
+            return { state: conversion.state, required, codecName, tracks, selectedTrack, attempt };
         case 'transcoding':
-            return { state: 'transcoding', audio: conversion.blob, required, codecName, tracks, selectedTrack };
+            return {
+                state: 'transcoding',
+                audio: conversion.blob,
+                required,
+                codecName,
+                tracks,
+                selectedTrack,
+                attempt,
+            };
         case 'ready':
-            return { state: 'ready', audio: conversion.blob, required, codecName, tracks, selectedTrack };
+            return { state: 'ready', audio: conversion.blob, required, codecName, tracks, selectedTrack, attempt };
     }
 }
 
@@ -1072,7 +1081,12 @@ function PlayerComponent(
         channel.transcodedAudio(transcodedAudioPayload);
     }, [channel, transcodedAudioPayload]);
     useEffect(
-        () => channel?.onAudioConversionFailed(() => failAudioConversion(new Error('Opus playback failed'))),
+        () =>
+            channel?.onAudioConversionFailed((attempt) => {
+                // Audio from a conversion that a track switch has replaced may still fail while it's swapped out.
+                if (attempt !== undefined && attempt !== transcodedAudioRef.current.attempt) return;
+                failAudioConversion(new Error('Opus playback failed'));
+            }),
         [channel, failAudioConversion]
     );
     useEffect(() => channel?.ankiSettings(settings), [channel, settings]);
@@ -1154,15 +1168,18 @@ function PlayerComponent(
                     url,
                     postMineAction,
                     id,
-                    mediaTimestamp
+                    mediaTimestamp,
+                    convertedAudio
                 ) => {
                     try {
-                        const currentAudio = transcodedAudioRef.current;
+                        // Prefer the audio the video player checked; the latest may be another track by now.
+                        const currentAudio = convertedAudio ?? toTranscodedAudioPayload(transcodedAudioRef.current);
                         const transcodedAudioSource = AudioClip.createTranscodedAudioSource({
-                            audio: currentAudio.blob,
+                            audio: currentAudio.audio,
                             required: currentAudio.required,
                             complete: currentAudio.state === 'ready',
                         });
+                        const audioTrack = channel?.selectedAudioTrack;
                         onCopy(
                             {
                                 subtitle,
@@ -1174,7 +1191,10 @@ function PlayerComponent(
                                     ? {
                                           name: videoFile.file.name,
                                           blobUrl: createBlobUrl(videoFile.file),
-                                          audioTrack: channel?.selectedAudioTrack,
+                                          // Converted track ids aren't the video element's; the converted audio is used instead.
+                                          audioTrack: audioTrack?.startsWith(convertedAudioTrackPrefix)
+                                              ? undefined
+                                              : audioTrack,
                                           playbackRate: channel?.playbackRate,
                                           transcodedAudio: transcodedAudioSource,
                                       }
@@ -1397,11 +1417,22 @@ function PlayerComponent(
 
     const handleAudioTrackSelected = useCallback(
         async (id: string) => {
+            const converted = transcodedAudioRef.current;
+            const convertedTrack = converted.tracks?.find(({ index }) => convertedAudioTrackId(index) === id);
+            // Choosing the track already being converted changes nothing, so don't interrupt playback.
+            if (
+                convertedTrack &&
+                convertedTrack.index === converted.selectedTrackIndex &&
+                converted.state !== 'failed'
+            ) {
+                return;
+            }
+
             channel?.audioTrackSelected(id);
             pause(clock, mediaAdapter, true);
 
             // Like the video's own controls: converting another track keeps the playback position.
-            if (transcodedAudioRef.current.tracks?.some(({ index }) => convertedAudioTrackId(index) === id)) return;
+            if (convertedTrack) return;
 
             await seek(0, clock, true, { paused: true });
 

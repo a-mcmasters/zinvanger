@@ -342,8 +342,9 @@ export default class PlayerChannel {
         return () => this._remove(callback, this.audioTrackSelectedCallbacks);
     }
 
-    audioConversionFailed() {
-        this.channel?.postMessage({ command: 'audioConversionFailed' });
+    /** @param attempt the conversion whose audio failed to play, so a superseded one's failure is ignored */
+    audioConversionFailed(attempt: number | undefined) {
+        this.channel?.postMessage({ command: 'audioConversionFailed', attempt });
     }
 
     requestTranscodedAudio() {
@@ -546,7 +547,8 @@ export default class PlayerChannel {
         cardTextFieldValues: CardTextFieldValues,
         subtitleFileName: string,
         mediaTimestamp: number,
-        postMineAction: PostMineAction
+        postMineAction: PostMineAction,
+        convertedAudio?: TranscodedAudioPayload
     ) {
         const message: CopyMessage = {
             command: 'copy',
@@ -556,6 +558,7 @@ export default class PlayerChannel {
             subtitleFileName,
             postMineAction,
             mediaTimestamp,
+            convertedAudio,
         };
 
         this.channel?.postMessage(message);

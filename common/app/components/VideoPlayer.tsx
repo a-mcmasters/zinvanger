@@ -444,28 +444,29 @@ export default function VideoPlayer({
         asbTrace('playback/video-player', 'Creating player channel');
         return new PlayerChannel(channel);
     }, [channel]);
-    const audioFile = useStreamingAudio({
+    const { url: audioFile, attempt: audioFileAttempt } = useStreamingAudio({
         conversion: convertedAudio,
         video,
         onBuffered: (range) => {
             setAudioSeekableRange(range);
             playerChannel.audioBuffered(range);
         },
-        onError: () => playerChannel.audioConversionFailed(),
+        onError: (_, attempt) => playerChannel.audioConversionFailed(attempt),
     });
     const externalAudioStateRef = useRef({
         element: externalAudio,
         source: audioFile,
         active: convertedAudioInUse,
         streaming: convertedAudio.state === 'transcoding',
-        onError: () => playerChannel.audioConversionFailed(),
+        onError: () => playerChannel.audioConversionFailed(audioFileAttempt),
     });
     externalAudioStateRef.current = {
         element: externalAudio,
         source: audioFile,
         active: convertedAudioInUse,
         streaming: convertedAudio.state === 'transcoding',
-        onError: () => playerChannel.audioConversionFailed(),
+        // Attributed to the conversion that produced the source being played, not the latest one.
+        onError: () => playerChannel.audioConversionFailed(audioFileAttempt),
     };
     useEffect(() => {
         if (!video) return;
@@ -1329,6 +1330,9 @@ export default function VideoPlayer({
 
     const handleAudioTrackSelected = useCallback(
         (id: string) => {
+            const converted = convertedAudioRef.current;
+            if (id === converted.selectedTrack && converted.state !== 'failed') return;
+
             if (playing()) {
                 clock.stop();
                 playerChannel.pause();
@@ -1709,7 +1713,9 @@ export default function VideoPlayer({
                     cardTextFieldValues,
                     videoFileName ?? '',
                     timestamp,
-                    showAnkiDialog ? PostMineAction.none : postMineAction
+                    showAnkiDialog ? PostMineAction.none : postMineAction,
+                    // The audio checked above, even if another track has been chosen since.
+                    miningAudio
                 );
                 if (showAnkiDialog) {
                     onAnkiDialogRequest(

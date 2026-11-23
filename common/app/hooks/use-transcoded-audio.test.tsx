@@ -23,6 +23,7 @@ const Harness = ({ file, host }: { file?: FileWithId; host: TestHost }) => {
                 data-error={conversion.error === undefined ? undefined : String(conversion.error)}
                 data-tracks={conversion.tracks?.length}
                 data-selected={conversion.selectedTrackIndex}
+                data-attempt={conversion.attempt}
             >
                 {conversion.codecName}
             </output>
@@ -198,11 +199,13 @@ it('converts another audio track when the user chooses it', async () => {
     const output = container.querySelector('output')!;
     expect(output.getAttribute('data-tracks')).toBe('2');
     expect(output.getAttribute('data-selected')).toBe('0');
+    expect(output.getAttribute('data-attempt')).toBe('1');
 
     await click('[data-select-second]');
     await waitForWorker(host, 1);
     expect(trackIndexes).toEqual([0, 1]);
     expect(output.getAttribute('data-selected')).toBe('1');
+    expect(output.getAttribute('data-attempt')).toBe('2');
     expect(state()).toBe('transcoding');
 
     // Choosing the track that is already converting must not throw that work away.

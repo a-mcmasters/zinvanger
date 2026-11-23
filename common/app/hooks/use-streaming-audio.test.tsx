@@ -22,7 +22,7 @@ const originalMediaSource = Object.getOwnPropertyDescriptor(globalThis, 'MediaSo
 const prefix = new Blob(['prefix']);
 const completed = new Blob(['prefix and the remaining audio']);
 const Harness = ({ conversion }: { conversion: TranscodedAudioPayload }) => {
-    const url = useStreamingAudio({
+    const { url } = useStreamingAudio({
         conversion,
         video: undefined,
         onBuffered: (range) => buffered.push(range),
@@ -92,10 +92,14 @@ it.each(['idle', 'failed'] as const)(
     }
 );
 
-it('replaces the MSE source when another track starts converting mid-stream', async () => {
-    await render({ state: 'transcoding', required: true, audio: prefix, selectedTrack: 'converted-0' });
+it.each([
+    ['another track', 'converted-1'],
+    // English → Dutch → English before a render: the track reads the same, the conversion is new.
+    ['the same track again', 'converted-0'],
+])('replaces the MSE source when a new conversion of %s starts mid-stream', async (_, selectedTrack) => {
+    await render({ state: 'transcoding', required: true, audio: prefix, selectedTrack: 'converted-0', attempt: 1 });
     expect(url()).toBe('blob:audio-1');
-    await render({ state: 'transcoding', required: true, selectedTrack: 'converted-1' });
+    await render({ state: 'transcoding', required: true, selectedTrack, attempt: 2 });
     expect(url()).toBe('blob:audio-2');
     expect(created[1]).toBeInstanceOf(Source);
     expect(released).toEqual(['blob:audio-1']);
