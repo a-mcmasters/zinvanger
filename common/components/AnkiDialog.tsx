@@ -222,7 +222,7 @@ interface AnkiDialogProps {
     showQuickSelectFtue?: boolean;
     onDismissShowQuickSelectFtue?: () => void;
     inTutorial?: boolean;
-    /** Translates the current sentence to pre-fill the Sentence Translation field. */
+    /** Translates the opening sentence to pre-fill the Sentence Translation field. */
     onRequestTranslation?: (sentence: string) => Promise<string | undefined>;
 }
 
@@ -267,6 +267,8 @@ const AnkiDialog = ({
     const [track2, setTrack2] = useState<string>('');
     const [track3, setTrack3] = useState<string>('');
     const [customFieldValues, setCustomFieldValues] = useState<{ [key: string]: string }>({});
+    // Set once a translation is in the field (typed or looked up), so a reopen of the same draft doesn't replace it.
+    const translationSettled = useRef(false);
     const [timestampInterval, setTimestampInterval] = useState<number[]>();
     const [selectedSubtitles, setSelectedSubtitles] = useState<SubtitleModel[]>([]);
     const [initialTimestampInterval, setInitialTimestampInterval] = useState<number[]>();
@@ -359,6 +361,7 @@ const AnkiDialog = ({
         setTrack2(extractText(card.subtitle, card.surroundingSubtitles, 1));
         setTrack3(extractText(card.subtitle, card.surroundingSubtitles, 2));
         setCustomFieldValues(initialCustomFieldValues ?? {});
+        translationSettled.current = false;
     }, [
         card.subtitle,
         card.surroundingSubtitles,
@@ -374,35 +377,43 @@ const AnkiDialog = ({
     // A custom Anki field keeps the sentence translation separate from the word definition.
     const translationMapped = Boolean(settings.customAnkiFields[sentenceTranslationField]?.trim());
     const translation = customFieldValues[sentenceTranslationField] ?? '';
-    const autoTranslationRef = useRef<{ sentence: string; value: string }>(undefined);
+    const openingSentence =
+        initialText ??
+        textForTimestampInterval(initialSelectedTimestampInterval ?? [card.subtitle.start, card.subtitle.end]);
+    const initialTranslation = initialCustomFieldValues?.[sentenceTranslationField];
+    const translationOptions = useRef({ translationMapped, onRequestTranslation });
+    translationOptions.current = { translationMapped, onRequestTranslation };
+    // Look up only while the draft has no translation: a resumed draft (re-record, retake) keeps the one it has,
+    // and retries one whose lookup never landed.
     useEffect(() => {
-        const last = autoTranslationRef.current;
+        const { translationMapped, onRequestTranslation } = translationOptions.current;
         if (
             !open ||
             !onRequestTranslation ||
             !translationMapped ||
-            !text.trim() ||
-            (last?.sentence === text && translation === last.value) ||
-            (translation !== '' && translation !== last?.value)
+            !openingSentence.trim() ||
+            initialTranslation !== undefined
         ) {
             return;
         }
         let cancelled = false;
-        const timeout = setTimeout(() => {
-            onRequestTranslation(text)
-                .then((result) => {
-                    if (!cancelled && result) {
-                        autoTranslationRef.current = { sentence: text, value: result };
-                        setCustomFieldValues((current) => ({ ...current, [sentenceTranslationField]: result }));
-                    }
-                })
-                .catch(() => {});
-        }, 600);
+        // Defer until setup completes so cleanup can cancel a discarded render before it sends a lookup.
+        void Promise.resolve()
+            .then(() => {
+                if (cancelled || translationSettled.current) return;
+                return onRequestTranslation(openingSentence);
+            })
+            .then((result) => {
+                if (!cancelled && !translationSettled.current && result) {
+                    translationSettled.current = true;
+                    setCustomFieldValues((current) => ({ ...current, [sentenceTranslationField]: result }));
+                }
+            })
+            .catch(() => {});
         return () => {
             cancelled = true;
-            clearTimeout(timeout);
         };
-    }, [open, text, translation, translationMapped, onRequestTranslation]);
+    }, [open, card.subtitle, openingSentence, initialTranslation, translationMapped]);
 
     useEffect(() => {
         anki.version()
@@ -427,7 +438,7 @@ const AnkiDialog = ({
             timestampInterval === undefined
                 ? []
                 : card.surroundingSubtitles.filter((s) => subtitleIntersectsTimeInterval(s, timestampInterval));
-        setText(initialText ?? joinSubtitles(selectedSubtitles));
+        setText(openingSentence);
         const trackText = (track: number) => joinSubtitles(selectedSubtitles.filter((s) => s.track === track));
         setTrack1(trackText(0));
         setTrack2(trackText(1));
@@ -443,7 +454,7 @@ const AnkiDialog = ({
     }, [
         card.subtitle,
         card.surroundingSubtitles,
-        initialText,
+        openingSentence,
         forceInitialTimestampInterval,
         initialSelectedTimestampInterval,
         forceTimestampBoundaryInterval,
@@ -924,22 +935,25 @@ const AnkiDialog = ({
                 </Toolbar>
                 <DialogContent ref={dialogRefCallback}>
                     <form className={classes.root}>
-                        {onRequestTranslation && translationMapped && (
-                            <TextField
-                                variant="filled"
-                                fullWidth
-                                multiline
-                                label={t('ankiDialog.sentenceTranslation')}
-                                value={translation}
-                                onChange={(e) =>
-                                    setCustomFieldValues((current) => ({
-                                        ...current,
-                                        [sentenceTranslationField]: e.target.value,
-                                    }))
-                                }
-                            />
-                        )}
-                        {onRequestTranslation && !translationMapped && translation && (
+                        {translationMapped &&
+                            settings.customAnkiFieldSettings[sentenceTranslationField]?.display !== false && (
+                                <TextField
+                                    variant="filled"
+                                    fullWidth
+                                    multiline
+                                    label={t('ankiDialog.sentenceTranslation')}
+                                    value={translation}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        translationSettled.current = true;
+                                        setCustomFieldValues((current) => ({
+                                            ...current,
+                                            [sentenceTranslationField]: value,
+                                        }));
+                                    }}
+                                />
+                            )}
+                        {!translationMapped && translation && (
                             <Alert severity="warning">{t('ankiDialog.sentenceTranslationUnmapped')}</Alert>
                         )}
                         {ankiFieldModels.map((model) => {
@@ -1037,15 +1051,13 @@ const AnkiDialog = ({
                                             selectedSubtitles={selectedSubtitles.filter((s) => s.track === 2)}
                                         />
                                     )}
-                                    {model.custom &&
-                                        model.field.display &&
-                                        !(onRequestTranslation && model.key === sentenceTranslationField) && (
-                                            <CustomField
-                                                name={model.key}
-                                                text={customFieldValues[model.key] || ''}
-                                                onTextChange={handleCustomFieldChange}
-                                            />
-                                        )}
+                                    {model.custom && model.field.display && model.key !== sentenceTranslationField && (
+                                        <CustomField
+                                            name={model.key}
+                                            text={customFieldValues[model.key] || ''}
+                                            onTextChange={handleCustomFieldChange}
+                                        />
+                                    )}
                                 </React.Fragment>
                             );
                         })}

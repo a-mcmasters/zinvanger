@@ -846,6 +846,11 @@ export interface ExtensionVersionMessage extends Message {
     browserFeatures?: BrowserFeatures;
 }
 
+export interface TranslateAppSentenceMessage extends MessageWithId {
+    readonly command: 'translate-app-sentence';
+    readonly sentence: string;
+}
+
 export interface AlertMessage extends Message {
     readonly command: 'alert';
     readonly severity: string;

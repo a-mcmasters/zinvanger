@@ -416,6 +416,7 @@
         "localLookupTokenHint": "Enter the token set in ASB_LOOKUP_TOKEN on the local transcriber. Use at least 32 characters.",
         "localLookupTokenStorageError": "Could not access the saved local lookup token.",
         "localLookupTokenSave": "Save",
+        "webSentenceTranslation": "Allow the Zinvanger web app to use my local sentence translation service",
         "ankiConnectApiKey": "Anki Connect の API キー",
         "ankiRefreshBrowserAfterUpdate": "Refresh Anki Card Browser after updating cards",
         "ankiRefreshBrowserAfterUpdateHelperText": "This works around stale fields in an open Anki Card Browser. It may bring the Card Browser window to the foreground.",

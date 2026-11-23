@@ -1,4 +1,5 @@
 import project from '@project/common/project';
+import { defaultSettings } from '@project/common/settings';
 import { asbError } from '@project/common/util/log';
 import type {
     AddProfileMessage,
@@ -38,6 +39,10 @@ import { isFirefoxBuild } from '@/services/build-flags';
 
 const appUrl = new URL(project.urls.app);
 const matches = [`*://${appUrl.hostname}${appUrl.pathname.replace(/\/+$/, '')}/*`];
+
+// Browser storage also contains credentials and permissions owned by the extension.
+const appSettings = <T extends Partial<typeof defaultSettings>>(settings: T): T =>
+    Object.fromEntries(Object.entries(settings).filter(([key]) => Object.hasOwn(defaultSettings, key))) as T;
 
 if (import.meta.env.DEV) {
     matches.push(`*://${project.development.host}/*`);
@@ -84,14 +89,14 @@ export default defineContentScript({
                         case 'get-settings': {
                             const getSettingsMessage = command.message as GetSettingsMessage;
                             sendMessageToPlayer({
-                                response: await settingsStorage.get(getSettingsMessage.keysAndDefaults),
+                                response: await settingsStorage.get(appSettings(getSettingsMessage.keysAndDefaults)),
                                 messageId: command.message.messageId,
                             });
                             break;
                         }
                         case 'set-settings': {
                             const setSettingsMessage = command.message as SetSettingsMessage;
-                            await settingsStorage.set(setSettingsMessage.settings);
+                            await settingsStorage.set(appSettings(setSettingsMessage.settings));
                             sendMessageToPlayer({
                                 messageId: command.message.messageId,
                             });
@@ -324,6 +329,14 @@ export default defineContentScript({
                             const setGlobalStateMessage = command.message as SetGlobalStateMessage;
                             await globalStateProvider.set(setGlobalStateMessage.state);
                             sendMessageToPlayer({
+                                messageId: command.message.messageId,
+                            });
+                            break;
+                        }
+                        case 'translate-app-sentence': {
+                            const response = await browser.runtime.sendMessage(command).catch(() => undefined);
+                            sendMessageToPlayer({
+                                response: typeof response === 'string' ? response : undefined,
                                 messageId: command.message.messageId,
                             });
                             break;

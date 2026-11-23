@@ -1,6 +1,6 @@
 import type { LocalLookupError, LocalLookupResponse } from '@project/common';
 import project from '@project/common/project';
-import { getLocalLookupToken } from '@/services/local-lookup-token';
+import { getLocalLookupToken, minimumLocalLookupTokenLength } from '@/services/local-lookup-token';
 
 const { host, port } = project.services.transcriber;
 const timeoutMs = 70_000; // the server's CLI timeout is 60 s
@@ -15,7 +15,7 @@ const statusErrors: { [status: number]: LocalLookupError } = {
 /** Background-only: reads the lookup token and asks the local transcriber service for a sentence's English. */
 export const localLookup = async (sentence: string): Promise<LocalLookupResponse> => {
     const token = await getLocalLookupToken();
-    if (token.length < 32) return { error: 'unauthorized' };
+    if (token.length < minimumLocalLookupTokenLength) return { error: 'unauthorized' };
 
     const query = new URLSearchParams({ sentence });
     let response: Response;

@@ -17,6 +17,7 @@ import type {
     GetLogsResponse,
     Message,
     MessageWithId,
+    TranslateAppSentenceMessage,
     ToggleSidePanelMessage,
     PublishCardMessage,
     SetSettingsMessage,
@@ -97,6 +98,7 @@ import type { LogLine, LogSnapshot } from '@project/common/util/log-utils';
 import gte from 'semver/functions/gte';
 import gt from 'semver/functions/gt';
 import { isFirefox } from '@project/common/browser-detection';
+import project from '@project/common/project';
 import { isMobile } from 'react-device-detect';
 
 export interface ExtensionMessage {
@@ -751,6 +753,27 @@ export default class ChromeExtension {
         };
         window.postMessage(command);
         return this._createResponsePromise(messageId);
+    }
+
+    get supportsAppSentenceTranslation() {
+        // The extension only answers the hosted app page, so don't offer it on dev hosts or alternate URLs.
+        return (
+            this.installed &&
+            !this.sidePanel &&
+            !isFirefox &&
+            gte(this.version, '1.25.0') &&
+            location.origin + location.pathname === project.urls.app
+        );
+    }
+
+    translateAppSentence(sentence: string): Promise<string | undefined> {
+        const messageId = uuidv4();
+        const command: AsbPlayerCommand<TranslateAppSentenceMessage> = {
+            sender: 'asbplayerv2',
+            message: { command: 'translate-app-sentence', messageId, sentence },
+        };
+        window.postMessage(command);
+        return this._createResponsePromise(messageId, 75_000);
     }
 
     activeSettingsProfile(): Promise<Profile | undefined> {
