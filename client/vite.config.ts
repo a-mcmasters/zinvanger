@@ -53,7 +53,7 @@ export default defineConfig(async ({ mode, isPreview }) => {
             VitePWA({
                 strategies: 'generateSW',
                 registerType: 'prompt',
-                includeAssets: ['locales/*.json', 'background-colored.png'],
+                includeAssets: ['locales/*.json', 'logo512.png'],
                 workbox: {
                     maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
                 },

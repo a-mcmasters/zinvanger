@@ -1,11 +1,11 @@
 :root {
-  --ifm-color-primary: #ff3f78;
-  --ifm-color-primary-dark: #ff1f62;
-  --ifm-color-primary-darker: #ff0f56;
-  --ifm-color-primary-darkest: #df0042;
-  --ifm-color-primary-light: #ff5f8e;
-  --ifm-color-primary-lighter: #ff6f9a;
-  --ifm-color-primary-lightest: #ff9ebb;
+  --ifm-color-primary: #6332a6;
+  --ifm-color-primary-dark: #592d95;
+  --ifm-color-primary-darker: #542a8d;
+  --ifm-color-primary-darkest: #452374;
+  --ifm-color-primary-light: #6d37b7;
+  --ifm-color-primary-lighter: #7239bf;
+  --ifm-color-primary-lightest: #834fca;
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
   /* Discord logo, shared by the navbar link and the homepage CTA button. */
@@ -13,13 +13,13 @@
 }
 
 [data-theme="dark"] {
-  --ifm-color-primary: #ff3f78;
-  --ifm-color-primary-dark: #ff1f62;
-  --ifm-color-primary-darker: #ff0f56;
-  --ifm-color-primary-darkest: #df0042;
-  --ifm-color-primary-light: #ff5f8e;
-  --ifm-color-primary-lighter: #ff6f9a;
-  --ifm-color-primary-lightest: #ff9ebb;
+  --ifm-color-primary: #c4a1ff;
+  --ifm-color-primary-dark: #aa77ff;
+  --ifm-color-primary-darker: #9d63ff;
+  --ifm-color-primary-darkest: #7624ff;
+  --ifm-color-primary-light: #decbff;
+  --ifm-color-primary-lighter: #ebdfff;
+  --ifm-color-primary-lightest: #f5efff;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
