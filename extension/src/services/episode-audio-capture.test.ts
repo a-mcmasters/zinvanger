@@ -63,6 +63,7 @@ it('streams the recording to the server in order, retrying a chunk the server mi
     let down = true;
     fetchMock.mockImplementation(async (input, init) => {
         const url = new URL(String(input));
+        expect(init!.headers).toEqual({ Authorization: `Bearer ${'k'.repeat(32)}` });
         if (url.pathname === '/append' && down) {
             down = false;
             throw new TypeError('Failed to fetch');
@@ -77,7 +78,11 @@ it('streams the recording to the server in order, retrying a chunk the server mi
         operation,
     });
 
-    await handleEpisodeAudioCapture(message({ action: 'start', key: 'E1' }), async () => stream, true);
+    await handleEpisodeAudioCapture(
+        { ...message({ action: 'start', key: 'E1' }), token: 'k'.repeat(32) },
+        async () => stream,
+        true
+    );
     await handleEpisodeAudioCapture(message({ action: 'resume', offset: 38 }), async () => stream, true);
     FakeRecorder.last.emit('a'); // the server is down for this one
     await settle();

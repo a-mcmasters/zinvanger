@@ -9,6 +9,7 @@ import { ensureOffscreenAudioServiceDocument } from '@/services/offscreen-docume
 import { localTranscriberUrl } from '@/services/local-transcriber';
 import type { TranscriptionResponse } from '@/services/local-transcriber';
 import { tabCaptureStreamId } from '@/services/video-capturer';
+import { getLocalLookupToken } from '@/services/local-lookup-token';
 
 export default class EpisodeTranscriptionHandler {
     get sender() {
@@ -53,7 +54,12 @@ export default class EpisodeTranscriptionHandler {
         }
 
         let streamId: string | undefined;
+        let token: string | undefined;
         if (operation.action === 'start') {
+            token = await getLocalLookupToken();
+            if (token.length < 32) {
+                throw new Error("Set the Local lookup token in Anki settings to the server's ASB_LOOKUP_TOKEN.");
+            }
             await ensureOffscreenAudioServiceDocument();
             streamId = await tabCaptureStreamId(tabId).catch((error: Error) => {
                 if (/invoked|activeTab|permission/i.test(error.message)) {
@@ -65,7 +71,7 @@ export default class EpisodeTranscriptionHandler {
 
         const command: ExtensionToOffscreenDocumentCommand<CaptureEpisodeAudioMessage> = {
             sender: 'asbplayer-extension-to-offscreen-document',
-            message: { command: 'capture-episode-audio', id, tabId, operation, streamId },
+            message: { command: 'capture-episode-audio', id, tabId, operation, streamId, token },
         };
         return browser.runtime.sendMessage(command);
     }

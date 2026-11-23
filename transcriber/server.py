@@ -44,6 +44,7 @@ DEFINE_PROVIDER = os.environ.get("ASB_DEFINE_PROVIDER", "claude")
 LOOKUP_TOKEN = os.environ.get("ASB_LOOKUP_TOKEN", "")
 DEFINE_LANGUAGE = os.environ.get("ASB_DEFINE_LANGUAGE", "English")
 DEFINE_TIMEOUT = 60
+MAX_APPEND_BYTES = 64 << 20  # one 30 s Opus chunk is well under 1 MB
 GOOGLE_TRANSLATE_API_KEY = os.environ.get("ASB_GOOGLE_TRANSLATE_API_KEY", "")
 TRANSLATE_LANGUAGE = os.environ.get("ASB_TRANSLATE_LANGUAGE", "en")
 _google_translations = {}
@@ -504,6 +505,15 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _authorized(self):
+        """Requires the lookup token; the custom header also makes browsers preflight, which this server never approves."""
+        expected = f"Bearer {LOOKUP_TOKEN}".encode("utf-8")
+        supplied = self.headers.get("Authorization", "").encode("utf-8")
+        if len(LOOKUP_TOKEN) >= 32 and hmac.compare_digest(supplied, expected):
+            return True
+        self._send(401, json.dumps({"error": "The local server requires a valid token"}).encode())
+        return False
+
     def _key(self, query):
         key = query.get("key", [""])[0]
         transcript_path(key)  # validates
@@ -522,10 +532,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._send(404)
             elif url.path == "/translate":
-                expected = f"Bearer {LOOKUP_TOKEN}".encode("utf-8")
-                supplied = self.headers.get("Authorization", "").encode("utf-8")
-                if len(LOOKUP_TOKEN) < 32 or not hmac.compare_digest(supplied, expected):
-                    self._send(401, json.dumps({"error": "Local lookup requires a valid token"}).encode())
+                if not self._authorized():
                     return
 
                 sentence = query.get("sentence", [""])[0].strip()
@@ -556,6 +563,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404)
             return
 
+        if not self._authorized():
+            return
+
         try:
             key = self._key(query)
             offset = float(query.get("offset", ["0"])[0])
@@ -565,6 +575,9 @@ class Handler(BaseHTTPRequestHandler):
 
             if url.path == "/append" and (streamed is None or length <= 0):
                 raise ValueError("session and audio are required")
+            if url.path == "/append" and length > MAX_APPEND_BYTES:
+                self._send(413, json.dumps({"error": "audio chunk is too large"}).encode())
+                return
             if length <= 0 and not (streamed and streamed.exists()):
                 raise ValueError("no audio")
         except ValueError as e:

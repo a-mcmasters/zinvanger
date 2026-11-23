@@ -64,7 +64,7 @@ if WEBSOCKETS_AVAILABLE:
                 ADDON_PACKAGE, QWebSocketServer.SslMode.NonSecureMode, self
             )
 
-            if not self._server.listen(QHostAddress.SpecialAddress.Any, self._port):
+            if not self._server.listen(QHostAddress.SpecialAddress.LocalHost, self._port):
                 _log(
                     f"Failed to listen on port {self._port}: {self._server.errorString()}"
                 )

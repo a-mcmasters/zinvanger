@@ -19,7 +19,8 @@ class EpisodeAudioCapture {
     constructor(
         readonly id: string,
         readonly tabId: number,
-        private readonly _key: string
+        private readonly _key: string,
+        private readonly _token: string
     ) {}
 
     async open(getStream: () => Promise<MediaStream>) {
@@ -77,6 +78,7 @@ class EpisodeAudioCapture {
         url.searchParams.set('offset', String(this._offset));
         const response = await fetch(url, {
             method: 'POST',
+            headers: { Authorization: `Bearer ${this._token}` },
             signal: AbortSignal.any([this._abort.signal, AbortSignal.timeout(25_000)]),
         });
         if (response.status !== 202) throw new Error('The Whisper server could not accept the recording.');
@@ -92,6 +94,7 @@ class EpisodeAudioCapture {
                     // Not tied to close(): the last chunk still lands when the tab capture ends.
                     const response = await fetch(url, {
                         method: 'POST',
+                        headers: { Authorization: `Bearer ${this._token}` },
                         body: this._unsent[0],
                         signal: AbortSignal.timeout(25_000),
                     });
@@ -125,13 +128,13 @@ class EpisodeAudioCapture {
 export const episodeAudioCaptureActive = () => capture !== undefined;
 
 export async function handleEpisodeAudioCapture(
-    { id, tabId, operation }: CaptureEpisodeAudioMessage,
+    { id, tabId, operation, token = '' }: CaptureEpisodeAudioMessage,
     getStream: () => Promise<MediaStream>,
     canStart: boolean
 ) {
     if (operation.action === 'start') {
         if (!canStart || capture) throw new Error('Another recording is already in progress.');
-        const nextCapture = new EpisodeAudioCapture(id, tabId, operation.key);
+        const nextCapture = new EpisodeAudioCapture(id, tabId, operation.key, token);
         capture = nextCapture;
         try {
             await nextCapture.open(getStream);

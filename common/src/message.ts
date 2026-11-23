@@ -140,6 +140,8 @@ export interface CaptureEpisodeAudioMessage extends Message {
     tabId: number;
     operation: Exclude<EpisodeTranscriptionAction, { action: 'status' }>;
     streamId?: string;
+    /** The local lookup token, sent on start: offscreen documents can't read extension storage. */
+    token?: string;
 }
 
 /** Asks the local transcriber for a sentence's translation, for the Anki sentence translation field. */

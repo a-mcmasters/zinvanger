@@ -195,7 +195,12 @@ class Http(Translate):
         import threading
         from http.server import ThreadingHTTPServer
 
+        from unittest import mock
+
         super().setUp()
+        token = mock.patch.object(server, "LOOKUP_TOKEN", "k" * 32)
+        token.start()
+        self.addCleanup(token.stop)
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
@@ -205,11 +210,34 @@ class Http(Translate):
         server.jobs.clear()
         super().tearDown()
 
-    def request(self, path, body=None):
+    def request(self, path, body=None, token=None, headers=None):
         import urllib.request
 
         url = f"http://127.0.0.1:{self.httpd.server_port}{path}"
-        return urllib.request.urlopen(urllib.request.Request(url, data=body, method="POST" if body is not None else "GET"), timeout=5)
+        headers = {"Authorization": f"Bearer {token or server.LOOKUP_TOKEN}", **(headers or {})}
+        method = "POST" if body is not None else "GET"
+        return urllib.request.urlopen(urllib.request.Request(url, data=body, headers=headers, method=method), timeout=5)
+
+    def test_uploads_require_the_token(self):
+        import urllib.error
+
+        session = "0f8c2a1e-1111-2222-3333-444455556666"
+        for path in (f"/append?key=Ep.S1&session={session}", f"/transcribe?key=Ep.S1&session={session}"):
+            with self.assertRaises(urllib.error.HTTPError) as denied:
+                self.request(path, b"x", token="wrong")
+            self.assertEqual(denied.exception.code, 401)
+        self.assertFalse(server.streamed_audio_path("Ep.S1", session).exists())
+        self.assertEqual(server.jobs, {})
+
+    def test_an_oversized_chunk_is_refused_unread(self):
+        import urllib.error
+        from unittest import mock
+
+        session = "0f8c2a1e-1111-2222-3333-444455556666"
+        with mock.patch.object(server, "MAX_APPEND_BYTES", 3), self.assertRaises(urllib.error.HTTPError) as big:
+            self.request(f"/append?key=Ep.S1&session={session}", b"four")
+        self.assertEqual(big.exception.code, 413)
+        self.assertFalse(server.streamed_audio_path("Ep.S1", session).exists())
 
     def test_job_status_is_served(self):
         import urllib.error
