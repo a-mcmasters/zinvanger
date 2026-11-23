@@ -88,24 +88,35 @@ const box = (type: string, ...parts: Uint8Array[]) => {
     }
     return bytes;
 };
-const audioTrak = box(
-    'trak',
+const audioTrak = (format = 'ac-3') =>
     box(
-        'mdia',
-        box('hdlr', new Uint8Array(8), new Uint8Array([115, 111, 117, 110])), // soun
-        box('minf', box('stbl', box('stsd', new Uint8Array([0, 0, 0, 0, 0, 0, 0, 1]), box('ac-3'))))
-    )
-);
-const file = (id: string, audioTracks = 1): FileWithId => ({
+        'trak',
+        box(
+            'mdia',
+            box('hdlr', new Uint8Array(8), new Uint8Array([115, 111, 117, 110])), // soun
+            box('minf', box('stbl', box('stsd', new Uint8Array([0, 0, 0, 0, 0, 0, 0, 1]), box(format))))
+        )
+    );
+const fileWithTracks = (id: string, formats: string[]): FileWithId => ({
     id,
-    file: new File([box('moov', ...Array.from({ length: audioTracks }, () => audioTrak))], `${id}.mp4`),
+    file: new File([box('moov', ...formats.map(audioTrak))], `${id}.mp4`),
 });
+const file = (id: string, audioTracks = 1) => fileWithTracks(id, Array(audioTracks).fill('ac-3'));
 const state = () => container.querySelector('output')!.getAttribute('data-state');
 const render = async (file: FileWithId | undefined, host: TestHost) => {
     await act(async () => root.render(<Harness file={file} host={host} />));
 };
 const click = async (selector: string) => {
     await act(async () => container.querySelector<HTMLButtonElement>(selector)!.click());
+};
+const waitFor = async (condition: () => boolean) => {
+    const deadline = Date.now() + 2000;
+    while (!condition() && Date.now() < deadline) {
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+        });
+    }
+    expect(condition()).toBe(true);
 };
 const waitForState = async (expected: string) => {
     const deadline = Date.now() + 2000;
@@ -262,6 +273,29 @@ it('ignores a playback failure from the conversion a track switch replaced', asy
     expect(state()).toBe('transcoding');
     expect(host.workers[1].active).toBe(true);
     expect(container.querySelector('output')!.getAttribute('data-selected')).toBe('1');
+});
+
+it('plays the native track until another is chosen, and stops converting when it is chosen again', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    const output = () => container.querySelector('output')!;
+    // The browser decodes Opus itself, so the second track plays natively.
+    await render(fileWithTracks('a', ['ac-3', 'Opus']), host);
+    await waitFor(() => output().getAttribute('data-tracks') === '2');
+    expect(output().getAttribute('data-selected')).toBe('1');
+    expect(output().getAttribute('data-required')).toBe('false');
+    expect(state()).toBe('idle');
+    expect(host.workers).toHaveLength(0);
+
+    await click('[data-select-first]');
+    await waitForWorker(host);
+    expect(state()).toBe('transcoding');
+    expect(output().getAttribute('data-required')).toBe('true');
+
+    await click('[data-select-second]');
+    expect(state()).toBe('idle');
+    expect(output().getAttribute('data-required')).toBe('false');
+    expect(host.workers[0].active).toBe(false);
 });
 
 it('converts another track after the first conversion finished', async () => {
