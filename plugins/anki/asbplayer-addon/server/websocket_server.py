@@ -46,8 +46,9 @@ if WEBSOCKETS_AVAILABLE:
 
         PROBE_TIMEOUT_MS = 2000
 
-        def __init__(self, port: int, parent: QObject | None = None):
+        def __init__(self, host: str, port: int, parent: QObject | None = None):
             super().__init__(parent)
+            self._host = host
             self._port = port
             self._server: QWebSocketServer | None = None
             self._client: QWebSocket | None = None
@@ -64,15 +65,21 @@ if WEBSOCKETS_AVAILABLE:
                 ADDON_PACKAGE, QWebSocketServer.SslMode.NonSecureMode, self
             )
 
-            if not self._server.listen(QHostAddress.SpecialAddress.LocalHost, self._port):
+            address = QHostAddress(self._host)
+            if address.isNull():
+                _log(f"Invalid host {self._host!r}: use an IP address such as 127.0.0.1")
+                self._server = None
+                return False
+
+            if not self._server.listen(address, self._port):
                 _log(
-                    f"Failed to listen on port {self._port}: {self._server.errorString()}"
+                    f"Failed to listen on {self._host}:{self._port}: {self._server.errorString()}"
                 )
                 self._server = None
                 return False
 
             self._server.newConnection.connect(self._on_new_connection)
-            _log(f"WebSocket server started on port {self._port}")
+            _log(f"WebSocket server started on {self._host}:{self._port}")
             return True
 
         def stop(self) -> None:
@@ -259,7 +266,7 @@ else:
     class AsbplayerWebSocketServer:
         """Fallback stub when QtWebSockets is not available."""
 
-        def __init__(self, port: int, parent=None):
+        def __init__(self, host: str, port: int, parent=None):
             self._port = port
             _log("QtWebSockets not available - WebSocket server disabled")
 

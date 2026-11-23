@@ -11,6 +11,7 @@ _defaults = json.loads(
 
 class AddonConfig:
     DEFAULT_ENABLED = _defaults["enabled"]
+    DEFAULT_HOST = _defaults["host"]
     DEFAULT_PORT = _defaults["port"]
     DEFAULT_POST_MINE_ACTION = _defaults["postMineAction"]
 
@@ -25,6 +26,10 @@ class AddonConfig:
         changed = False
         if not isinstance(self._config.get("enabled"), bool):
             self._config["enabled"] = self.DEFAULT_ENABLED
+            changed = True
+
+        if not isinstance(self._config.get("host"), str) or not self._config["host"].strip():
+            self._config["host"] = self.DEFAULT_HOST
             changed = True
 
         if not isinstance(self._config.get("port"), int):
@@ -43,6 +48,9 @@ class AddonConfig:
 
     def get_enabled(self) -> bool:
         return bool(self._config.get("enabled", self.DEFAULT_ENABLED))
+
+    def get_host(self) -> str:
+        return str(self._config.get("host", self.DEFAULT_HOST)).strip()
 
     def get_port(self) -> int:
         return int(self._config.get("port", self.DEFAULT_PORT))

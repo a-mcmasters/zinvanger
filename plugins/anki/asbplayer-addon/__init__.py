@@ -62,7 +62,7 @@ def start_server() -> None:
         return
 
     _log(f"Starting WebSocket server on port {config.get_port()}")
-    server = AsbplayerWebSocketServer(config.get_port())
+    server = AsbplayerWebSocketServer(config.get_host(), config.get_port())
     if not server.start():
         _log(f"Failed to start WebSocket server on port {config.get_port()}")
         server = None

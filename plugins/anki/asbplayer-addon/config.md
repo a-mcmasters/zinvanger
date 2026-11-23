@@ -7,6 +7,8 @@ Configure the WebSocket server for one-click mining with Zinvanger.
 
 - **enabled**: Enable (`true`) or disable (`false`) the WebSocket server (default: `true`).
 
+- **host**: IP address the WebSocket server listens on (default: `127.0.0.1`, this computer only). Set `0.0.0.0` to accept other devices on your network; any of them can then control Anki through the add-on.
+
 - **port**: WebSocket server port (default: `8766`). Must match Zinvanger's "WebSocket Server URL" setting (in misc settings). The default URL is `ws://127.0.0.1:8766/ws`.
 
 - **postMineAction**: Action to perform after mining a word (default: `2`):
