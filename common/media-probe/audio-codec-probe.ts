@@ -188,17 +188,17 @@ export const probeAudioTrackChoices = async (blob: Blob): Promise<ProbedAudioTra
         return;
     }
 
-    // Browsers play the first audio track they can decode and expose no way to pick another.
+    // Chromium plays the first audio track it can decode and exposes no way to pick another.
     const nativeIndex = container.audioTracks.findIndex(({ codec }) => browserCanDecodeAudioCodec(codec));
-    if (nativeIndex !== -1 && container.audioTracks.length === 1) {
-        asbTrace('media/probe', 'Skipping audio conversion: the only audio track plays natively');
+    // Only the native track and those the FFmpeg build converts (mimeTypesByCodec) can be chosen.
+    const choices = container.audioTracks
+        .map((track, index) => ({ ...track, index, ...(index === nativeIndex && { native: true }) }))
+        .filter(({ codec, native }) => native || mimeTypesByCodec[codec] !== undefined);
+    if (!choices.some(({ native }) => !native)) {
+        asbTrace('media/probe', 'Skipping audio conversion: no other track to convert', { nativeIndex });
         return;
     }
 
-    asbTrace('media/probe', 'Audio tracks to choose from', { tracks: container.audioTracks, nativeIndex });
-    return container.audioTracks.map((track, index) => ({
-        ...track,
-        index,
-        ...(index === nativeIndex && { native: true }),
-    }));
+    asbTrace('media/probe', 'Audio tracks to choose from', { tracks: choices, nativeIndex });
+    return choices;
 };

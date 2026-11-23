@@ -364,6 +364,24 @@ describe('probeAudioTrackChoices', () => {
         ]);
     });
 
+    it('offers only the native track and the ones FFmpeg can convert', async () => {
+        playsContainersButNoDolby();
+        const tracks = await probeAudioTrackChoices(
+            blobOf(matroskaFile({ audioCodecIds: ['A_AAC', 'A_AC3', 'A_OPUS'] }))
+        );
+        expect(tracks?.map(({ index, codec }) => ({ index, codec }))).toEqual([
+            { index: 0, codec: 'aac' },
+            { index: 1, codec: 'ac3' },
+        ]);
+    });
+
+    it('leaves a file alone when no track needs converting', async () => {
+        playsContainersButNoDolby();
+        expect(
+            await probeAudioTrackChoices(blobOf(matroskaFile({ audioCodecIds: ['A_AAC', 'A_AAC'] })))
+        ).toBeUndefined();
+    });
+
     it('leaves a file alone when its only track plays natively', async () => {
         playsContainersButNoDolby();
         expect(await probeAudioTrackChoices(blobOf(matroskaFile({ audioCodecIds: ['A_AAC'] })))).toBeUndefined();

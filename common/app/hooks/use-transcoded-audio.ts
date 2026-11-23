@@ -28,11 +28,11 @@ export const convertedAudioTrackModels = (tracks: ProbedAudioTrack[]): AudioTrac
 };
 
 type TranscodedAudio = AudioConversion & {
-    /** The original audio cannot be recorded, even if conversion is unavailable or fails. */
+    /** The selected track isn't the browser's own, so the original audio can't be recorded, even if conversion fails. */
     readonly required: boolean;
-    /** Display name of the codec the browser cannot decode, e.g. "E-AC-3". */
+    /** Display name of the selected track's codec, e.g. "E-AC-3". */
     readonly codecName?: string;
-    /** Every audio track in the file when conversion is required, for choosing which one to convert. */
+    /** The tracks that can be chosen: the browser's own, if any, and those that can be converted. */
     readonly tracks?: ProbedAudioTrack[];
     readonly selectedTrackIndex?: number;
     /** Changes with every conversion started, so playback can tell a superseded conversion's events apart. */
@@ -47,8 +47,8 @@ type TranscodedAudio = AudioConversion & {
 };
 
 /**
- * Detects audio tracks the browser cannot decode - Dolby formats like E-AC-3, most commonly - and
- * automatically transcodes the first one into a playable format in the background. Another track
+ * Detects audio tracks the browser cannot decode - Dolby formats like E-AC-3, most commonly. When none
+ * of a file's tracks plays, it automatically transcodes the first into a playable format in the background. Another track
  * can be chosen with `selectTrack`, which restarts the conversion for that track.
  *
  * When the browser plays one track itself, nothing is converted until another track is chosen;
