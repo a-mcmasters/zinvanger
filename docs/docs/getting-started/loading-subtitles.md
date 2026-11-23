@@ -42,3 +42,5 @@ See the [Android guide](../guides/android.md).
 
 1. Open the <a href={project.urls.app}>website</a>.
 2. Drag-and-drop video and subtitle files into the website.
+
+The website remembers the subtitle files you loaded for each video. Next time you open the same video file on its own, they load again. It matches videos by file name and size, and keeps the 50 most recent videos. Subtitles larger than 20 MB in total for one video aren't remembered.

@@ -110,6 +110,8 @@ import {
     SUBTITLE_EXT_SET,
     getExtension,
 } from '@project/common/app/services/media-sources';
+import { VideoSubtitleMemory, videoSubtitleMemoryAction } from '@project/common/app/services/video-subtitle-memory';
+import type { PairedSources } from '@project/common/app/services/video-subtitle-memory';
 
 const extensionUrl = project.extension.chrome.storeUrl;
 const fileExtensionPattern = /\.[^.]+$/;
@@ -389,7 +391,15 @@ function App({
     const [alertSeverity, setAlertSeverity] = useState<AlertColor>();
     const [jumpToSubtitle, setJumpToSubtitle] = useState<SubtitleModel>();
     const [rewindSubtitle, setRewindSubtitle] = useState<SubtitleModel>();
-    const [sources, setSources] = useState(() => new MediaSources());
+    const [sources, setSourcesState] = useState(() => new MediaSources());
+    // Counts requested changes, which are visible before React renders them.
+    const sourcesChangeCountRef = useRef(0);
+    const renderedSourcesRef = useRef(sources);
+    renderedSourcesRef.current = sources;
+    const setSources = useCallback((update: React.SetStateAction<MediaSources>) => {
+        ++sourcesChangeCountRef.current;
+        setSourcesState(update);
+    }, []);
     const { firstSubtitleSourceFiles, subtitleFileNames } = sources;
     useEffect(() => {
         if (!sources.videoFile) {
@@ -810,7 +820,7 @@ function App({
             });
             setVideoFullscreen(false);
         },
-        [dictionaryProvider, extension.id, sources]
+        [dictionaryProvider, extension.id, sources, setSources]
     );
 
     const handleDownloadAudio = useCallback(
@@ -1080,8 +1090,41 @@ function App({
             const subtitleFileName = mediaSources.subtitleFileNames.find((name) => name);
             if (remoteSubtitles || subtitleFileName) setFileName(subtitleFileName?.replace(fileExtensionPattern, ''));
         },
-        [retainSourcesInFileSession]
+        [retainSourcesInFileSession, setSources]
     );
+
+    const videoSubtitleMemory = useMemo(() => new VideoSubtitleMemory(), []);
+    const pairedSourcesRef = useRef<PairedSources>({});
+    useEffect(() => {
+        const { videoFile, subtitleTracks } = sources;
+        const action = videoSubtitleMemoryAction(pairedSourcesRef.current, sources);
+        if (!videoFile) {
+            // Subtitles synced from a streaming tab belong to that tab, not to the next local video.
+            if (tab) pairedSourcesRef.current = { subtitleTracks };
+            return;
+        }
+        pairedSourcesRef.current = { videoFile, subtitleTracks };
+        if (!action) return;
+
+        // A restore lands here too; saving it again keeps the video among the newest.
+        if (action === 'remember') {
+            videoSubtitleMemory
+                .remember(videoFile, subtitleTracks)
+                .catch((e) => asbError('app/session', 'Failed to remember subtitles for video:', e));
+            return;
+        }
+
+        // Skipped if newer sources were rendered or requested since, so a late lookup never wins.
+        const changeCount = sourcesChangeCountRef.current;
+        videoSubtitleMemory
+            .recall(videoFile, sources.subtitleSourceFiles)
+            .then((tracks) => {
+                if (tracks && renderedSourcesRef.current === sources && sourcesChangeCountRef.current === changeCount) {
+                    handleSources(new MediaSources({ kind: 'files', tracks }));
+                }
+            })
+            .catch((e) => asbError('app/session', 'Failed to restore subtitles for video:', e));
+    }, [sources, tab, handleSources, videoSubtitleMemory]);
 
     const handleFiles = useCallback(
         (files: MediaSourceFile[]): boolean => {
@@ -1597,7 +1640,7 @@ function App({
             setSources(new MediaSources({ kind: 'video', names, status }));
             setFileName(names.find((name) => name)?.replace(fileExtensionPattern, ''));
         },
-        [sources]
+        [sources, setSources]
     );
 
     const handleDownloadSubtitleFilesAsSrt = useCallback(async () => {
