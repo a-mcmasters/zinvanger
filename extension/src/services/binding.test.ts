@@ -1282,6 +1282,24 @@ describe('Binding playback mode integration', () => {
         }
     });
 
+    it('hides the subtitle picker frame again when building its state fails, so it cannot block page clicks', async () => {
+        mockUseRealSyncController = true;
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        binding.bind();
+        try {
+            await flushPlaybackTiming();
+            jest.spyOn(binding.videoDataSyncController as any, '_buildModel').mockRejectedValue(
+                new Error('storage unavailable')
+            );
+            await expect(
+                binding.videoDataSyncController.show({ reason: VideoDataUiOpenReason.userRequested })
+            ).rejects.toThrow('storage unavailable');
+            expect(binding.videoDataSyncController.pickerVisible).toBe(false);
+        } finally {
+            binding.unbind();
+        }
+    });
+
     it('tears down its Anki dialog frame when unbound, e.g. when YouTube replaces the video', () => {
         const binding = new Binding(createVideo(), bindingOptions(false, false));
         binding.bind();

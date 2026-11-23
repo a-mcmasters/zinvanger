@@ -52,6 +52,7 @@ describe('UiFrame', () => {
         await settleBridges();
         await settingsClient;
         expect(await dialogBind).toBe(true);
+        expect(await frame.bind()).toBe(false); // handlers are wired once per client
         expect(document.querySelectorAll('iframe')).toHaveLength(1);
     });
 

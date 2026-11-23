@@ -136,7 +136,9 @@ export default class AnkiUiController {
             ...(await this._additionalUiState(context)),
         };
         client.updateState(state);
-        this.frame.show(); // only now: a shown frame with no dialog in it blocks every click on the page
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded === client) this.frame.show();
     }
 
     async showCardSelect(
@@ -179,7 +181,9 @@ export default class AnkiUiController {
             ...(await this._additionalUiState(context)),
         };
         client.updateState(state);
-        this.frame.show(); // only now: a shown frame with no dialog in it blocks every click on the page
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded === client) this.frame.show();
     }
 
     async showAfterRerecord(context: Binding, uiState: AnkiUiSavedState) {
@@ -200,7 +204,9 @@ export default class AnkiUiController {
             ...(await this._additionalUiState(context)),
         };
         client.updateState(state);
-        this.frame.show(); // only now: a shown frame with no dialog in it blocks every click on the page
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded === client) this.frame.show();
     }
 
     async showAfterRetakingScreenshot(context: Binding, uiState: AnkiUiSavedState) {
@@ -220,7 +226,9 @@ export default class AnkiUiController {
             ...(await this._additionalUiState(context)),
         };
         client.updateState(state);
-        this.frame.show(); // only now: a shown frame with no dialog in it blocks every click on the page
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded === client) this.frame.show();
     }
 
     async requestRewind(context: Binding) {

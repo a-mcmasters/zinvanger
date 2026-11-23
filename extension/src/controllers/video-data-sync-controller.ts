@@ -336,6 +336,7 @@ export default class VideoDataSyncController {
     }
 
     async show({ reason, fromAsbplayerId }: ShowOptions) {
+        const wasVisible = this.pickerVisible;
         const client = await this._client();
         const additionalFields: Partial<VideoDataUiModel> = {
             open: true,
@@ -346,7 +347,7 @@ export default class VideoDataSyncController {
             additionalFields.openedFromAsbplayerId = fromAsbplayerId;
         }
 
-        const model = await this._buildModel(additionalFields);
+        const model = await this._hideOnFailure(wasVisible, this._buildModel(additionalFields));
         this._prepareShow();
         client.updateState(model);
 
@@ -1211,9 +1212,20 @@ export default class VideoDataSyncController {
         return fileParts;
     }
 
+    /** `_client()` shows the frame before its state exists; an empty shown frame would block every page click. */
+    private async _hideOnFailure<T>(wasVisible: boolean, building: Promise<T>): Promise<T> {
+        try {
+            return await building;
+        } catch (error) {
+            if (!wasVisible) this._frame.hide();
+            throw error;
+        }
+    }
+
     private async _reportError(error: string) {
+        const wasVisible = this.pickerVisible;
         const client = await this._client();
-        const themeType = await this._context.settings.getSingle('themeType');
+        const themeType = await this._hideOnFailure(wasVisible, this._context.settings.getSingle('themeType'));
 
         this._prepareShow();
 

@@ -1,8 +1,10 @@
 import AnkiUiController from '@project/extension/src/controllers/anki-ui-controller';
 
+const mockClient = { onMessage: jest.fn(), updateState: jest.fn(), sendMessage: jest.fn() };
 const mockFrame = {
     bind: jest.fn(async () => true),
-    client: jest.fn(async () => ({ onMessage: jest.fn(), updateState: jest.fn(), sendMessage: jest.fn() })),
+    client: jest.fn(async () => mockClient),
+    clientIfLoaded: mockClient as unknown,
     show: jest.fn(),
     unbind: jest.fn(),
     hidden: true,
@@ -46,7 +48,10 @@ const fakeBinding = (overrides: Record<string, unknown> = {}) =>
 const showMessage = { subtitle: { start: 0, end: 1000, text: 'hi' }, surroundingSubtitles: [] } as any;
 
 describe('AnkiUiController', () => {
-    beforeEach(() => jest.clearAllMocks());
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockFrame.clientIfLoaded = mockClient;
+    });
 
     const controller = () => {
         const c = new AnkiUiController();
@@ -57,10 +62,22 @@ describe('AnkiUiController', () => {
     it('shows its full-page frame only after the dialog state is sent', async () => {
         await controller().show(fakeBinding(), showMessage);
 
-        const client = await mockFrame.client.mock.results[0].value;
-        expect(client.updateState).toHaveBeenCalled();
+        expect(mockClient.updateState).toHaveBeenCalled();
         expect(mockFrame.show).toHaveBeenCalledTimes(1);
-        expect(client.updateState.mock.invocationCallOrder[0]).toBeLessThan(mockFrame.show.mock.invocationCallOrder[0]);
+        expect(mockClient.updateState.mock.invocationCallOrder[0]).toBeLessThan(
+            mockFrame.show.mock.invocationCallOrder[0]
+        );
+    });
+
+    it('does not show a frame that another open replaced while this one built its state', async () => {
+        const binding = fakeBinding();
+        binding.settings.profiles = async () => {
+            mockFrame.clientIfLoaded = { replacement: true }; // e.g. a second open switched to the lookup frame
+            return [];
+        };
+
+        await controller().show(binding, showMessage);
+        expect(mockFrame.show).not.toHaveBeenCalled();
     });
 
     it('leaves the frame hidden when building the dialog state fails, so it cannot block page clicks', async () => {
@@ -72,7 +89,13 @@ describe('AnkiUiController', () => {
     });
 
     it('does not build a frame for a video that was unbound while the dialog was opening', async () => {
-        await expect(controller().show(fakeBinding({ subscribed: false }), showMessage)).rejects.toThrow('unbound');
+        const binding = fakeBinding();
+        binding.settings.getSingle = async () => {
+            binding.subscribed = false; // e.g. YouTube swapped the video while the language was read
+            return 'en';
+        };
+
+        await expect(controller().show(binding, showMessage)).rejects.toThrow('unbound');
         expect(mockFrame.bind).not.toHaveBeenCalled();
         expect(mockFrame.show).not.toHaveBeenCalled();
     });
