@@ -1300,7 +1300,7 @@ describe('Binding playback mode integration', () => {
         }
     });
 
-    it('tears down its Anki dialog frame when unbound, e.g. when YouTube replaces the video', () => {
+    it('calls the Anki dialog unbind when the binding is unbound', () => {
         const binding = new Binding(createVideo(), bindingOptions(false, false));
         binding.bind();
         binding.unbind();

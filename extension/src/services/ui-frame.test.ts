@@ -30,7 +30,7 @@ describe('UiFrame', () => {
         expect(frame.hidden).toBe(false);
     });
 
-    it('is no longer bound after unbind, so settings pushes do not recreate the frame', async () => {
+    it('reports itself unbound and removes its frame after unbind()', async () => {
         const frame = new UiFrame(async () => {});
         const bound = frame.bind();
         await settleBridges();
@@ -44,16 +44,34 @@ describe('UiFrame', () => {
     it('makes a bind() that overlaps a settings-push client() wait for the frame and report it as new', async () => {
         const frame = new UiFrame(async () => {});
         let settingsClientReady = false;
+        let dialogBindSettled = false;
         const settingsClient = frame.client().then(() => (settingsClientReady = true));
-        const dialogBind = frame.bind();
+        const dialogBind = frame.bind().finally(() => (dialogBindSettled = true));
+        await Promise.resolve();
         await Promise.resolve();
         expect(settingsClientReady).toBe(false);
+        expect(dialogBindSettled).toBe(false);
 
         await settleBridges();
         await settingsClient;
         expect(await dialogBind).toBe(true);
         expect(await frame.bind()).toBe(false); // handlers are wired once per client
         expect(document.querySelectorAll('iframe')).toHaveLength(1);
+    });
+
+    it('builds a fresh frame after being unbound while its first load was still pending', async () => {
+        const frame = new UiFrame(async () => {});
+        const pending = frame.bind();
+        frame.unbind();
+        await settleBridges(); // even if the torn-down load still completes, it must not be reused
+        await pending;
+        expect(document.querySelector('iframe')).toBeNull();
+
+        const rebound = frame.bind();
+        await settleBridges();
+        expect(await rebound).toBe(true);
+        expect(document.querySelectorAll('iframe')).toHaveLength(1);
+        expect(frame.hidden).toBe(true);
     });
 
     it('leaves a frame that fails to load hidden and retries with a fresh one', async () => {

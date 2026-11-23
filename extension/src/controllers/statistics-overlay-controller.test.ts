@@ -137,22 +137,58 @@ describe('StatisticsOverlayController mobile overlay positioning', () => {
         controller.unbind();
     });
 
-    it('drops a details dialog frame that failed to load, so the retry gets a close handler', async () => {
+    it('hides a details dialog on close even when its first load failed', async () => {
         const fakeFrame = (bind: () => Promise<boolean>) => {
-            const client = { onMessage: jest.fn() };
-            return { bind, client: async () => client, unbind: jest.fn(), hide: jest.fn(), fakeClient: client };
+            let onMessage: ((message: any) => void) | undefined;
+            const client = {
+                onMessage: (listener: (message: any) => void) => (onMessage = listener),
+                updateState() {},
+            };
+            const frame = {
+                hidden: true,
+                bind,
+                client: async () => client,
+                unbind: jest.fn(),
+                show: () => (frame.hidden = false),
+                hide: () => (frame.hidden = true),
+                close: () => onMessage?.({ command: 'close' }),
+            };
+            return frame;
         };
         const failed = fakeFrame(() => Promise.reject(new Error('Timed out waiting for frame to be ready')));
         const retried = fakeFrame(async () => true);
         jest.mocked(uiFrameForSrc)
             .mockReturnValueOnce(failed as any)
             .mockReturnValueOnce(retried as any);
-        const controller = new StatisticsOverlayController([]) as any;
+        jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const controller = new StatisticsOverlayController([]);
+        controller.bind();
+        const openDetails = async () => {
+            for (const listener of runtimeListeners) {
+                listener(
+                    {
+                        sender: 'asbplayer-statistics-overlay-to-tab',
+                        message: {
+                            command: 'open-statistics-overlay-one-uncollected-dialog',
+                            entries: [],
+                            totalSentences: 0,
+                            mediaId: 'media-id',
+                        },
+                    },
+                    {},
+                    () => {}
+                );
+            }
+            for (let i = 0; i < 10; ++i) await Promise.resolve();
+        };
 
-        await expect(controller._getOneUncollectedDialogFrame()).rejects.toThrow('Timed out');
-        expect(failed.unbind).toHaveBeenCalled();
+        await openDetails();
+        expect(failed.hidden).toBe(true);
+        await openDetails();
+        expect(retried.hidden).toBe(false);
 
-        expect(await controller._getOneUncollectedDialogFrame()).toBe(retried);
-        expect(retried.fakeClient.onMessage).toHaveBeenCalled();
+        retried.close();
+        expect(retried.hidden).toBe(true);
+        controller.unbind();
     });
 });
