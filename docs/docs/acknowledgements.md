@@ -79,6 +79,10 @@ We epecially acknowledge the wonderful humans below.
 [@joaquinmuzzi](https://github.com/joaquinmuzzi),
 [@mvanhorn](https://github.com/mvanhorn)
 
+## AI assistance {#ai-assistance}
+
+Parts of asbplayer were written with help from AI coding assistants: [Claude](https://claude.com/claude-code) by Anthropic and [Codex](https://openai.com/codex) by OpenAI.
+
 ## Translators {#translators}
 
 **Mana Tsutsumi** (Japanese, initial translation),
