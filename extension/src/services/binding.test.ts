@@ -29,6 +29,7 @@ import { MediaSources } from '@project/common/app/services/media-sources';
 import SubtitleReader from '@project/common/subtitle-reader/subtitle-reader';
 
 let mockUseRealSyncController = false;
+let mockCanAutoSync = false;
 
 const bindingOptions = (hasPageScript: boolean, videoSrcChangesIndicateNewVideo: boolean): BindingOptions => ({
     hasPageScript,
@@ -134,7 +135,7 @@ jest.mock('@project/extension/src/services/ui-frame', () => ({
     uiFrameForHtml: jest.fn(),
 }));
 jest.mock('@project/extension/src/services/pages', () => ({
-    currentPageDelegate: async () => ({ config: {}, isVideoPage: () => true, canAutoSync: () => false }),
+    currentPageDelegate: async () => ({ config: {}, isVideoPage: () => true, canAutoSync: () => mockCanAutoSync }),
 }));
 
 jest.mock('@project/extension/src/services/key-bindings', () => ({
@@ -341,6 +342,7 @@ describe('Binding playback mode integration', () => {
 
     beforeEach(() => {
         mockUseRealSyncController = false;
+        mockCanAutoSync = false;
         pickerStates = [];
         const client = {
             onMessage: (listener: (message: Message) => void) => {
@@ -1570,6 +1572,41 @@ describe('Binding playback mode integration', () => {
         expect(binding.subtitleController.subtitles).toEqual([]);
         binding.unbind();
     });
+
+    it.each([
+        [['-', '-', '-'], true],
+        [['ja', '-', '-'], false],
+    ])(
+        'opens the picker instead of auto-syncing when %j was remembered and the page has no tracks',
+        async (languages, switchOn) => {
+            mockUseRealSyncController = true;
+            mockCanAutoSync = true;
+            await storage.set({
+                streamingAutoSync: true,
+                streamingAutoSyncPromptOnFailure: true,
+                streamingLastLanguagesSynced: { [window.location.host]: languages },
+            });
+            const binding = new Binding(createVideo(), bindingOptions(true, false));
+            const loadSubtitles = jest.spyOn(binding, 'loadSubtitles');
+            binding.bind();
+            await flushPlaybackTiming();
+            try {
+                // The mocked page config is {}, so discovery data arrives on document.
+                document.dispatchEvent(
+                    new CustomEvent('asbplayer-synced-data', { detail: { subtitles: [], basename: '', error: '' } })
+                );
+                await flushPlaybackTiming();
+                expect(binding.videoDataSyncController.pickerVisible).toBe(true);
+                expect(pickerStates.at(-1)).toMatchObject({
+                    openReason: VideoDataUiOpenReason.failedToAutoLoadPreferredTrack,
+                    defaultCheckboxState: switchOn,
+                });
+                expect(loadSubtitles).not.toHaveBeenCalled();
+            } finally {
+                binding.unbind();
+            }
+        }
+    );
 
     it('does not revert subtitles when an older settings refresh completes last', async () => {
         const binding = new Binding(createVideo(), bindingOptions(false, false));
