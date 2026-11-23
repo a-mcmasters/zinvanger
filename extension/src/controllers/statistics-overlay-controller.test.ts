@@ -7,6 +7,7 @@ jest.mock('@project/extension/src/services/ui-frame', () => ({
 }));
 
 import { StatisticsOverlayController } from '@project/extension/src/controllers/statistics-overlay-controller';
+import { uiFrameForSrc } from '@project/extension/src/services/ui-frame';
 
 describe('StatisticsOverlayController mobile overlay positioning', () => {
     const runtimeListeners = new Set<(message: any, sender: any, sendResponse: (response?: any) => void) => void>();
@@ -134,5 +135,24 @@ describe('StatisticsOverlayController mobile overlay positioning', () => {
         expect(iframe?.style.colorScheme).toBe('dark');
         expect(iframe?.src).toContain('colorScheme=dark');
         controller.unbind();
+    });
+
+    it('drops a details dialog frame that failed to load, so the retry gets a close handler', async () => {
+        const fakeFrame = (bind: () => Promise<boolean>) => {
+            const client = { onMessage: jest.fn() };
+            return { bind, client: async () => client, unbind: jest.fn(), hide: jest.fn(), fakeClient: client };
+        };
+        const failed = fakeFrame(() => Promise.reject(new Error('Timed out waiting for frame to be ready')));
+        const retried = fakeFrame(async () => true);
+        jest.mocked(uiFrameForSrc)
+            .mockReturnValueOnce(failed as any)
+            .mockReturnValueOnce(retried as any);
+        const controller = new StatisticsOverlayController([]) as any;
+
+        await expect(controller._getOneUncollectedDialogFrame()).rejects.toThrow('Timed out');
+        expect(failed.unbind).toHaveBeenCalled();
+
+        expect(await controller._getOneUncollectedDialogFrame()).toBe(retried);
+        expect(retried.fakeClient.onMessage).toHaveBeenCalled();
     });
 });

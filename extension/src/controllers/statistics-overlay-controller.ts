@@ -347,11 +347,18 @@ export class StatisticsOverlayController {
         if (this._oneUncollectedDialogFrame !== undefined) {
             return this._oneUncollectedDialogFrame;
         }
-        this._oneUncollectedDialogFrame = uiFrameForSrc(
-            browser.runtime.getURL('/statistics-overlay-one-uncollected-ui.html')
-        );
-        await this._oneUncollectedDialogFrame.bind();
-        const client = await this._oneUncollectedDialogFrame.client();
+        const frame = uiFrameForSrc(browser.runtime.getURL('/statistics-overlay-one-uncollected-ui.html'));
+        this._oneUncollectedDialogFrame = frame;
+        let client: Awaited<ReturnType<typeof frame.client>>;
+        try {
+            await frame.bind();
+            client = await frame.client();
+        } catch (error) {
+            // A cached frame would be rebuilt later without the close handler below, and could never be hidden.
+            frame.unbind();
+            if (this._oneUncollectedDialogFrame === frame) this._oneUncollectedDialogFrame = undefined;
+            throw error;
+        }
         client.onMessage((message) => {
             switch (message.command) {
                 case 'close':
