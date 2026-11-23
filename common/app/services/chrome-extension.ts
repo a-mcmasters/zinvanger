@@ -342,6 +342,8 @@ export default class ChromeExtension {
         return (
             this.installed &&
             (this.browserFeatures?.sidePanel ?? false) &&
+            // Installed-app windows have no side panel; asking for one there crashes Brave/Chromium (#42)
+            !window.matchMedia?.('(display-mode: standalone)')?.matches &&
             ((!isFirefox && !isMobile && gte(this.version, '1.0.0')) ||
                 (isFirefox && !isMobile && gte(this.version, '1.14.0')))
         );
