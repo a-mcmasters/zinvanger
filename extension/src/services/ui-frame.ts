@@ -98,6 +98,8 @@ export default class UiFrame {
 
         this._frame = document.createElement('iframe');
         this._frame.classList.add('asbplayer-ui-frame');
+        // Starts hidden: a visible but empty full-page frame swallows every click on the page until show().
+        this._frame.classList.add('asbplayer-hide');
         this._frame.classList.add(frameColorSchemeClass());
         this._frame.setAttribute('allowtransparency', 'true');
 
@@ -124,6 +126,7 @@ export default class UiFrame {
 
     unbind() {
         this._dirty = true;
+        this._bound = false;
         this._client?.unbind();
         this._frame?.remove();
     }
