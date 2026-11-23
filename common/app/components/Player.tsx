@@ -213,9 +213,9 @@ export interface PlayerRef {
 
 const Player = React.memo(React.forwardRef<PlayerRef, PlayerProps>(PlayerComponent));
 
-/** Send only playback data across documents, preserving the relationship between state and audio. */
 const convertedAudioTrackId = (index: number) => `converted-${index}`;
 
+/** Send only playback data across documents, preserving the relationship between state and audio. */
 function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAudio>): TranscodedAudioPayload {
     const { required, codecName, selectedTrackIndex } = conversion;
     const tracks = conversion.tracks?.map(({ index, language, name }) => ({

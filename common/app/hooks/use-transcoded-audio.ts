@@ -33,7 +33,6 @@ export const useTranscodedAudio = (
     const [selectable, setSelectable] = useState(false);
     // Read synchronously so two choices delivered before a re-render don't both restart conversion.
     const selectionRef = useRef<{ index?: number; failed: boolean }>({ failed: false });
-    selectionRef.current.failed = conversion.state === 'failed';
     const abortControllerRef = useRef<AbortController>(undefined);
 
     /** Never rejects: failures become the 'failed' state unless the conversion was superseded. */
@@ -70,6 +69,7 @@ export const useTranscodedAudio = (
                 errorCode: error instanceof Error && 'code' in error ? error.code : undefined,
                 error,
             });
+            selectionRef.current.failed = true;
             setConversion({ state: 'failed', error });
         }
     }, []);
@@ -152,6 +152,7 @@ export const useTranscodedAudio = (
     const fail = useCallback((error: unknown) => {
         abortControllerRef.current?.abort();
         abortControllerRef.current = undefined;
+        selectionRef.current.failed = true;
         setConversion({ state: 'failed', error });
     }, []);
 

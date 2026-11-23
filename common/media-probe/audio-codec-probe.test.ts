@@ -283,7 +283,9 @@ describe('audioTracksRequiringTranscode', () => {
     it('detects Matroska audio after more than 4096 padding elements', async () => {
         playsContainersButNoDolby();
         const file = matroskaFile({ audioCodecIds: ['A_EAC3'], paddingElements: 4097 });
-        expect(await audioTracksRequiringTranscode(blobOf(file))).toEqual([{ index: 0, codec: 'eac3' }]);
+        expect(await audioTracksRequiringTranscode(blobOf(file))).toEqual([
+            { index: 0, codec: 'eac3', language: 'eng' },
+        ]);
     });
 
     it('detects MP4 audio after more than 4096 padding boxes', async () => {
@@ -299,7 +301,7 @@ describe('audioTracksRequiringTranscode', () => {
     ])('normalizes Matroska %s for eligibility', async (codecId, codec) => {
         playsContainersButNoDolby();
         expect(await audioTracksRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: [codecId] })))).toEqual([
-            { index: 0, codec },
+            { index: 0, codec, language: 'eng' },
         ]);
     });
 
@@ -352,8 +354,8 @@ describe('audioTracksRequiringTranscode', () => {
             blobOf(matroskaFile({ audioCodecIds: ['A_EAC3', 'A_DTS'] }))
         );
         expect(tracks).toEqual([
-            { index: 0, codec: 'eac3' },
-            { index: 1, codec: 'dts' },
+            { index: 0, codec: 'eac3', language: 'eng' },
+            { index: 1, codec: 'dts', language: 'eng' },
         ]);
     });
 

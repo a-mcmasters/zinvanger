@@ -13,6 +13,8 @@ const idLanguage = 0x22b59c;
 const idLanguageBcp47 = 0x22b59d;
 
 const trackTypeAudio = 2;
+// Matroska's default when a track has no Language element.
+const matroskaDefaultLanguage = 'eng';
 
 export interface MatroskaAudioTrack {
     readonly codecId: string;
@@ -49,7 +51,7 @@ const readTrackEntry = async (reader: ByteReader, entry: EbmlElement) => {
         offset = child.end;
     }
     if (trackType !== trackTypeAudio || codecId === undefined) return undefined;
-    const track: MatroskaAudioTrack = { codecId, language: languageBcp47 ?? language, name };
+    const track: MatroskaAudioTrack = { codecId, language: languageBcp47 ?? language ?? matroskaDefaultLanguage, name };
     return track;
 };
 
