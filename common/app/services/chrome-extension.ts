@@ -342,8 +342,10 @@ export default class ChromeExtension {
         return (
             this.installed &&
             (this.browserFeatures?.sidePanel ?? false) &&
-            // Installed-app windows have no side panel; asking for one there crashes Brave/Chromium (#42)
-            !window.matchMedia?.('(display-mode: standalone)')?.matches &&
+            // browserFeatures is fetched once at page load, but installing the app moves this tab into an app window
+            // without a reload, and opening a side panel there crashes Brave/Chromium (#42). So check the window live.
+            // Only `browser` is safe: Chromium reports `fullscreen` for both tabs and app windows.
+            (isFirefox || window.matchMedia?.('(display-mode: browser)')?.matches === true) &&
             ((!isFirefox && !isMobile && gte(this.version, '1.0.0')) ||
                 (isFirefox && !isMobile && gte(this.version, '1.14.0')))
         );

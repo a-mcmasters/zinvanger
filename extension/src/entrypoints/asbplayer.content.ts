@@ -34,6 +34,7 @@ import { ExtensionDictionaryStorage } from '@/services/extension-dictionary-stor
 import { ExtensionSettingsStorage } from '@/services/extension-settings-storage';
 import { ExtensionGlobalStateProvider } from '@/services/extension-global-state-provider';
 import { configureExtensionLogProvider } from '@/services/extension-log-provider';
+import { isFirefoxBuild } from '@/services/build-flags';
 
 const appUrl = new URL(project.urls.app);
 const matches = [`*://${appUrl.hostname}${appUrl.pathname.replace(/\/+$/, '')}/*`];
@@ -340,6 +341,12 @@ export default defineContentScript({
                             }
                             break;
                         }
+                        case 'toggle-side-panel':
+                            // An older cached app build can still ask for a side panel from an installed-app window (#42)
+                            if (isFirefoxBuild || window.matchMedia?.('(display-mode: browser)')?.matches === true) {
+                                void browser.runtime.sendMessage(command);
+                            }
+                            break;
                         default:
                             void browser.runtime.sendMessage(command);
                             break;
