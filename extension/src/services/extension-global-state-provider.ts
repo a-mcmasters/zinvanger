@@ -20,14 +20,19 @@ export class ExtensionGlobalStateProvider implements GlobalStateProvider {
         const partialInitialGlobalState: Partial<GlobalState> = {};
 
         for (const key of keys) {
-            partialInitialGlobalState[key] = initialGlobalState[key];
+            if (Object.hasOwn(initialGlobalState, key)) {
+                partialInitialGlobalState[key] = initialGlobalState[key];
+            }
         }
 
         return (await this._storage.get(partialInitialGlobalState)) as Pick<GlobalState, K>;
     }
 
     async set(state: Partial<GlobalState>) {
-        await this._storage.set(state);
+        // The web app supplies partial updates. Browser storage also holds extension-only settings.
+        await this._storage.set(
+            Object.fromEntries(Object.entries(state).filter(([key]) => Object.hasOwn(initialGlobalState, key)))
+        );
     }
 
     onUpdated(callback: (state: Partial<GlobalState>) => void): () => void {
@@ -75,7 +80,7 @@ export class ExtensionGlobalStateProvider implements GlobalStateProvider {
         const state: Partial<GlobalState> = {};
 
         for (const key of Object.keys(changes)) {
-            if (!(key in initialGlobalState)) {
+            if (!Object.hasOwn(initialGlobalState, key)) {
                 continue;
             }
 

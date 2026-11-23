@@ -27,7 +27,7 @@ In Chrome, **Load Subtitles → Transcribe this episode** records the episode ta
 
 ## Set up automatic Anki lookups
 
-In the Chromium extension, the Anki dialog automatically translates the current **Sentence** field using Google Cloud Translation Basic. It fills **Sentence Translation** after a short pause when you edit the sentence, preserving manually entered translations. Successful translations are cached while the server runs.
+The Anki dialog uses Google Cloud Translation Basic to fill **Sentence Translation** once when you open it. Editing **Sentence** does not send another request while the dialog is open. Re-recording or retaking the screenshot keeps the translation already in the field, even if you edited **Sentence**. If the first lookup had not finished, the reopened dialog tries again. Successful translations are cached while the server runs.
 
 Enable Cloud Translation API and billing in your Google Cloud project. Before starting the server, set `ASB_GOOGLE_TRANSLATE_API_KEY` to your API key in its environment (PowerShell: `$env:ASB_GOOGLE_TRANSLATE_API_KEY = "<key>"`). Restart the server after changing it. The key stays on the local server. `ASB_TRANSLATE_LANGUAGE` sets the target language code, default `en`; Google detects the source language. Sentence lookups do not fall back to the LLM.
 
@@ -39,7 +39,9 @@ Whole-transcript translation and contextual word meanings still use the configur
 4. Add a custom asbplayer field named exactly `Sentence Translation` and map it to the corresponding field in your Anki note type. The translation box appears once the mapping is set.
 5. Mine a subtitle and open the Anki dialog. Review the translation and edit it before exporting. Fill in the word definition yourself.
 
-The lookup-enabled dialog runs in the extension's own frame, where page-injected dictionary popups are unavailable. Clear the token in **Anki** settings to use the dialog with those popups again.
+To enable auto-fill when mining local video on the hosted web app, also select **Allow the Zinvanger web app to use my local sentence translation service** in the extension's Anki settings and click **Save**. This lets the web app request translations through the extension. Any script running on the app's site can then use the service too. You can enter a mapped translation manually when auto-fill is off or the extension is unavailable.
+
+On streaming sites, the lookup-enabled dialog runs in the extension's own frame, where page-injected dictionary popups are unavailable. Clear the token in **Anki** settings to use the dialog with those popups again.
 
 ## Word lookup on the video
 

@@ -345,6 +345,11 @@ function App({
     const playbackPreferences = usePlaybackPreferences();
     const theme = useMemo<Theme>(() => createTheme(settings.themeType), [settings.themeType]);
     const anki = useAnki({ settings, fetcher });
+    const requestSentenceTranslation = useCallback(
+        (sentence: string) => extension.translateAppSentence(sentence),
+        [extension]
+    );
+    const onRequestTranslation = extension.supportsAppSentenceTranslation ? requestSentenceTranslation : undefined;
     const searchParams = useMemo(() => new URLSearchParams(location.search), []);
     const inVideoPlayer = useMemo(() => searchParams.get('video') !== null, [searchParams]);
     const externalCommands = useAppExternalCommands({ settings, extension, inVideoPlayer });
@@ -1922,6 +1927,8 @@ function App({
                                     lastSelectedExportMode={lastSelectedAnkiExportMode}
                                     onCancel={handleAnkiDialogCancel}
                                     onProceed={handleAnkiDialogProceed}
+                                    onRequestTranslation={onRequestTranslation}
+                                    onOpenSettings={handleOpenSettings}
                                     onCopyToClipboard={handleCopyToClipboard}
                                     mp3Encoder={mp3Encoder}
                                     showQuickSelectFtue={showAnkiDialogQuickSelectFtue}
@@ -1970,6 +1977,7 @@ function App({
                                     lastSelectedExportMode={lastSelectedAnkiExportMode}
                                     onCancel={handleAnkiDialogCancel}
                                     onProceed={handleAnkiDialogProceed}
+                                    onRequestTranslation={onRequestTranslation}
                                     onOpenSettings={handleOpenSettings}
                                     onCopyToClipboard={handleCopyToClipboard}
                                     mp3Encoder={mp3Encoder}
@@ -1978,20 +1986,6 @@ function App({
                                     {...profilesContext}
                                 />
                             )}
-                            <SettingsDialog
-                                supportsDictionaryPlayback={supportsDictionaryPlayback}
-                                anki={anki}
-                                extension={extension}
-                                open={settingsDialogOpen}
-                                onSettingsChanged={onSettingsChanged}
-                                onClose={handleCloseSettings}
-                                dictionaryProvider={dictionaryProvider}
-                                logProvider={logProvider}
-                                settings={settings}
-                                activeProfile={profilesContext.activeProfile}
-                                scrollToId={settingsDialogScrollToId}
-                                {...profilesContext}
-                            />
                             {globalState && (
                                 <VideoDataSyncDialog
                                     open={subtitleTrackSelectorOpen}
@@ -2180,6 +2174,20 @@ function App({
                             </Content>
                         </Paper>
                     )}
+                    <SettingsDialog
+                        supportsDictionaryPlayback={supportsDictionaryPlayback}
+                        anki={anki}
+                        extension={extension}
+                        open={settingsDialogOpen}
+                        onSettingsChanged={onSettingsChanged}
+                        onClose={handleCloseSettings}
+                        dictionaryProvider={dictionaryProvider}
+                        logProvider={logProvider}
+                        settings={settings}
+                        activeProfile={profilesContext.activeProfile}
+                        scrollToId={settingsDialogScrollToId}
+                        {...profilesContext}
+                    />
                 </div>
             </ThemeProvider>
         </StyledEngineProvider>

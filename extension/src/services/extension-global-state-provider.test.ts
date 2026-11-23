@@ -20,6 +20,21 @@ it('can retrieve 0 keys', async () => {
     expect(await provider.get([])).toEqual({});
 });
 
+it('restricts reads and writes to global state keys', async () => {
+    const storage = new MockStorageArea();
+    const provider = new ExtensionGlobalStateProvider(storage);
+    const protectedSettings = { localLookupToken: 'fixture-token', webSentenceTranslation: false };
+    await storage.set(protectedSettings);
+
+    const keys = ['ftueAnnotation', ...Object.keys(protectedSettings)] as (keyof typeof initialGlobalState)[];
+    expect(await provider.get(keys)).toEqual({ ftueAnnotation: 0 });
+
+    const update = { ftueAnnotation: 1, localLookupToken: 'replacement', webSentenceTranslation: true };
+    await provider.set(update);
+    expect(await storage.get(Object.keys(protectedSettings))).toEqual(protectedSettings);
+    expect(await provider.get(keys)).toEqual({ ftueAnnotation: 1 });
+});
+
 it('can retrieve all keys', async () => {
     const provider = new ExtensionGlobalStateProvider(new MockStorageArea());
     expect(await provider.getAll()).toEqual({
