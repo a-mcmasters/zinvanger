@@ -8,53 +8,73 @@ const idTracks = 0x1654ae6b;
 const idTrackEntry = 0xae;
 const idTrackType = 0x83;
 const idCodecId = 0x86;
+const idName = 0x536e;
+const idLanguage = 0x22b59c;
+const idLanguageBcp47 = 0x22b59d;
 
 const trackTypeAudio = 2;
 
-const readCodecId = async (reader: ByteReader, element: EbmlElement) => {
-    const codecId = await reader.ascii(element.dataOffset, element.dataSize);
-    return codecId?.replace(/\0+$/, ''); // CodecIDs are zero-padded in some muxers' output.
+export interface MatroskaAudioTrack {
+    readonly codecId: string;
+    readonly language?: string;
+    readonly name?: string;
+}
+
+const readString = async (reader: ByteReader, element: EbmlElement) => {
+    const bytes = await reader.bytes(element.dataOffset, element.dataSize);
+    return bytes && new TextDecoder().decode(bytes).replace(/\0+$/, ''); // Some muxers zero-pad strings.
 };
 
 const readTrackEntry = async (reader: ByteReader, entry: EbmlElement) => {
     let offset = entry.dataOffset;
     let trackType: number | undefined;
     let codecId: string | undefined;
+    let language: string | undefined;
+    let languageBcp47: string | undefined;
+    let name: string | undefined;
     while (offset < entry.end) {
         const child = await readEbmlElement(reader, offset, entry.end);
         if (child === undefined) break;
         if (child.id === idTrackType) {
             trackType = await reader.unsignedInt(child.dataOffset, child.dataSize);
         } else if (child.id === idCodecId) {
-            codecId = await readCodecId(reader, child);
+            codecId = await readString(reader, child);
+        } else if (child.id === idLanguage) {
+            language = await readString(reader, child);
+        } else if (child.id === idLanguageBcp47) {
+            languageBcp47 = await readString(reader, child);
+        } else if (child.id === idName) {
+            name = await readString(reader, child);
         }
         offset = child.end;
     }
-    return trackType === trackTypeAudio ? codecId : undefined;
+    if (trackType !== trackTypeAudio || codecId === undefined) return undefined;
+    const track: MatroskaAudioTrack = { codecId, language: languageBcp47 ?? language, name };
+    return track;
 };
 
 const readTracks = async (reader: ByteReader, tracks: EbmlElement) => {
-    const codecIds: string[] = [];
+    const audioTracks: MatroskaAudioTrack[] = [];
     let offset = tracks.dataOffset;
     while (offset < tracks.end) {
         const child = await readEbmlElement(reader, offset, tracks.end);
         if (child === undefined) break;
         if (child.id === idTrackEntry) {
-            const codecId = await readTrackEntry(reader, child);
-            if (codecId !== undefined) codecIds.push(codecId);
+            const track = await readTrackEntry(reader, child);
+            if (track !== undefined) audioTracks.push(track);
         }
         offset = child.end;
     }
-    return codecIds;
+    return audioTracks;
 };
 
 /**
  * Walks Matroska/WebM Segment → Tracks → TrackEntry metadata, selecting audio entries by
- * TrackType and reading their CodecID strings.
+ * TrackType and reading their CodecID, language and name.
  *
- * @returns CodecIDs of the audio tracks in a Matroska/WebM file, in track order.
+ * @returns the audio tracks in a Matroska/WebM file, in track order.
  */
-export const matroskaAudioCodecIds = async (reader: ByteReader): Promise<string[] | undefined> => {
+export const matroskaAudioTracks = async (reader: ByteReader): Promise<MatroskaAudioTrack[] | undefined> => {
     let offset = 0;
     let limit = reader.size;
     while (offset < limit) {

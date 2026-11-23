@@ -1,11 +1,14 @@
 import { beforeAll, describe, expect, it, jest } from '@jest/globals';
-import { audioCodecDisplayName, audioTrackRequiringTranscode } from '@project/common/media-probe/audio-codec-probe';
+import { audioCodecDisplayName, audioTracksRequiringTranscode } from '@project/common/media-probe/audio-codec-probe';
 import ByteReader from '@project/common/media-probe/byte-reader';
-import { matroskaAudioCodecIds } from '@project/common/media-probe/matroska';
+import { matroskaAudioTracks } from '@project/common/media-probe/matroska';
 import { isoBmffAudioSampleFormats } from '@project/common/media-probe/iso-bmff';
+import { TextDecoder, TextEncoder } from 'util';
 
-// jsdom's Blob does not implement arrayBuffer().
+// jsdom's Blob does not implement arrayBuffer(), and jsdom lacks the encoding APIs.
 beforeAll(() => {
+    globalThis.TextDecoder ??= TextDecoder as typeof globalThis.TextDecoder;
+    globalThis.TextEncoder ??= TextEncoder as typeof globalThis.TextEncoder;
     if (Blob.prototype.arrayBuffer === undefined) {
         Blob.prototype.arrayBuffer = function () {
             return new Promise((resolve, reject) => {
@@ -51,8 +54,11 @@ const ebmlSize = (size: number) => {
 
 const ebmlElement = (id: number[], data: Uint8Array) => concat(id, ebmlSize(data.length), data);
 
-const trackEntry = (trackType: number, codecId: string) =>
-    ebmlElement([0xae], concat(ebmlElement([0x83], new Uint8Array([trackType])), ebmlElement([0x86], ascii(codecId))));
+const trackEntry = (trackType: number, codecId: string, extra: Uint8Array = new Uint8Array()) =>
+    ebmlElement(
+        [0xae],
+        concat(ebmlElement([0x83], new Uint8Array([trackType])), ebmlElement([0x86], ascii(codecId)), extra)
+    );
 
 const matroskaFile = ({
     audioCodecIds,
@@ -175,10 +181,39 @@ const mp4aFile = (
 };
 
 describe('audio container parsing', () => {
+    it('reads Matroska audio track languages and names, preferring the BCP 47 language', async () => {
+        const utf8 = (text: string) => new TextEncoder().encode(text);
+        const file = concat(
+            ebmlElement([0x1a, 0x45, 0xdf, 0xa3], ascii('ebml')),
+            ebmlElement(
+                [0x18, 0x53, 0x80, 0x67],
+                ebmlElement(
+                    [0x16, 0x54, 0xae, 0x6b],
+                    concat(
+                        trackEntry(2, 'A_EAC3', ebmlElement([0x22, 0xb5, 0x9c], ascii('eng'))),
+                        trackEntry(
+                            2,
+                            'A_EAC3',
+                            concat(
+                                ebmlElement([0x22, 0xb5, 0x9c], ascii('dut')),
+                                ebmlElement([0x22, 0xb5, 0x9d], ascii('nl')),
+                                ebmlElement([0x53, 0x6e], utf8('Nederlands™'))
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        expect(await matroskaAudioTracks(new ByteReader(blobOf(file)))).toEqual([
+            { codecId: 'A_EAC3', language: 'eng', name: undefined },
+            { codecId: 'A_EAC3', language: 'nl', name: 'Nederlands™' },
+        ]);
+    });
+
     it('reads Matroska audio tracks in order, ignoring the video track', async () => {
         for (const audioCodecIds of [[], ['A_EAC3'], ['A_AAC', 'A_EAC3', 'A_DTS']]) {
             const reader = new ByteReader(blobOf(matroskaFile({ audioCodecIds })));
-            expect(await matroskaAudioCodecIds(reader)).toEqual(audioCodecIds);
+            expect((await matroskaAudioTracks(reader))?.map(({ codecId }) => codecId)).toEqual(audioCodecIds);
         }
     });
 
@@ -216,7 +251,7 @@ describe('audio container parsing', () => {
     });
 });
 
-describe('audioTrackRequiringTranscode', () => {
+describe('audioTracksRequiringTranscode', () => {
     // Like Chrome: opens the containers, decodes nothing patent-encumbered.
     const playsContainersButNoDolby = (playableContainers = ['video/x-matroska', 'video/mp4']) =>
         jest
@@ -228,7 +263,7 @@ describe('audioTrackRequiringTranscode', () => {
         async (codecId) => {
             playsContainersButNoDolby();
             expect(
-                await audioTrackRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: [codecId] })))
+                await audioTracksRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: [codecId] })))
             ).toBeUndefined();
         }
     );
@@ -240,7 +275,7 @@ describe('audioTrackRequiringTranscode', () => {
                 type === 'video/mp4' ? 'maybe' : type === 'audio/mp4; codecs="ec-3"' ? support : ''
             );
             expect(
-                await audioTrackRequiringTranscode(blobOf(isoBmffFile({ audioSampleFormats: ['ec-3'] })))
+                await audioTracksRequiringTranscode(blobOf(isoBmffFile({ audioSampleFormats: ['ec-3'] })))
             ).toBeUndefined();
         }
     );
@@ -248,13 +283,13 @@ describe('audioTrackRequiringTranscode', () => {
     it('detects Matroska audio after more than 4096 padding elements', async () => {
         playsContainersButNoDolby();
         const file = matroskaFile({ audioCodecIds: ['A_EAC3'], paddingElements: 4097 });
-        expect(await audioTrackRequiringTranscode(blobOf(file))).toEqual({ index: 0, codec: 'eac3' });
+        expect(await audioTracksRequiringTranscode(blobOf(file))).toEqual([{ index: 0, codec: 'eac3' }]);
     });
 
     it('detects MP4 audio after more than 4096 padding boxes', async () => {
         playsContainersButNoDolby();
         const file = isoBmffFile({ audioSampleFormats: ['ec-3'], moovAtEnd: true, paddingBoxes: 4097 });
-        expect(await audioTrackRequiringTranscode(blobOf(file))).toEqual({ index: 0, codec: 'eac3' });
+        expect(await audioTracksRequiringTranscode(blobOf(file))).toEqual([{ index: 0, codec: 'eac3' }]);
     });
 
     it.each([
@@ -263,10 +298,9 @@ describe('audioTrackRequiringTranscode', () => {
         ['A_TRUEHD', 'truehd'],
     ])('normalizes Matroska %s for eligibility', async (codecId, codec) => {
         playsContainersButNoDolby();
-        expect(await audioTrackRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: [codecId] })))).toEqual({
-            index: 0,
-            codec,
-        });
+        expect(await audioTracksRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: [codecId] })))).toEqual([
+            { index: 0, codec },
+        ]);
     });
 
     it.each([
@@ -275,10 +309,9 @@ describe('audioTrackRequiringTranscode', () => {
         ['dtsc', 'dts'],
     ])('normalizes MP4 %s for eligibility', async (format, codec) => {
         playsContainersButNoDolby();
-        expect(await audioTrackRequiringTranscode(blobOf(isoBmffFile({ audioSampleFormats: [format] })))).toEqual({
-            index: 0,
-            codec,
-        });
+        expect(await audioTracksRequiringTranscode(blobOf(isoBmffFile({ audioSampleFormats: [format] })))).toEqual([
+            { index: 0, codec },
+        ]);
     });
 
     it.each([
@@ -287,17 +320,17 @@ describe('audioTrackRequiringTranscode', () => {
         [0xa9, 'dts'],
     ])('identifies object type %i inside an MP4 mp4a entry', async (objectType, codec) => {
         playsContainersButNoDolby();
-        expect(await audioTrackRequiringTranscode(blobOf(mp4aFile(objectType, 0)))).toEqual({ index: 0, codec });
+        expect(await audioTracksRequiringTranscode(blobOf(mp4aFile(objectType, 0)))).toEqual([{ index: 0, codec }]);
     });
 
     it('reads a decoder descriptor after the optional ES fields', async () => {
         playsContainersButNoDolby();
-        expect(await audioTrackRequiringTranscode(blobOf(mp4aFile(0xa9, 0xe0)))).toEqual({ index: 0, codec: 'dts' });
+        expect(await audioTracksRequiringTranscode(blobOf(mp4aFile(0xa9, 0xe0)))).toEqual([{ index: 0, codec: 'dts' }]);
     });
 
     it('leaves ordinary AAC mp4a entries alone', async () => {
         playsContainersButNoDolby();
-        expect(await audioTrackRequiringTranscode(blobOf(mp4aFile(0x40, 0)))).toBeUndefined();
+        expect(await audioTracksRequiringTranscode(blobOf(mp4aFile(0x40, 0)))).toBeUndefined();
     });
 
     it('does not identify a codec from a decoder descriptor outside its declared bounds', async () => {
@@ -309,38 +342,43 @@ describe('audioTrackRequiringTranscode', () => {
             );
             expect(decoder).toBeGreaterThan(0);
             file[decoder + 4] = length;
-            expect(await audioTrackRequiringTranscode(blobOf(file))).toBeUndefined();
+            expect(await audioTracksRequiringTranscode(blobOf(file))).toBeUndefined();
         }
     });
 
-    it('picks the first track when the browser can decode none of them', async () => {
+    it('lists every track when the browser can decode none of them', async () => {
         playsContainersButNoDolby();
-        const track = await audioTrackRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: ['A_EAC3', 'A_DTS'] })));
-        expect(track).toEqual({ index: 0, codec: 'eac3' });
+        const tracks = await audioTracksRequiringTranscode(
+            blobOf(matroskaFile({ audioCodecIds: ['A_EAC3', 'A_DTS'] }))
+        );
+        expect(tracks).toEqual([
+            { index: 0, codec: 'eac3' },
+            { index: 1, codec: 'dts' },
+        ]);
     });
 
     // Browsers fall back to a track they can decode, so these files already play.
     it('leaves files alone when any track is playable', async () => {
         playsContainersButNoDolby();
-        const track = await audioTrackRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: ['A_EAC3', 'A_AAC'] })));
+        const track = await audioTracksRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: ['A_EAC3', 'A_AAC'] })));
         expect(track).toBeUndefined();
     });
 
     // Converting would leave the user with sound and no picture - Firefox with mkv.
     it('leaves files alone when the browser cannot open the container', async () => {
         playsContainersButNoDolby(['video/mp4']);
-        const track = await audioTrackRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: ['A_EAC3'] })));
+        const track = await audioTracksRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: ['A_EAC3'] })));
         expect(track).toBeUndefined();
     });
 
     it('leaves files without audio alone', async () => {
         playsContainersButNoDolby();
-        expect(await audioTrackRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: [] })))).toBeUndefined();
+        expect(await audioTracksRequiringTranscode(blobOf(matroskaFile({ audioCodecIds: [] })))).toBeUndefined();
     });
 
     it('leaves containers it cannot parse alone', async () => {
         playsContainersButNoDolby();
-        expect(await audioTrackRequiringTranscode(blobOf(ascii('not a media file')))).toBeUndefined();
+        expect(await audioTracksRequiringTranscode(blobOf(ascii('not a media file')))).toBeUndefined();
     });
 });
 

@@ -21,6 +21,8 @@ const Harness = ({ file, host }: { file?: FileWithId; host: TestHost }) => {
                 data-complete={conversion.state === 'ready'}
                 data-required={conversion.required}
                 data-error={conversion.error === undefined ? undefined : String(conversion.error)}
+                data-tracks={conversion.tracks?.length}
+                data-selected={conversion.selectedTrackIndex}
             >
                 {conversion.codecName}
             </output>
@@ -33,6 +35,9 @@ const Harness = ({ file, host }: { file?: FileWithId; host: TestHost }) => {
             >
                 Conversion failed
             </Alert>
+            <button data-select-second onClick={() => conversion.selectTrack(1)}>
+                Second track
+            </button>
             <button data-fail onClick={() => conversion.fail(new Error('Playback failed'))}>
                 Fail
             </button>
@@ -58,20 +63,17 @@ const box = (type: string, ...parts: Uint8Array[]) => {
     }
     return bytes;
 };
-const audioHeader = box(
-    'moov',
+const audioTrak = box(
+    'trak',
     box(
-        'trak',
-        box(
-            'mdia',
-            box('hdlr', new Uint8Array(8), new Uint8Array([115, 111, 117, 110])), // soun
-            box('minf', box('stbl', box('stsd', new Uint8Array([0, 0, 0, 0, 0, 0, 0, 1]), box('ac-3'))))
-        )
+        'mdia',
+        box('hdlr', new Uint8Array(8), new Uint8Array([115, 111, 117, 110])), // soun
+        box('minf', box('stbl', box('stsd', new Uint8Array([0, 0, 0, 0, 0, 0, 0, 1]), box('ac-3'))))
     )
 );
-const file = (id: string): FileWithId => ({
+const file = (id: string, audioTracks = 1): FileWithId => ({
     id,
-    file: new File([audioHeader], `${id}.mp4`),
+    file: new File([box('moov', ...Array.from({ length: audioTracks }, () => audioTrak))], `${id}.mp4`),
 });
 const state = () => container.querySelector('output')!.getAttribute('data-state');
 const render = async (file: FileWithId | undefined, host: TestHost) => {
@@ -167,6 +169,28 @@ it('starts converting an undecodable track automatically and reports its codec',
     expect(host.workers).toHaveLength(1);
     await act(async () => host.workers[0].complete());
     await waitForComplete();
+});
+
+it('converts another audio track when the user chooses it', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    const trackIndexes: number[] = [];
+    const transcodeAudio = host.transcodeAudio;
+    host.transcodeAudio = (options) => {
+        trackIndexes.push(options.trackIndex);
+        return transcodeAudio(options);
+    };
+    await render(file('a', 2), host);
+    await waitForState('transcoding');
+    const output = container.querySelector('output')!;
+    expect(output.getAttribute('data-tracks')).toBe('2');
+    expect(output.getAttribute('data-selected')).toBe('0');
+
+    await click('[data-select-second]');
+    await waitForWorker(host, 1);
+    expect(trackIndexes).toEqual([0, 1]);
+    expect(output.getAttribute('data-selected')).toBe('1');
+    expect(state()).toBe('transcoding');
 });
 
 it('retains complete audio for mining and clears it when the file changes', async () => {

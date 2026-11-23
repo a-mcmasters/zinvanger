@@ -214,16 +214,24 @@ export interface PlayerRef {
 const Player = React.memo(React.forwardRef<PlayerRef, PlayerProps>(PlayerComponent));
 
 /** Send only playback data across documents, preserving the relationship between state and audio. */
+const convertedAudioTrackId = (index: number) => `converted-${index}`;
+
 function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAudio>): TranscodedAudioPayload {
-    const { required, codecName } = conversion;
+    const { required, codecName, selectedTrackIndex } = conversion;
+    const tracks = conversion.tracks?.map(({ index, language, name }) => ({
+        id: convertedAudioTrackId(index),
+        language: language ?? '',
+        label: name ?? (language ? '' : `#${index + 1}`),
+    }));
+    const selectedTrack = selectedTrackIndex === undefined ? undefined : convertedAudioTrackId(selectedTrackIndex);
     switch (conversion.state) {
         case 'idle':
         case 'failed':
-            return { state: conversion.state, required, codecName };
+            return { state: conversion.state, required, codecName, tracks, selectedTrack };
         case 'transcoding':
-            return { state: 'transcoding', audio: conversion.blob, required, codecName };
+            return { state: 'transcoding', audio: conversion.blob, required, codecName, tracks, selectedTrack };
         case 'ready':
-            return { state: 'ready', audio: conversion.blob, required, codecName };
+            return { state: 'ready', audio: conversion.blob, required, codecName, tracks, selectedTrack };
     }
 }
 
@@ -1056,12 +1064,13 @@ function PlayerComponent(
     );
     // Sent over the channel rather than as an iframe query parameter: changing the iframe src
     // unloads the player frame, which the outer frame treats as the video being closed.
+    const transcodedAudioPayload = useMemo(() => toTranscodedAudioPayload(transcodedAudio), [transcodedAudio]);
     useEffect(() => {
         if (channel === undefined) return;
 
         // The channel caches this state so a newly subscribed frame can request it before video readiness.
-        channel.transcodedAudio(toTranscodedAudioPayload(transcodedAudio));
-    }, [channel, transcodedAudio]);
+        channel.transcodedAudio(transcodedAudioPayload);
+    }, [channel, transcodedAudioPayload]);
     useEffect(
         () => channel?.onAudioConversionFailed(() => failAudioConversion(new Error('Opus playback failed'))),
         [channel, failAudioConversion]
@@ -1208,6 +1217,14 @@ function PlayerComponent(
     useEffect(
         () =>
             channel?.onAudioTrackSelected((id) => {
+                const convertedTrack = transcodedAudioRef.current.tracks?.find(
+                    ({ index }) => convertedAudioTrackId(index) === id
+                );
+                if (convertedTrack) {
+                    transcodedAudioRef.current.selectTrack(convertedTrack.index);
+                    return;
+                }
+
                 void (async () => {
                     const playing = clock.running;
 
@@ -1759,8 +1776,12 @@ function PlayerComponent(
                                     ? (channel?.audioSeekableRange?.end ?? 0)
                                     : undefined
                             }
-                            audioTracks={audioTracks}
-                            selectedAudioTrack={selectedAudioTrack}
+                            audioTracks={transcodedAudioPayload.tracks ?? audioTracks}
+                            selectedAudioTrack={
+                                transcodedAudioPayload.tracks
+                                    ? transcodedAudioPayload.selectedTrack
+                                    : selectedAudioTrack
+                            }
                             tabs={(!videoFileUrl && availableTabs) || undefined}
                             selectedTab={tab}
                             offsetEnabled={true}

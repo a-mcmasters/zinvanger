@@ -497,6 +497,9 @@ export type TranscodedAudioPayload = {
     /** The original track must not be recorded, even if conversion is unavailable or fails. */
     readonly required: boolean;
     readonly codecName?: string;
+    /** The file's audio tracks, any of which can be chosen for conversion via `audioTrackSelected`. */
+    readonly tracks?: AudioTrackModel[];
+    readonly selectedTrack?: string;
 } & (
     | { readonly state: 'idle' | 'failed'; readonly audio?: never }
     | { readonly state: 'transcoding'; readonly audio?: Blob }

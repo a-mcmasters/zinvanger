@@ -1001,7 +1001,8 @@ export default function VideoPlayer({
     function selectAudioTrack(id: string) {
         const audioTracks = videoRef.current?.audioTracks;
 
-        if (!audioTracks) {
+        // Converted-audio track ids are not the element's; leave its tracks alone for those.
+        if (!audioTracks || ![...audioTracks].some((t) => t.id === id)) {
             return;
         }
 
@@ -1328,6 +1329,12 @@ export default function VideoPlayer({
             if (playing()) {
                 clock.stop();
                 playerChannel.pause();
+            }
+
+            if (convertedAudioRef.current.tracks?.some((track) => track.id === id)) {
+                // The owner restarts conversion for this track; the browser's own tracks stay untouched.
+                playerChannel.audioTrackSelected(id);
+                return;
             }
 
             selectAudioTrack(id);
@@ -2542,8 +2549,8 @@ export default function VideoPlayer({
                 clock={clock}
                 length={lengthMs}
                 bufferedMs={convertedAudio.state === 'transcoding' ? (audioSeekableRange?.end ?? 0) : undefined}
-                audioTracks={audioTracks}
-                selectedAudioTrack={selectedAudioTrack}
+                audioTracks={convertedAudio.tracks ?? audioTracks}
+                selectedAudioTrack={convertedAudio.tracks ? convertedAudio.selectedTrack : selectedAudioTrack}
                 subtitlesToggle={subtitles && subtitles.length > 0}
                 subtitlesEnabled={displaySubtitles}
                 offsetEnabled={true}

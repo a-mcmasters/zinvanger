@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AudioTranscodeHost, AudioConversion } from '@project/common/audio-transcode';
 import type { FileWithId } from '@project/common/file-selector';
-import { audioCodecDisplayName, audioTrackRequiringTranscode } from '@project/common/media-probe';
+import { audioCodecDisplayName, audioTracksRequiringTranscode } from '@project/common/media-probe';
 import type { ProbedAudioTrack } from '@project/common/media-probe';
 import { asbError, asbTrace, asbWarn } from '@project/common/util/log';
 
@@ -10,19 +10,25 @@ type TranscodedAudio = AudioConversion & {
     readonly required: boolean;
     /** Display name of the codec the browser cannot decode, e.g. "E-AC-3". */
     readonly codecName?: string;
+    /** Every audio track in the file when conversion is required, for choosing which one to convert. */
+    readonly tracks?: ProbedAudioTrack[];
+    readonly selectedTrackIndex?: number;
+    readonly selectTrack: (index: number) => void;
     readonly fail: (error: unknown) => void;
 };
 
 /**
  * Detects audio tracks the browser cannot decode - Dolby formats like E-AC-3, most commonly - and
- * automatically transcodes one into a playable format in the background.
+ * automatically transcodes the first one into a playable format in the background. Another track
+ * can be chosen with `selectTrack`, which restarts the conversion for that track.
  */
 export const useTranscodedAudio = (
     videoFile: FileWithId | undefined,
     host: AudioTranscodeHost | undefined
 ): TranscodedAudio => {
     const [conversion, setConversion] = useState<AudioConversion>({ state: 'idle' });
-    const [track, setTrack] = useState<ProbedAudioTrack>();
+    const [tracks, setTracks] = useState<ProbedAudioTrack[]>();
+    const [selectedTrackIndex, setSelectedTrackIndex] = useState<number>();
     const abortControllerRef = useRef<AbortController>(undefined);
 
     /** Never rejects: failures become the 'failed' state unless the conversion was superseded. */
@@ -67,16 +73,20 @@ export const useTranscodedAudio = (
         abortControllerRef.current?.abort();
         abortControllerRef.current = undefined;
         setConversion({ state: 'idle' });
-        setTrack(undefined);
+        setTracks(undefined);
+        setSelectedTrackIndex(undefined);
         if (videoFile === undefined || host === undefined) return;
 
         let cancelled = false;
         const detectAndConvert = async () => {
             let track: ProbedAudioTrack | undefined;
             try {
-                track = await audioTrackRequiringTranscode(videoFile.file);
-                if (cancelled || track === undefined) return;
-                setTrack(track); // Mining must avoid the original track even when conversion cannot start.
+                const tracks = await audioTracksRequiringTranscode(videoFile.file);
+                track = tracks?.[0];
+                if (cancelled || tracks === undefined || track === undefined) return;
+                // Mining must avoid the original track even when conversion cannot start.
+                setTracks(tracks);
+                setSelectedTrackIndex(track.index);
                 if (!host.supportsAudioPlayback()) {
                     asbWarn('audio/transcode', 'Skipping audio conversion: converted audio playback is unsupported', {
                         fileId: videoFile.id,
@@ -108,19 +118,43 @@ export const useTranscodedAudio = (
         };
     }, [videoFile, host, convert]);
 
+    const selectTrack = useCallback(
+        (index: number) => {
+            if (
+                videoFile === undefined ||
+                host === undefined ||
+                !host.supportsAudioPlayback() ||
+                !tracks?.some((track) => track.index === index)
+            ) {
+                return;
+            }
+            setSelectedTrackIndex(index);
+            asbTrace('audio/transcode', 'Converting the chosen audio track', {
+                fileId: videoFile.id,
+                trackIndex: index,
+            });
+            void convert(videoFile, index, host);
+        },
+        [videoFile, host, tracks, convert]
+    );
+
     const fail = useCallback((error: unknown) => {
         abortControllerRef.current?.abort();
         abortControllerRef.current = undefined;
         setConversion({ state: 'failed', error });
     }, []);
 
+    const track = tracks?.find(({ index }) => index === selectedTrackIndex);
     return useMemo(
         () => ({
             ...conversion,
             required: track !== undefined,
             codecName: track === undefined ? undefined : audioCodecDisplayName(track.codec),
+            tracks,
+            selectedTrackIndex,
+            selectTrack,
             fail,
         }),
-        [conversion, track, fail]
+        [conversion, track, tracks, selectedTrackIndex, selectTrack, fail]
     );
 };
