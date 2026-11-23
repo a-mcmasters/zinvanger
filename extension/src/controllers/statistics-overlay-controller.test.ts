@@ -7,6 +7,7 @@ jest.mock('@project/extension/src/services/ui-frame', () => ({
 }));
 
 import { StatisticsOverlayController } from '@project/extension/src/controllers/statistics-overlay-controller';
+import { uiFrameForSrc } from '@project/extension/src/services/ui-frame';
 
 describe('StatisticsOverlayController mobile overlay positioning', () => {
     const runtimeListeners = new Set<(message: any, sender: any, sendResponse: (response?: any) => void) => void>();
@@ -134,5 +135,64 @@ describe('StatisticsOverlayController mobile overlay positioning', () => {
         expect(iframe?.style.colorScheme).toBe('dark');
         expect(iframe?.src).toContain('colorScheme=dark');
         controller.unbind();
+    });
+
+    it('hides a details dialog on close even when its first load failed', async () => {
+        const fakeFrame = (bind: () => Promise<boolean>) => {
+            let onMessage: ((message: any) => void) | undefined;
+            const client = {
+                onMessage: (listener: (message: any) => void) => (onMessage = listener),
+                updateState() {},
+            };
+            const frame = {
+                hidden: true,
+                bind,
+                client: async () => client,
+                unbind: jest.fn(),
+                show: () => (frame.hidden = false),
+                hide: () => (frame.hidden = true),
+                close: () => onMessage?.({ command: 'close' }),
+            };
+            return frame;
+        };
+        const failed = fakeFrame(() => Promise.reject(new Error('Timed out waiting for frame to be ready')));
+        const retried = fakeFrame(async () => true);
+        jest.mocked(uiFrameForSrc)
+            .mockReturnValueOnce(failed as any)
+            .mockReturnValueOnce(retried as any);
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const controller = new StatisticsOverlayController([]);
+        controller.bind();
+        const openDetails = async () => {
+            for (const listener of runtimeListeners) {
+                listener(
+                    {
+                        sender: 'asbplayer-statistics-overlay-to-tab',
+                        message: {
+                            command: 'open-statistics-overlay-one-uncollected-dialog',
+                            entries: [],
+                            totalSentences: 0,
+                            mediaId: 'media-id',
+                        },
+                    },
+                    {},
+                    () => {}
+                );
+            }
+            await new Promise((resolve) => setTimeout(resolve, 0)); // let the whole async open settle
+        };
+
+        try {
+            await openDetails();
+            expect(failed.hidden).toBe(true);
+            await openDetails();
+            expect(retried.hidden).toBe(false);
+
+            retried.close();
+            expect(retried.hidden).toBe(true);
+        } finally {
+            controller.unbind();
+            consoleError.mockRestore();
+        }
     });
 });

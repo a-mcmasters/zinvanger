@@ -136,6 +136,9 @@ export default class AnkiUiController {
             ...(await this._additionalUiState(context)),
         };
         client.updateState(state);
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded === client) this.frame.show();
     }
 
     async showCardSelect(
@@ -178,6 +181,9 @@ export default class AnkiUiController {
             ...(await this._additionalUiState(context)),
         };
         client.updateState(state);
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded === client) this.frame.show();
     }
 
     async showAfterRerecord(context: Binding, uiState: AnkiUiSavedState) {
@@ -198,6 +204,9 @@ export default class AnkiUiController {
             ...(await this._additionalUiState(context)),
         };
         client.updateState(state);
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded === client) this.frame.show();
     }
 
     async showAfterRetakingScreenshot(context: Binding, uiState: AnkiUiSavedState) {
@@ -217,6 +226,9 @@ export default class AnkiUiController {
             ...(await this._additionalUiState(context)),
         };
         client.updateState(state);
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded === client) this.frame.show();
     }
 
     async requestRewind(context: Binding) {
@@ -243,6 +255,8 @@ export default class AnkiUiController {
 
     private async _client(context: Binding) {
         const useLocalLookup = !this._inTutorial && !isFirefoxBuild && (await getLocalLookupToken()).length >= 32;
+        // The video can be unbound (e.g. YouTube swapped it) while we waited; don't build a frame for a dead binding.
+        if (!context.subscribed) throw new Error('Anki dialog not opened: its video was unbound.');
         if (useLocalLookup !== this.useLocalLookup) {
             this.unbind();
             this.useLocalLookup = useLocalLookup;
@@ -262,6 +276,7 @@ export default class AnkiUiController {
             allowedFetchUrl: this._settings!.ankiConnectUrl,
         };
         this.frame.language = await context.settings.getSingle('language');
+        if (!context.subscribed) throw new Error('Anki dialog not opened: its video was unbound.');
         const isNewClient = await this.frame.bind();
         const client = await this.frame.client();
 
@@ -456,7 +471,6 @@ export default class AnkiUiController {
             });
         }
 
-        this.frame.show();
         return client;
     }
 

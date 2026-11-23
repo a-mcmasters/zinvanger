@@ -66,6 +66,7 @@ jest.mock('@project/extension/src/controllers/anki-ui-controller', () => ({
     __esModule: true,
     default: class AnkiUiController {
         updateSettings() {}
+        unbind = jest.fn();
     },
 }));
 jest.mock('@project/extension/src/controllers/controls-controller', () => ({
@@ -1281,6 +1282,31 @@ describe('Binding playback mode integration', () => {
         } finally {
             binding.unbind();
         }
+    });
+
+    it('hides the subtitle picker frame again when building its state fails, so it cannot block page clicks', async () => {
+        mockUseRealSyncController = true;
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        binding.bind();
+        try {
+            await flushPlaybackTiming();
+            jest.spyOn(binding.videoDataSyncController as any, '_buildModel').mockRejectedValue(
+                new Error('storage unavailable')
+            );
+            await expect(
+                binding.videoDataSyncController.show({ reason: VideoDataUiOpenReason.userRequested })
+            ).rejects.toThrow('storage unavailable');
+            expect(binding.videoDataSyncController.pickerVisible).toBe(false);
+        } finally {
+            binding.unbind();
+        }
+    });
+
+    it('calls the Anki dialog unbind when the binding is unbound', () => {
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        binding.bind();
+        binding.unbind();
+        expect(binding.ankiUiController.unbind).toHaveBeenCalled();
     });
 
     it('addresses init replies to their channel while broadcasting binding readiness', async () => {

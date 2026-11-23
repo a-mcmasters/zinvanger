@@ -1402,24 +1402,26 @@ export default class Binding {
                     case 'show-anki-ui': {
                         const showAnkiUiMessage = request.message as ShowAnkiUiMessage;
                         this._settleLivingSubtitleMine('dialog', { card: showAnkiUiMessage }); // the dialog owns the card now
-                        void this.ankiUiController.show(this, showAnkiUiMessage);
+                        this._catchAnkiUi(this.ankiUiController.show(this, showAnkiUiMessage));
                         break;
                     }
                     case 'show-card-select-ui': {
                         const showCardSelectUiMessage = request.message as ShowCardSelectUiMessage;
                         this._settleLivingSubtitleMine('dialog', { card: showCardSelectUiMessage });
-                        void this.ankiUiController.showCardSelect(this, showCardSelectUiMessage);
+                        this._catchAnkiUi(this.ankiUiController.showCardSelect(this, showCardSelectUiMessage));
                         break;
                     }
                     case 'show-anki-ui-after-rerecord': {
                         const showAnkiUiAfterRerecordMessage = request.message as ShowAnkiUiAfterRerecordMessage;
-                        void this.ankiUiController.showAfterRerecord(this, showAnkiUiAfterRerecordMessage.uiState);
+                        this._catchAnkiUi(
+                            this.ankiUiController.showAfterRerecord(this, showAnkiUiAfterRerecordMessage.uiState)
+                        );
                         break;
                     }
                     case 'take-screenshot':
                         if (this._synced) {
                             if (this.ankiUiController.showing) {
-                                void this.ankiUiController.requestRewind(this);
+                                this._catchAnkiUi(this.ankiUiController.requestRewind(this));
                             } else {
                                 void this._takeScreenshot();
                             }
@@ -1432,9 +1434,11 @@ export default class Binding {
                         this.mobileVideoOverlayController.forceHide = false;
 
                         if (!this.recordingMedia && screenshotTakenMessage.ankiUiState) {
-                            void this.ankiUiController.showAfterRetakingScreenshot(
-                                this,
-                                screenshotTakenMessage.ankiUiState
+                            this._catchAnkiUi(
+                                this.ankiUiController.showAfterRetakingScreenshot(
+                                    this,
+                                    screenshotTakenMessage.ankiUiState
+                                )
                             );
                         }
                         break;
@@ -1795,6 +1799,7 @@ export default class Binding {
         this.dragController.unbind();
         this.keyBindings.unbind();
         this.videoDataSyncController.unbind();
+        this.ankiUiController.unbind();
         this.mobileVideoOverlayController.unbind();
         this.mobileGestureController.unbind();
         this.notificationController.unbind();
@@ -1807,6 +1812,10 @@ export default class Binding {
         this._registeredVideoSrc = '';
         this._lastSyncedLocation = undefined;
         asbTrace('playback/binding', 'Media-owner unbind finished');
+    }
+
+    private _catchAnkiUi(opening: Promise<unknown>) {
+        opening.catch((error) => asbError('anki/ui', 'Failed to open the Anki dialog:', error));
     }
 
     async _takeScreenshot() {

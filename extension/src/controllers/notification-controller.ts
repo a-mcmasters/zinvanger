@@ -50,6 +50,8 @@ export default class NotificationController {
     }
 
     async show(titleLocKey: string, messageLocKey: string) {
+        // Read before showing: a shown frame with no state in it blocks every click on the page.
+        const themeType = await this._context.settings.getSingle('themeType');
         await this._prepareAndShowFrame('asbplayer-ui-frame');
 
         if (document.fullscreenElement) {
@@ -57,7 +59,7 @@ export default class NotificationController {
         }
 
         this._client!.updateState({
-            themeType: await this._context.settings.getSingle('themeType'),
+            themeType,
             titleLocKey,
             messageLocKey,
             alertLocKey: '',
@@ -72,10 +74,11 @@ export default class NotificationController {
             readonly replacements?: Record<string, string>;
         }
     ) {
+        const themeType = await this._context.settings.getSingle('themeType');
         await this._prepareAndShowFrame('asbplayer-alert');
 
         this._client!.updateState({
-            themeType: await this._context.settings.getSingle('themeType'),
+            themeType,
             titleLocKey: '',
             messageLocKey: '',
             snackbar: {
@@ -88,9 +91,10 @@ export default class NotificationController {
     }
 
     async updateAlert(newVersion: string) {
+        const themeType = await this._context.settings.getSingle('themeType');
         await this._prepareAndShowFrame('asbplayer-alert');
         this._client!.updateState({
-            themeType: await this._context.settings.getSingle('themeType'),
+            themeType,
             titleLocKey: '',
             messageLocKey: '',
             newVersion,
