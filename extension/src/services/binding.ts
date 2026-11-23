@@ -1795,6 +1795,7 @@ export default class Binding {
         this.dragController.unbind();
         this.keyBindings.unbind();
         this.videoDataSyncController.unbind();
+        this.ankiUiController.unbind();
         this.mobileVideoOverlayController.unbind();
         this.mobileGestureController.unbind();
         this.notificationController.unbind();

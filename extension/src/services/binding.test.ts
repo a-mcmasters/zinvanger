@@ -65,6 +65,7 @@ jest.mock('@project/extension/src/controllers/anki-ui-controller', () => ({
     __esModule: true,
     default: class AnkiUiController {
         updateSettings() {}
+        unbind = jest.fn();
     },
 }));
 jest.mock('@project/extension/src/controllers/controls-controller', () => ({
@@ -1279,6 +1280,13 @@ describe('Binding playback mode integration', () => {
         } finally {
             binding.unbind();
         }
+    });
+
+    it('tears down its Anki dialog frame when unbound, e.g. when YouTube replaces the video', () => {
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        binding.bind();
+        binding.unbind();
+        expect(binding.ankiUiController.unbind).toHaveBeenCalled();
     });
 
     it('addresses init replies to their channel while broadcasting binding readiness', async () => {

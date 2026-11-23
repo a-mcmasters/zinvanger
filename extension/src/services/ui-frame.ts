@@ -39,6 +39,9 @@ export default class UiFrame {
     private _language: string = project.defaultLanguage;
     private _dirty = true;
     private _bound = false;
+    private _ready: Promise<void> = Promise.resolve();
+    // A new client whose message handlers no caller has attached yet; the next bind() returns true for it.
+    private _unclaimedClient = false;
     /** Where the frame is inserted; moving an iframe reloads it, so change it only with `unbind()`. */
     parent: () => HTMLElement = () => document.body;
 
@@ -78,7 +81,10 @@ export default class UiFrame {
     }
 
     async bind(): Promise<boolean> {
-        return this._init();
+        await this._init();
+        const isNewClient = this._unclaimedClient;
+        this._unclaimedClient = false;
+        return isNewClient;
     }
 
     async client() {
@@ -87,10 +93,15 @@ export default class UiFrame {
     }
 
     private async _init() {
-        if (!this._dirty) {
-            return false;
+        if (this._dirty) {
+            this._create();
         }
 
+        // Concurrent callers all wait for the same in-flight frame, so none gets a client that is not ready yet.
+        await this._ready;
+    }
+
+    private _create() {
         this._dirty = false;
         this._bound = true;
         this._client?.unbind();
@@ -110,9 +121,16 @@ export default class UiFrame {
             this._useRuntimeMessages
         );
         this.parent().appendChild(this._frame);
+        this._unclaimedClient = true;
 
-        await Promise.all([this._client.bind(), this._frameInitializer(this._frame, this._language)]);
-        return true;
+        const client = this._client;
+        this._ready = Promise.all([client.bind(), this._frameInitializer(this._frame, this._language)]).then(
+            () => undefined,
+            (error) => {
+                if (this._client === client) this._dirty = true; // Retry with a fresh frame next time.
+                throw error;
+            }
+        );
     }
 
     show() {
