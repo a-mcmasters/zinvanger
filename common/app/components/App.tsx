@@ -113,6 +113,7 @@ import {
 
 const extensionUrl = project.extension.chrome.storeUrl;
 const fileExtensionPattern = /\.[^.]+$/;
+const droppedFilesCommand = 'asbplayer-video-player-dropped-files';
 
 const useContentStyles = makeStyles<Theme, ContentProps>((theme) => ({
     content: {
@@ -1390,7 +1391,15 @@ function App({
             e.preventDefault();
 
             if (inVideoPlayer) {
-                handleError(t('error.videoPlayerDragAndDropNotAllowed'));
+                if (window.parent !== window && e.dataTransfer.files.length > 0) {
+                    // The video iframe covers most of the app, so hand drops to the app that embeds it.
+                    window.parent.postMessage(
+                        { command: droppedFilesCommand, files: [...e.dataTransfer.files] },
+                        window.location.origin
+                    );
+                } else {
+                    handleError(t('error.videoPlayerDragAndDropNotAllowed'));
+                }
                 return;
             }
 
@@ -1440,6 +1449,26 @@ function App({
         },
         [inVideoPlayer, handleError, handleManualFiles, handleDirectory, ankiDialogOpen, t, persistFileSessionHandles]
     );
+
+    useEffect(() => {
+        if (inVideoPlayer) return;
+
+        const listener = (event: MessageEvent) => {
+            if (
+                event.origin !== window.location.origin ||
+                event.source !== videoFrameRef.current?.contentWindow ||
+                event.data?.command !== droppedFilesCommand ||
+                ankiDialogOpen
+            ) {
+                return;
+            }
+
+            const files = (event.data.files as File[]).map((file) => ({ file, id: uuidv4() }));
+            handleManualFiles(files);
+        };
+        window.addEventListener('message', listener);
+        return () => window.removeEventListener('message', listener);
+    }, [inVideoPlayer, ankiDialogOpen, handleManualFiles]);
 
     const handleFileSelector = useCallback(
         async (params?: { buffered?: boolean }) => {
