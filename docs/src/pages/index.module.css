@@ -151,6 +151,10 @@
     color: var(--ifm-color-emphasis-500);
 }
 
+.featureSection p a {
+    text-decoration: underline;
+}
+
 .ctaSection {
     text-align: center;
     padding: 3rem 0 4rem;
