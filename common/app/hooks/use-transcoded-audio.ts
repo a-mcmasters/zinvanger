@@ -15,8 +15,8 @@ export const convertedAudioTrackModels = (tracks: ProbedAudioTrack[]): AudioTrac
     const named = tracks.map(({ index, language, name }) => ({
         id: convertedAudioTrackId(index),
         language: language ?? '',
-        // Blank or zero-padded names fall back to the track number.
-        label: name?.trim() || `#${index + 1}`,
+        // Blank or zero-padded names fall back to the track number; whitespace collapses as the menu renders it.
+        label: name?.replace(/\s+/g, ' ').trim() || `#${index + 1}`,
         number: index + 1,
     }));
     // If any would look identical, e.g. two "eng Stereo", every label gets its track number, which keeps them

@@ -1418,10 +1418,9 @@ function PlayerComponent(
                 ({ index }) => convertedAudioTrackId(index) === id
             );
             if (convertedTrack) {
-                // Applied here, since a video player that's still opening (a pop-out) never echoes the choice.
-                // The echo from an open one is then a repeat the hook ignores; it records the latest request.
+                // Applied here rather than through the video player, which may still be opening (a pop-out) or
+                // have a newer choice of its own pending; it learns the result from the transcodedAudio payload.
                 const switched = transcodedAudioRef.current.selectTrack(convertedTrack.index);
-                channel?.audioTrackSelected(id);
                 // Like the video's own controls: converting another track keeps the playback position.
                 if (switched) pause(clock, mediaAdapter, true);
                 return;

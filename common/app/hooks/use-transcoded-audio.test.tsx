@@ -421,4 +421,11 @@ it('labels track choices so no two look the same', () => {
         { index: 2, codec: 'eac3', language: 'eng', name: 'Stereo #1' },
     ]).map(({ label }) => label);
     expect(labels).toEqual(['Stereo #1', 'Stereo #2', 'Stereo #1 #3']);
+    // The menu collapses whitespace, so names differing only in spacing look the same.
+    expect(
+        convertedAudioTrackModels([
+            { index: 0, codec: 'eac3', language: 'eng', name: 'Director  Commentary' },
+            { index: 1, codec: 'eac3', language: 'eng', name: 'Director Commentary' },
+        ]).map(({ label }) => label)
+    ).toEqual(['Director Commentary #1', 'Director Commentary #2']);
 });

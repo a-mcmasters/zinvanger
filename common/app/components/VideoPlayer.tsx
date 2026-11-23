@@ -426,7 +426,7 @@ export default function VideoPlayer({
     });
     const convertedAudioInUse = usesConvertedAudio(convertedAudio.state);
     const convertedAudioRef = useRef(convertedAudio);
-    // The converted track most recently asked for; the owner's acknowledgement in convertedAudio lags it.
+    // A converted track this video player asked for that the owner hasn't switched to yet.
     const requestedConvertedTrackRef = useRef<string>(undefined);
     convertedAudioRef.current = convertedAudio;
     const videoLoadNotifications = useVideoLoadNotifications({
@@ -1068,9 +1068,7 @@ export default function VideoPlayer({
 
         playerChannel.onAudioTrackSelected((id) => {
             // Converted tracks are tracked by the owner, not as the element's selected track.
-            if (convertedAudioRef.current.tracks?.some((track) => track.id === id)) {
-                requestedConvertedTrackRef.current = id;
-            } else {
+            if (!convertedAudioRef.current.tracks?.some((track) => track.id === id)) {
                 selectAudioTrack(id);
                 setSelectedAudioTrack(id);
             }
@@ -1093,7 +1091,10 @@ export default function VideoPlayer({
             }
             // A mining command can arrive before React renders the latest encoded prefix.
             convertedAudioRef.current = audio;
-            if (audio.tracks === undefined) requestedConvertedTrackRef.current = undefined;
+            // Acknowledged by id, so a selection made elsewhere can't clear a newer pending choice of ours.
+            if (audio.tracks === undefined || audio.selectedTrack === requestedConvertedTrackRef.current) {
+                requestedConvertedTrackRef.current = undefined;
+            }
             setConvertedAudio(audio);
         });
 
