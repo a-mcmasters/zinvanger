@@ -61,10 +61,11 @@ def start_server() -> None:
     if server is not None or config is None or config.get_enabled() is False:
         return
 
-    _log(f"Starting WebSocket server on port {config.get_port()}")
+    address = f"{config.get_host()}:{config.get_port()}"
+    _log(f"Starting WebSocket server on {address}")
     server = AsbplayerWebSocketServer(config.get_host(), config.get_port())
     if not server.start():
-        _log(f"Failed to start WebSocket server on port {config.get_port()}")
+        _log(f"Failed to start WebSocket server on {address}")
         server = None
 
 

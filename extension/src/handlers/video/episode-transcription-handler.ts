@@ -57,7 +57,7 @@ export default class EpisodeTranscriptionHandler {
         let token: string | undefined;
         if (operation.action === 'start') {
             token = await getLocalLookupToken();
-            // An empty append fails after the token check: 401 means the server would refuse every chunk.
+            // An empty append fails after the token check: only 400 proves the server will take the chunks.
             const probe =
                 token.length < 32
                     ? undefined
@@ -71,7 +71,14 @@ export default class EpisodeTranscriptionHandler {
                           );
                       });
             if (!probe || probe.status === 401) {
-                throw new Error("Set the Local lookup token in Anki settings to the server's ASB_LOOKUP_TOKEN.");
+                throw new Error(
+                    'Set ASB_LOOKUP_TOKEN (32+ characters) on the Whisper server and the same value as the Local lookup token in Anki settings.'
+                );
+            }
+            if (probe.status !== 400) {
+                throw new Error(
+                    'The Whisper server could not accept recordings. Update and restart asbplayer Whisper.'
+                );
             }
             await ensureOffscreenAudioServiceDocument();
             streamId = await tabCaptureStreamId(tabId).catch((error: Error) => {

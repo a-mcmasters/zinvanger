@@ -61,15 +61,14 @@ if WEBSOCKETS_AVAILABLE:
             if self._server is not None:
                 return True
 
-            self._server = QWebSocketServer(
-                ADDON_PACKAGE, QWebSocketServer.SslMode.NonSecureMode, self
-            )
-
             address = QHostAddress(self._host)
             if address.isNull():
                 _log(f"Invalid host {self._host!r}: use an IP address such as 127.0.0.1")
-                self._server = None
                 return False
+
+            self._server = QWebSocketServer(
+                ADDON_PACKAGE, QWebSocketServer.SslMode.NonSecureMode, self
+            )
 
             if not self._server.listen(address, self._port):
                 _log(
