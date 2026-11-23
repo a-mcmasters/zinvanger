@@ -708,7 +708,10 @@ func (forwarder forwarder) disconnectWebsocketClients(c echo.Context) error {
 }
 
 func main() {
-	host := getenv("HOST", "127.0.0.1") // like AnkiConnect: this proxies every AnkiConnect action
+	host := getenv("HOST", "")
+	if host == "" { // a blank HOST= must not mean every interface: this proxies every AnkiConnect action
+		host = "127.0.0.1"
+	}
 	port := getenv("PORT", defaultWebSocketPort)
 	ankiConnectUrl := getenv("ANKI_CONNECT_URL", defaultAnkiConnectURL)
 	postMineAction, _ := strconv.Atoi(getenv("POST_MINE_ACTION", defaultPostMineAction))

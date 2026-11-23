@@ -57,7 +57,20 @@ export default class EpisodeTranscriptionHandler {
         let token: string | undefined;
         if (operation.action === 'start') {
             token = await getLocalLookupToken();
-            if (token.length < 32) {
+            // An empty append fails after the token check: 401 means the server would refuse every chunk.
+            const probe =
+                token.length < 32
+                    ? undefined
+                    : await fetch(localTranscriberUrl('append', operation.key), {
+                          method: 'POST',
+                          headers: { Authorization: `Bearer ${token}` },
+                          signal: AbortSignal.timeout(5000),
+                      }).catch(() => {
+                          throw new Error(
+                              'The local Whisper server is unavailable. Start asbplayer Whisper and try again.'
+                          );
+                      });
+            if (!probe || probe.status === 401) {
                 throw new Error("Set the Local lookup token in Anki settings to the server's ASB_LOOKUP_TOKEN.");
             }
             await ensureOffscreenAudioServiceDocument();

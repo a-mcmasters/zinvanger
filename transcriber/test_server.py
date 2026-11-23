@@ -220,14 +220,29 @@ class Http(Translate):
 
     def test_uploads_require_the_token(self):
         import urllib.error
+        import urllib.request
+        from unittest import mock
 
         session = "0f8c2a1e-1111-2222-3333-444455556666"
-        for path in (f"/append?key=Ep.S1&session={session}", f"/transcribe?key=Ep.S1&session={session}"):
+        paths = (f"/append?key=Ep.S1&session={session}", f"/transcribe?key=Ep.S1&session={session}")
+        for path in paths:
             with self.assertRaises(urllib.error.HTTPError) as denied:
                 self.request(path, b"x", token="wrong")
             self.assertEqual(denied.exception.code, 401)
+            with self.assertRaises(urllib.error.HTTPError) as headerless:
+                url = f"http://127.0.0.1:{self.httpd.server_port}{path}"
+                urllib.request.urlopen(urllib.request.Request(url, data=b"x", method="POST"), timeout=5)
+            self.assertEqual(headerless.exception.code, 401)
+            with mock.patch.object(server, "LOOKUP_TOKEN", ""), self.assertRaises(urllib.error.HTTPError) as unset:
+                self.request(path, b"x")  # sends "Bearer ", which matches an unset token exactly
+            self.assertEqual(unset.exception.code, 401)
         self.assertFalse(server.streamed_audio_path("Ep.S1", session).exists())
         self.assertEqual(server.jobs, {})
+
+        # The extension's token probe: an empty append passes the token check, then fails as a bad request.
+        with self.assertRaises(urllib.error.HTTPError) as probe:
+            self.request("/append?key=Ep.S1", b"")
+        self.assertEqual(probe.exception.code, 400)
 
     def test_an_oversized_chunk_is_refused_unread(self):
         import urllib.error

@@ -60,10 +60,11 @@ afterEach(() => {
 });
 
 it('streams the recording to the server in order, retrying a chunk the server missed', async () => {
+    const auth: string[] = [];
     let down = true;
     fetchMock.mockImplementation(async (input, init) => {
         const url = new URL(String(input));
-        expect(init!.headers).toEqual({ Authorization: `Bearer ${'k'.repeat(32)}` });
+        auth.push((init!.headers as Record<string, string>).Authorization);
         if (url.pathname === '/append' && down) {
             down = false;
             throw new TypeError('Failed to fetch');
@@ -91,4 +92,5 @@ it('streams the recording to the server in order, retrying a chunk the server mi
     await handleEpisodeAudioCapture(message({ action: 'finish' }), async () => stream, true);
 
     expect(sent).toEqual([1, 2, 4, '?key=E1&session=abcd1234&offset=38']);
+    expect(new Set(auth)).toEqual(new Set([`Bearer ${'k'.repeat(32)}`]));
 });
