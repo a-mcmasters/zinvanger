@@ -29,6 +29,11 @@ export const useTranscodedAudio = (
     const [conversion, setConversion] = useState<AudioConversion>({ state: 'idle' });
     const [tracks, setTracks] = useState<ProbedAudioTrack[]>();
     const [selectedTrackIndex, setSelectedTrackIndex] = useState<number>();
+    // Converted audio can play, so choosing a track does something.
+    const [selectable, setSelectable] = useState(false);
+    // Read synchronously so two choices delivered before a re-render don't both restart conversion.
+    const selectionRef = useRef<{ index?: number; failed: boolean }>({ failed: false });
+    selectionRef.current.failed = conversion.state === 'failed';
     const abortControllerRef = useRef<AbortController>(undefined);
 
     /** Never rejects: failures become the 'failed' state unless the conversion was superseded. */
@@ -75,6 +80,8 @@ export const useTranscodedAudio = (
         setConversion({ state: 'idle' });
         setTracks(undefined);
         setSelectedTrackIndex(undefined);
+        setSelectable(false);
+        selectionRef.current = { failed: false };
         if (videoFile === undefined || host === undefined) return;
 
         let cancelled = false;
@@ -87,6 +94,7 @@ export const useTranscodedAudio = (
                 // Mining must avoid the original track even when conversion cannot start.
                 setTracks(tracks);
                 setSelectedTrackIndex(track.index);
+                selectionRef.current.index = track.index;
                 if (!host.supportsAudioPlayback()) {
                     asbWarn('audio/transcode', 'Skipping audio conversion: converted audio playback is unsupported', {
                         fileId: videoFile.id,
@@ -103,6 +111,7 @@ export const useTranscodedAudio = (
                 }
                 return;
             }
+            setSelectable(true);
             asbTrace('audio/transcode', 'Starting audio conversion', {
                 fileId: videoFile.id,
                 trackIndex: track.index,
@@ -123,12 +132,13 @@ export const useTranscodedAudio = (
             if (
                 videoFile === undefined ||
                 host === undefined ||
-                !host.supportsAudioPlayback() ||
+                !selectable ||
                 !tracks?.some((track) => track.index === index) ||
-                (index === selectedTrackIndex && conversion.state !== 'failed')
+                (index === selectionRef.current.index && !selectionRef.current.failed)
             ) {
                 return;
             }
+            selectionRef.current = { index, failed: false };
             setSelectedTrackIndex(index);
             asbTrace('audio/transcode', 'Converting the chosen audio track', {
                 fileId: videoFile.id,
@@ -136,7 +146,7 @@ export const useTranscodedAudio = (
             });
             void convert(videoFile, index, host);
         },
-        [videoFile, host, tracks, selectedTrackIndex, conversion.state, convert]
+        [videoFile, host, tracks, selectable, convert]
     );
 
     const fail = useCallback((error: unknown) => {
@@ -151,11 +161,11 @@ export const useTranscodedAudio = (
             ...conversion,
             required: track !== undefined,
             codecName: track === undefined ? undefined : audioCodecDisplayName(track.codec),
-            tracks,
+            tracks: selectable ? tracks : undefined,
             selectedTrackIndex,
             selectTrack,
             fail,
         }),
-        [conversion, track, tracks, selectedTrackIndex, selectTrack, fail]
+        [conversion, track, tracks, selectable, selectedTrackIndex, selectTrack, fail]
     );
 };

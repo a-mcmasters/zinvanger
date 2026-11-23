@@ -1400,6 +1400,9 @@ function PlayerComponent(
             channel?.audioTrackSelected(id);
             pause(clock, mediaAdapter, true);
 
+            // Like the video's own controls: converting another track keeps the playback position.
+            if (transcodedAudioRef.current.tracks?.some(({ index }) => convertedAudioTrackId(index) === id)) return;
+
             await seek(0, clock, true, { paused: true });
 
             if (clock.running) {

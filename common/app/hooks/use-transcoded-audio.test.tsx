@@ -35,8 +35,21 @@ const Harness = ({ file, host }: { file?: FileWithId; host: TestHost }) => {
             >
                 Conversion failed
             </Alert>
+            <button data-select-first onClick={() => conversion.selectTrack(0)}>
+                First track
+            </button>
             <button data-select-second onClick={() => conversion.selectTrack(1)}>
                 Second track
+            </button>
+            <button
+                data-select-second-twice
+                onClick={() => {
+                    // Two choices delivered before React re-renders.
+                    conversion.selectTrack(1);
+                    conversion.selectTrack(1);
+                }}
+            >
+                Second track twice
             </button>
             <button data-fail onClick={() => conversion.fail(new Error('Playback failed'))}>
                 Fail
@@ -199,6 +212,66 @@ it('converts another audio track when the user chooses it', async () => {
     });
     expect(trackIndexes).toEqual([0, 1]);
     expect(host.workers).toHaveLength(2);
+});
+
+const recordTrackIndexes = (host: TestHost) => {
+    const trackIndexes: number[] = [];
+    const transcodeAudio = host.transcodeAudio;
+    host.transcodeAudio = (options) => {
+        trackIndexes.push(options.trackIndex);
+        return transcodeAudio(options);
+    };
+    return trackIndexes;
+};
+
+it('restarts conversion only once when the same track is chosen twice before a re-render', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    const trackIndexes = recordTrackIndexes(host);
+    await render(file('a', 2), host);
+    await waitForWorker(host);
+    await click('[data-select-second-twice]');
+    await waitForWorker(host, 1);
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(trackIndexes).toEqual([0, 1]);
+});
+
+it('converts another track after the first conversion finished', async () => {
+    const host = new TestHost();
+    const trackIndexes = recordTrackIndexes(host);
+    await render(file('a', 2), host);
+    await waitForComplete();
+    await click('[data-select-second]');
+    await waitForWorker(host, 1);
+    await waitForComplete();
+    expect(trackIndexes).toEqual([0, 1]);
+    expect(container.querySelector('output')!.getAttribute('data-selected')).toBe('1');
+});
+
+it('retries the chosen track after its conversion failed', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    const trackIndexes = recordTrackIndexes(host);
+    await render(file('a', 2), host);
+    await waitForWorker(host);
+    await click('[data-fail]');
+    expect(state()).toBe('failed');
+    await click('[data-select-first]');
+    await waitForWorker(host, 1);
+    expect(trackIndexes).toEqual([0, 0]);
+    expect(state()).toBe('transcoding');
+});
+
+it('offers no track choice when converted audio cannot play', async () => {
+    const host = new TestHost();
+    host.supportsAudioPlayback = () => false;
+    await render(file('a', 2), host);
+    await waitForRequirement();
+    expect(container.querySelector('output')!.getAttribute('data-tracks')).toBeNull();
+    await click('[data-select-second]');
+    expect(host.workers).toHaveLength(0);
 });
 
 it('retains complete audio for mining and clears it when the file changes', async () => {
