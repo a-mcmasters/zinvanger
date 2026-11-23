@@ -368,7 +368,9 @@ export default class VideoDataSyncController {
         // A remembered all-empty choice can't match zero tracks, but it is still the remembered choice.
         // Kept out of completeMatch so it never triggers auto-sync.
         const rememberedEmptyChoice =
-            subtitleTrackChoices.length === 0 && !this.lastLanguagesSynced.some((lang) => lang !== '-');
+            subtitleTrackChoices.length === 0 &&
+            this.lastLanguagesSynced.length > 0 &&
+            !this.lastLanguagesSynced.some((lang) => lang !== '-');
         const defaultCheckboxState = !this._isTutorial && (subs.completeMatch || rememberedEmptyChoice);
         const themeType = await this._context.settings.getSingle('themeType');
         const profilesPromise = this._context.settings.profiles();
