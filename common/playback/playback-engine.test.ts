@@ -4093,14 +4093,20 @@ describe('external audio playback', () => {
         jest.restoreAllMocks();
         jest.useRealTimers();
     });
-    const render = async ({ source = 'blob:stream', active = true, streaming = true, onError = () => {} } = {}) => {
+    const render = async ({
+        source = 'blob:stream',
+        active = true,
+        streaming = true,
+        muteOriginal = false,
+        onError = () => {},
+    } = {}) => {
         await settle(() => {
             if (!initialized) {
                 engine = createEngine();
                 initialized = true;
                 engine.bind();
             }
-            engine.externalAudioChanged({ element: audio, source, active, streaming, onError });
+            engine.externalAudioChanged({ element: audio, source, active, streaming, muteOriginal, onError });
         });
     };
     const available = async (seconds: number) => {
@@ -4235,6 +4241,39 @@ describe('external audio playback', () => {
         await render({ active: false });
         expect(video.muted).toBe(false);
         expect(audioPaused).toBe(true);
+    });
+
+    it('keeps the video muted when the chosen track failed to convert, until a native track is chosen', async () => {
+        await render();
+        await available(10);
+        expect(audioPaused).toBe(false);
+        await render({ active: false, muteOriginal: true });
+        expect(video.muted).toBe(true);
+        expect(audioPaused).toBe(true);
+        await render({ active: false });
+        expect(video.muted).toBe(false);
+    });
+
+    it('re-mutes the video when browser controls unmute it after a failed conversion, keeping the unmute for later', async () => {
+        video.muted = true;
+        await render({ active: false, muteOriginal: true });
+        video.muted = false;
+        await settle(() => video.dispatchEvent(new Event('volumechange')));
+        expect(video.muted).toBe(true);
+        await render({ active: false });
+        expect(video.muted).toBe(false);
+    });
+
+    it('keeps an unmute whose volumechange has not arrived yet when the audio source changes', async () => {
+        video.muted = true;
+        await render({ active: false, muteOriginal: true });
+        // Hold back the unmute's volumechange, as if it were still queued.
+        const holdEvent = (event: Event) => event.stopImmediatePropagation();
+        video.addEventListener('volumechange', holdEvent, true);
+        video.muted = false;
+        video.removeEventListener('volumechange', holdEvent, true);
+        await render({ active: false });
+        expect(video.muted).toBe(false);
     });
 
     it('waits without a streaming source and resumes completed audio at the retained position', async () => {

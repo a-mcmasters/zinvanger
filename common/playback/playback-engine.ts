@@ -137,6 +137,8 @@ export interface PlaybackSeekOptions {
 
 interface ExternalAudioSource extends ExternalAudioTrack, PlaybackAudioSource {
     readonly onError: (error: unknown) => void;
+    /** Keep the video muted even while inactive, e.g. the chosen track failed to convert. */
+    readonly muteOriginal?: boolean;
 }
 
 export interface PlaybackEngineCallbacks {
@@ -231,7 +233,7 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
     private readonly tokenSelectionController: TokenSelectionController;
     private readonly externalAudioController: ExternalAudioController;
     private readonly playbackAudio: PlaybackAudio;
-    private externalAudioActive = false;
+    private muteOriginalAudio = false;
     private externalAudioError: (error: unknown) => void;
     private originalMuted?: boolean;
     private autoPauseTimestampMs?: number;
@@ -1346,7 +1348,7 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
     }
 
     externalAudioChanged(source: ExternalAudioSource): void {
-        this.externalAudioActive = source.active;
+        this.muteOriginalAudio = source.active || source.muteOriginal === true;
         this.externalAudioError = source.onError;
         this.playbackAudio.sourceChanged({
             element: source.element,
@@ -1361,7 +1363,9 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
     }
 
     private updateOriginalAudioMuting(): void {
-        if (!this.externalAudioActive) {
+        // An unmute whose volumechange hasn't been delivered yet is still the user's choice.
+        if (this.originalMuted !== undefined && !this.videoPlaybackState().muted) this.originalMuted = false;
+        if (!this.muteOriginalAudio) {
             this.restoreOriginalAudioMuting();
             return;
         }
@@ -1376,9 +1380,17 @@ export default class PlaybackEngine<T extends IndexedSubtitleModel> {
     }
 
     private readonly onVideoPlaybackEvent = (event: VideoPlaybackEvent): void => {
-        if (event === 'pause-requested') this.pause();
-        else if (event === 'play-requested') void this.play().catch((error: unknown) => this.callbacks.onError(error));
-        else this.externalAudioController.videoEvent(event);
+        if (event === 'pause-requested') return this.pause();
+        if (event === 'play-requested') {
+            void this.play().catch((error: unknown) => this.callbacks.onError(error));
+            return;
+        }
+        // The browser's own controls can unmute the video: keep that as the user's choice, but keep the original track silent.
+        if (event === 'volumechange' && this.muteOriginalAudio && !this.videoPlaybackState().muted) {
+            this.originalMuted = false;
+            this.callbacks.setMuted(true);
+        }
+        this.externalAudioController.videoEvent(event);
     };
 
     private pause({ forBuffering = false }: { readonly forBuffering?: boolean } = {}): void {

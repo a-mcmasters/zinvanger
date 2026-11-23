@@ -461,6 +461,8 @@ export default function VideoPlayer({
         element: externalAudio,
         source: audioFile,
         active: convertedAudioInUse,
+        // Playing the native track instead would be a different language than the one selected.
+        muteOriginal: convertedAudio.required && convertedAudio.state === 'failed',
         streaming: convertedAudio.state === 'transcoding',
         onError: () => playerChannel.audioConversionFailed(audioFileAttempt),
     });
@@ -468,6 +470,8 @@ export default function VideoPlayer({
         element: externalAudio,
         source: audioFile,
         active: convertedAudioInUse,
+        // Playing the native track instead would be a different language than the one selected.
+        muteOriginal: convertedAudio.required && convertedAudio.state === 'failed',
         streaming: convertedAudio.state === 'transcoding',
         // Attributed to the conversion that produced the source being played, not the latest one.
         onError: () => playerChannel.audioConversionFailed(audioFileAttempt),
@@ -995,7 +999,7 @@ export default function VideoPlayer({
 
     useEffect(() => {
         if (video) playbackEngineRef.current?.externalAudioChanged(externalAudioStateRef.current);
-    }, [audioFile, convertedAudio.state, externalAudio, playerChannel, video]);
+    }, [audioFile, convertedAudio.required, convertedAudio.state, externalAudio, playerChannel, video]);
 
     useEffect(() => {
         if (profileRef.current === profile) return;
