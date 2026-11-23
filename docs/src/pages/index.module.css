@@ -1,5 +1,5 @@
 :root {
-    --asbplayer-color: #6332a6;
+    --asbplayer-color: var(--ifm-color-primary);
     --asbplayer-gradient: linear-gradient(145deg, #6231b9 0%, #281354 100%);
     --asbplayer-hero-bg: radial-gradient(ellipse at 50% 0%, rgba(99, 50, 166, 0.08) 0%, transparent 60%);
     --discord-brand: #5865f2;
