@@ -93,7 +93,12 @@ import type {
 import { createTheme } from '@project/common/theme/theme';
 import Alert, { AlertStack } from '@project/common/app/components/Alert';
 import type { AlertNotification } from '@project/common/app/components/Alert';
-import { useTranscodedAudio } from '@project/common/app/hooks/use-transcoded-audio';
+import {
+    convertedAudioTrackId,
+    convertedAudioTrackModels,
+    convertedAudioTrackPrefix,
+    useTranscodedAudio,
+} from '@project/common/app/hooks/use-transcoded-audio';
 import { clampAudioSeekMs } from '@project/common/audio-transcode/streaming-audio';
 import type { AudioTranscodeHost } from '@project/common/audio-transcode';
 import useSnackbar from '@project/common/hooks/use-snackbar';
@@ -213,25 +218,10 @@ export interface PlayerRef {
 
 const Player = React.memo(React.forwardRef<PlayerRef, PlayerProps>(PlayerComponent));
 
-const convertedAudioTrackPrefix = 'converted-';
-const convertedAudioTrackId = (index: number) => `${convertedAudioTrackPrefix}${index}`;
-
 /** Send only playback data across documents, preserving the relationship between state and audio. */
 function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAudio>): TranscodedAudioPayload {
     const { required, codecName, selectedTrackIndex, attempt } = conversion;
-    const named = conversion.tracks?.map(({ index, language, name }) => ({
-        id: convertedAudioTrackId(index),
-        language: language ?? '',
-        // Blank or zero-padded names fall back to the track number.
-        label: name?.trim() || `#${index + 1}`,
-        number: index + 1,
-    }));
-    // Tracks that would still look identical, e.g. two "eng Stereo", get their number appended.
-    const tracks = named?.map(({ number, ...track }) =>
-        named.filter((other) => other.language === track.language && other.label === track.label).length > 1
-            ? { ...track, label: `${track.label} #${number}` }
-            : track
-    );
+    const tracks = conversion.tracks && convertedAudioTrackModels(conversion.tracks);
     const selectedTrack = selectedTrackIndex === undefined ? undefined : convertedAudioTrackId(selectedTrackIndex);
     switch (conversion.state) {
         case 'idle':
@@ -1424,16 +1414,21 @@ function PlayerComponent(
 
     const handleAudioTrackSelected = useCallback(
         async (id: string) => {
-            // Always forwarded: the video player tracks the latest request from either control path, and
-            // the owner's hook ignores a repeat of the current track.
-            const convertedTrack = transcodedAudioRef.current.tracks?.some(
+            const convertedTrack = transcodedAudioRef.current.tracks?.find(
                 ({ index }) => convertedAudioTrackId(index) === id
             );
+            if (convertedTrack) {
+                // Applied here, since a video player that's still opening (a pop-out) never echoes the choice.
+                // The echo from an open one is then a repeat the hook ignores; it records the latest request.
+                const switched = transcodedAudioRef.current.selectTrack(convertedTrack.index);
+                channel?.audioTrackSelected(id);
+                // Like the video's own controls: converting another track keeps the playback position.
+                if (switched) pause(clock, mediaAdapter, true);
+                return;
+            }
+
             channel?.audioTrackSelected(id);
             pause(clock, mediaAdapter, true);
-
-            // Like the video's own controls: converting another track keeps the playback position.
-            if (convertedTrack) return;
 
             await seek(0, clock, true, { paused: true });
 

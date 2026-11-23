@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import type { FileWithId } from '@project/common/file-selector';
 import { TestHost, webmHeader } from '@project/common/audio-transcode/test-host';
-import { useTranscodedAudio } from '@project/common/app/hooks/use-transcoded-audio';
+import { convertedAudioTrackModels, useTranscodedAudio } from '@project/common/app/hooks/use-transcoded-audio';
 import Alert from '@project/common/app/components/Alert';
 
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -402,4 +402,23 @@ it('dismisses the notice without clearing the failure and shows a new failure fo
     await waitForWorker(host, 1);
     await waitForState('failed');
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
+});
+
+it('labels track choices so no two look the same', () => {
+    expect(
+        convertedAudioTrackModels([
+            { index: 0, codec: 'eac3', language: 'eng', name: 'English' },
+            { index: 1, codec: 'eac3', language: 'dut', name: '' },
+        ])
+    ).toEqual([
+        { id: 'converted-0', language: 'eng', label: 'English' },
+        { id: 'converted-1', language: 'dut', label: '#2' },
+    ]);
+    // A generated suffix must not collide with a name that already looks like one.
+    const labels = convertedAudioTrackModels([
+        { index: 0, codec: 'eac3', language: 'eng', name: 'Stereo' },
+        { index: 1, codec: 'eac3', language: 'eng', name: 'Stereo' },
+        { index: 2, codec: 'eac3', language: 'eng', name: 'Stereo #1' },
+    ]).map(({ label }) => label);
+    expect(labels).toEqual(['Stereo #1', 'Stereo #2', 'Stereo #1 #3']);
 });

@@ -3,7 +3,29 @@ import type { AudioTranscodeHost, AudioConversion } from '@project/common/audio-
 import type { FileWithId } from '@project/common/file-selector';
 import { audioCodecDisplayName, audioTracksRequiringTranscode } from '@project/common/media-probe';
 import type { ProbedAudioTrack } from '@project/common/media-probe';
+import type { AudioTrackModel } from '@project/common';
 import { asbError, asbTrace, asbWarn } from '@project/common/util/log';
+
+export const convertedAudioTrackPrefix = 'converted-';
+/** Audio-track menu id for a converted track, distinct from the video element's own track ids. */
+export const convertedAudioTrackId = (index: number) => `${convertedAudioTrackPrefix}${index}`;
+
+/** Menu entries for choosing which track to convert, labelled so no two look the same. */
+export const convertedAudioTrackModels = (tracks: ProbedAudioTrack[]): AudioTrackModel[] => {
+    const named = tracks.map(({ index, language, name }) => ({
+        id: convertedAudioTrackId(index),
+        language: language ?? '',
+        // Blank or zero-padded names fall back to the track number.
+        label: name?.trim() || `#${index + 1}`,
+        number: index + 1,
+    }));
+    // If any would look identical, e.g. two "eng Stereo", every label gets its track number, which keeps them
+    // unique even when a name already ends in something like "#1".
+    const ambiguous = named.some((track, i) =>
+        named.some((other, j) => i !== j && other.language === track.language && other.label === track.label)
+    );
+    return named.map(({ number, ...track }) => (ambiguous ? { ...track, label: `${track.label} #${number}` } : track));
+};
 
 type TranscodedAudio = AudioConversion & {
     /** The original audio cannot be recorded, even if conversion is unavailable or fails. */
@@ -15,7 +37,8 @@ type TranscodedAudio = AudioConversion & {
     readonly selectedTrackIndex?: number;
     /** Changes with every conversion started, so playback can tell a superseded conversion's events apart. */
     readonly attempt: number;
-    readonly selectTrack: (index: number) => void;
+    /** @returns whether conversion (re)started; false for a repeat of the current track or an unusable choice */
+    readonly selectTrack: (index: number) => boolean;
     /**
      * Fails the current conversion. With an `attempt`, only if that is still the current conversion,
      * since audio from one a track switch replaced may report errors after the switch.
@@ -146,7 +169,7 @@ export const useTranscodedAudio = (
                 !tracks?.some((track) => track.index === index) ||
                 (index === selectionRef.current.index && !selectionRef.current.failed)
             ) {
-                return;
+                return false;
             }
             selectionRef.current = { index, failed: false };
             setSelectedTrackIndex(index);
@@ -155,6 +178,7 @@ export const useTranscodedAudio = (
                 trackIndex: index,
             });
             void convert(videoFile, index, host);
+            return true;
         },
         [videoFile, host, tracks, selectable, convert]
     );
