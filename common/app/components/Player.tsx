@@ -222,7 +222,8 @@ function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAud
     const tracks = conversion.tracks?.map(({ index, language, name }) => ({
         id: convertedAudioTrackId(index),
         language: language ?? '',
-        label: name ?? `#${index + 1}`,
+        // Blank or zero-padded names would leave two same-language tracks looking identical.
+        label: name?.trim() || `#${index + 1}`,
     }));
     const selectedTrack = selectedTrackIndex === undefined ? undefined : convertedAudioTrackId(selectedTrackIndex);
     switch (conversion.state) {
@@ -341,6 +342,11 @@ function PlayerComponent(
     const failAudioConversion = transcodedAudio.fail;
     const transcodedAudioRef = useRef(transcodedAudio);
     transcodedAudioRef.current = transcodedAudio;
+    // The converted track most recently asked for; the conversion's selected track lags until the round trip ends.
+    const requestedConvertedTrackRef = useRef<number>(undefined);
+    useEffect(() => {
+        if (transcodedAudio.tracks === undefined) requestedConvertedTrackRef.current = undefined;
+    }, [transcodedAudio.tracks]);
     const syntheticPlayback = videoFileUrl === undefined && tab === undefined;
     const playModeEnabled = subtitles && subtitles.length > 0 && Boolean(videoFileUrl);
     const [subtitlePlayerResizing, setSubtitlePlayerResizing] = useState<boolean>(false);
@@ -1082,11 +1088,9 @@ function PlayerComponent(
     }, [channel, transcodedAudioPayload]);
     useEffect(
         () =>
-            channel?.onAudioConversionFailed((attempt) => {
-                // Audio from a conversion that a track switch has replaced may still fail while it's swapped out.
-                if (attempt !== undefined && attempt !== transcodedAudioRef.current.attempt) return;
-                failAudioConversion(new Error('Opus playback failed'));
-            }),
+            channel?.onAudioConversionFailed((attempt) =>
+                failAudioConversion(new Error('Opus playback failed'), attempt)
+            ),
         [channel, failAudioConversion]
     );
     useEffect(() => channel?.ankiSettings(settings), [channel, settings]);
@@ -1420,13 +1424,9 @@ function PlayerComponent(
             const converted = transcodedAudioRef.current;
             const convertedTrack = converted.tracks?.find(({ index }) => convertedAudioTrackId(index) === id);
             // Choosing the track already being converted changes nothing, so don't interrupt playback.
-            if (
-                convertedTrack &&
-                convertedTrack.index === converted.selectedTrackIndex &&
-                converted.state !== 'failed'
-            ) {
-                return;
-            }
+            const current = requestedConvertedTrackRef.current ?? converted.selectedTrackIndex;
+            if (convertedTrack && convertedTrack.index === current && converted.state !== 'failed') return;
+            if (convertedTrack) requestedConvertedTrackRef.current = convertedTrack.index;
 
             channel?.audioTrackSelected(id);
             pause(clock, mediaAdapter, true);

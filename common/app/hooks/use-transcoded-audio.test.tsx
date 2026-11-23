@@ -52,6 +52,17 @@ const Harness = ({ file, host }: { file?: FileWithId; host: TestHost }) => {
             >
                 Second track twice
             </button>
+            <button
+                data-switch-then-old-failure
+                onClick={() => {
+                    // The previous track's audio fails after the switch, before React re-renders.
+                    const previousAttempt = conversion.attempt;
+                    conversion.selectTrack(1);
+                    conversion.fail(new Error('Old track playback failed'), previousAttempt);
+                }}
+            >
+                Switch, then old failure
+            </button>
             <button data-fail onClick={() => conversion.fail(new Error('Playback failed'))}>
                 Fail
             </button>
@@ -239,6 +250,18 @@ it('restarts conversion only once when the same track is chosen twice before a r
         await new Promise((resolve) => setTimeout(resolve, 20));
     });
     expect(trackIndexes).toEqual([0, 1]);
+});
+
+it('ignores a playback failure from the conversion a track switch replaced', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    await render(file('a', 2), host);
+    await waitForWorker(host);
+    await click('[data-switch-then-old-failure]');
+    await waitForWorker(host, 1);
+    expect(state()).toBe('transcoding');
+    expect(host.workers[1].active).toBe(true);
+    expect(container.querySelector('output')!.getAttribute('data-selected')).toBe('1');
 });
 
 it('converts another track after the first conversion finished', async () => {

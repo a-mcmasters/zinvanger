@@ -16,7 +16,11 @@ type TranscodedAudio = AudioConversion & {
     /** Changes with every conversion started, so playback can tell a superseded conversion's events apart. */
     readonly attempt: number;
     readonly selectTrack: (index: number) => void;
-    readonly fail: (error: unknown) => void;
+    /**
+     * Fails the current conversion. With an `attempt`, only if that is still the current conversion,
+     * since audio from one a track switch replaced may report errors after the switch.
+     */
+    readonly fail: (error: unknown, attempt?: number) => void;
 };
 
 /**
@@ -37,6 +41,8 @@ export const useTranscodedAudio = (
     const selectionRef = useRef<{ index?: number; failed: boolean }>({ failed: false });
     const abortControllerRef = useRef<AbortController>(undefined);
     const [attempt, setAttempt] = useState(0);
+    // Advanced synchronously, so a failure report handled before the next render is checked correctly.
+    const attemptRef = useRef(0);
 
     /** Never rejects: failures become the 'failed' state unless the conversion was superseded. */
     const convert = useCallback(async (videoFile: FileWithId, trackIndex: number, host: AudioTranscodeHost) => {
@@ -44,7 +50,7 @@ export const useTranscodedAudio = (
         abortControllerRef.current?.abort();
         abortControllerRef.current = abortController;
         const { signal } = abortController;
-        setAttempt((attempt) => attempt + 1);
+        setAttempt(++attemptRef.current);
         setConversion({ state: 'transcoding' });
 
         try {
@@ -153,7 +159,8 @@ export const useTranscodedAudio = (
         [videoFile, host, tracks, selectable, convert]
     );
 
-    const fail = useCallback((error: unknown) => {
+    const fail = useCallback((error: unknown, attempt?: number) => {
+        if (attempt !== undefined && attempt !== attemptRef.current) return;
         abortControllerRef.current?.abort();
         abortControllerRef.current = undefined;
         selectionRef.current.failed = true;
