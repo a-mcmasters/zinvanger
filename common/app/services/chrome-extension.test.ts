@@ -2,6 +2,7 @@ import ChromeExtension from '@project/common/app/services/chrome-extension';
 
 describe('ChromeExtension.supportsSidePanel', () => {
     let displayMode: string;
+    const created: ChromeExtension[] = [];
 
     beforeEach(() => {
         displayMode = 'browser';
@@ -11,11 +12,16 @@ describe('ChromeExtension.supportsSidePanel', () => {
     });
 
     afterEach(() => {
-        delete (window as { matchMedia?: unknown }).matchMedia;
+        created.splice(0).forEach((ext) => ext.unbind());
+        delete (window as { matchMedia?: unknown }).matchMedia; // jsdom has no matchMedia of its own
     });
 
     // Feature flag stays true, as when installing the app moves the tab into an app window without a reload (#42)
-    const extension = () => new ChromeExtension('1.20.0', {}, undefined, { sidePanel: true });
+    const extension = () => {
+        const ext = new ChromeExtension('1.20.0', {}, undefined, { sidePanel: true });
+        created.push(ext);
+        return ext;
+    };
 
     it('allows the side panel in a normal browser tab', () => {
         expect(extension().supportsSidePanel).toBe(true);
