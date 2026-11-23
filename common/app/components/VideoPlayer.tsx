@@ -367,6 +367,8 @@ interface MinedRecord {
     subtitle: SubtitleModel;
     surroundingSubtitles: SubtitleModel[];
     timestamp: number;
+    /** The converted audio this card was mined with, kept when re-mining it after a track switch. */
+    convertedAudio: TranscodedAudioPayload;
 }
 
 const allSubtitleAlignments = (subtitleSettings: SubtitleSettings) => {
@@ -424,6 +426,8 @@ export default function VideoPlayer({
     });
     const convertedAudioInUse = usesConvertedAudio(convertedAudio.state);
     const convertedAudioRef = useRef(convertedAudio);
+    // A converted track this video player asked for that the owner hasn't switched to yet.
+    const requestedConvertedTrackRef = useRef<string>(undefined);
     convertedAudioRef.current = convertedAudio;
     const videoLoadNotifications = useVideoLoadNotifications({
         video,
@@ -444,28 +448,29 @@ export default function VideoPlayer({
         asbTrace('playback/video-player', 'Creating player channel');
         return new PlayerChannel(channel);
     }, [channel]);
-    const audioFile = useStreamingAudio({
+    const { url: audioFile, attempt: audioFileAttempt } = useStreamingAudio({
         conversion: convertedAudio,
         video,
         onBuffered: (range) => {
             setAudioSeekableRange(range);
             playerChannel.audioBuffered(range);
         },
-        onError: () => playerChannel.audioConversionFailed(),
+        onError: (_, attempt) => playerChannel.audioConversionFailed(attempt),
     });
     const externalAudioStateRef = useRef({
         element: externalAudio,
         source: audioFile,
         active: convertedAudioInUse,
         streaming: convertedAudio.state === 'transcoding',
-        onError: () => playerChannel.audioConversionFailed(),
+        onError: () => playerChannel.audioConversionFailed(audioFileAttempt),
     });
     externalAudioStateRef.current = {
         element: externalAudio,
         source: audioFile,
         active: convertedAudioInUse,
         streaming: convertedAudio.state === 'transcoding',
-        onError: () => playerChannel.audioConversionFailed(),
+        // Attributed to the conversion that produced the source being played, not the latest one.
+        onError: () => playerChannel.audioConversionFailed(audioFileAttempt),
     };
     useEffect(() => {
         if (!video) return;
@@ -1001,7 +1006,8 @@ export default function VideoPlayer({
     function selectAudioTrack(id: string) {
         const audioTracks = videoRef.current?.audioTracks;
 
-        if (!audioTracks) {
+        // Converted-audio track ids are not the element's; leave its tracks alone for those.
+        if (!audioTracks || ![...audioTracks].some((t) => t.id === id)) {
             return;
         }
 
@@ -1061,8 +1067,11 @@ export default function VideoPlayer({
         });
 
         playerChannel.onAudioTrackSelected((id) => {
-            selectAudioTrack(id);
-            setSelectedAudioTrack(id);
+            // Converted tracks are tracked by the owner, not as the element's selected track.
+            if (!convertedAudioRef.current.tracks?.some((track) => track.id === id)) {
+                selectAudioTrack(id);
+                setSelectedAudioTrack(id);
+            }
             playerChannel.audioTrackSelected(id);
         });
 
@@ -1082,6 +1091,10 @@ export default function VideoPlayer({
             }
             // A mining command can arrive before React renders the latest encoded prefix.
             convertedAudioRef.current = audio;
+            // Acknowledged by id, so a selection made elsewhere can't clear a newer pending choice of ours.
+            if (audio.tracks === undefined || audio.selectedTrack === requestedConvertedTrackRef.current) {
+                requestedConvertedTrackRef.current = undefined;
+            }
             setConvertedAudio(audio);
         });
 
@@ -1325,9 +1338,22 @@ export default function VideoPlayer({
 
     const handleAudioTrackSelected = useCallback(
         (id: string) => {
+            const converted = convertedAudioRef.current;
+            const isConvertedTrack = converted.tracks?.some((track) => track.id === id) ?? false;
+            // Compare with the latest request, so choosing a track and quickly going back is not lost.
+            const current = requestedConvertedTrackRef.current ?? converted.selectedTrack;
+            if (isConvertedTrack && id === current && converted.state !== 'failed') return;
+
             if (playing()) {
                 clock.stop();
                 playerChannel.pause();
+            }
+
+            if (isConvertedTrack) {
+                // The owner restarts conversion for this track; the browser's own tracks stay untouched.
+                requestedConvertedTrackRef.current = id;
+                playerChannel.audioTrackSelected(id);
+                return;
             }
 
             selectAudioTrack(id);
@@ -1674,11 +1700,16 @@ export default function VideoPlayer({
             subtitle: SubtitleModel,
             surroundingSubtitles: SubtitleModel[],
             cardTextFieldValues: CardTextFieldValues,
-            timestamp: number
+            timestamp: number,
+            minedAudio?: TranscodedAudioPayload
         ) => {
             try {
-                const miningAudio = convertedAudioRef.current;
-                if (!(await canMineWithAudio(miningAudio, subtitle.end))) {
+                const miningAudio = minedAudio ?? convertedAudioRef.current;
+                const requested = requestedConvertedTrackRef.current;
+                // Until the owner switches to the latest chosen track, its audio would be the previous dub.
+                const awaitingTrackSwitch =
+                    minedAudio === undefined && requested !== undefined && requested !== miningAudio.selectedTrack;
+                if (awaitingTrackSwitch || !(await canMineWithAudio(miningAudio, subtitle.end))) {
                     setAlert({
                         open: true,
                         notifications: [
@@ -1699,7 +1730,9 @@ export default function VideoPlayer({
                     cardTextFieldValues,
                     videoFileName ?? '',
                     timestamp,
-                    showAnkiDialog ? PostMineAction.none : postMineAction
+                    showAnkiDialog ? PostMineAction.none : postMineAction,
+                    // The audio checked above, even if another track has been chosen since.
+                    miningAudio
                 );
                 if (showAnkiDialog) {
                     onAnkiDialogRequest(
@@ -1725,6 +1758,7 @@ export default function VideoPlayer({
                     subtitle,
                     surroundingSubtitles,
                     timestamp,
+                    convertedAudio: miningAudio,
                 });
             } catch (error) {
                 onErrorRef.current?.(String(error));
@@ -1977,7 +2011,8 @@ export default function VideoPlayer({
                         lastMinedRecord.subtitle,
                         lastMinedRecord.surroundingSubtitles,
                         {},
-                        currentTimestamp
+                        currentTimestamp,
+                        lastMinedRecord.convertedAudio
                     );
                 }
             },
@@ -2542,8 +2577,8 @@ export default function VideoPlayer({
                 clock={clock}
                 length={lengthMs}
                 bufferedMs={convertedAudio.state === 'transcoding' ? (audioSeekableRange?.end ?? 0) : undefined}
-                audioTracks={audioTracks}
-                selectedAudioTrack={selectedAudioTrack}
+                audioTracks={convertedAudio.tracks ?? audioTracks}
+                selectedAudioTrack={convertedAudio.tracks ? convertedAudio.selectedTrack : selectedAudioTrack}
                 subtitlesToggle={subtitles && subtitles.length > 0}
                 subtitlesEnabled={displaySubtitles}
                 offsetEnabled={true}

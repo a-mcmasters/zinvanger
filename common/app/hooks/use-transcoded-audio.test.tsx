@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import type { FileWithId } from '@project/common/file-selector';
 import { TestHost, webmHeader } from '@project/common/audio-transcode/test-host';
-import { useTranscodedAudio } from '@project/common/app/hooks/use-transcoded-audio';
+import { convertedAudioTrackModels, useTranscodedAudio } from '@project/common/app/hooks/use-transcoded-audio';
 import Alert from '@project/common/app/components/Alert';
 
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -21,6 +21,9 @@ const Harness = ({ file, host }: { file?: FileWithId; host: TestHost }) => {
                 data-complete={conversion.state === 'ready'}
                 data-required={conversion.required}
                 data-error={conversion.error === undefined ? undefined : String(conversion.error)}
+                data-tracks={conversion.tracks?.length}
+                data-selected={conversion.selectedTrackIndex}
+                data-attempt={conversion.attempt}
             >
                 {conversion.codecName}
             </output>
@@ -33,6 +36,33 @@ const Harness = ({ file, host }: { file?: FileWithId; host: TestHost }) => {
             >
                 Conversion failed
             </Alert>
+            <button data-select-first onClick={() => conversion.selectTrack(0)}>
+                First track
+            </button>
+            <button data-select-second onClick={() => conversion.selectTrack(1)}>
+                Second track
+            </button>
+            <button
+                data-select-second-twice
+                onClick={() => {
+                    // Two choices delivered before React re-renders.
+                    conversion.selectTrack(1);
+                    conversion.selectTrack(1);
+                }}
+            >
+                Second track twice
+            </button>
+            <button
+                data-switch-then-old-failure
+                onClick={() => {
+                    // The previous track's audio fails after the switch, before React re-renders.
+                    const previousAttempt = conversion.attempt;
+                    conversion.selectTrack(1);
+                    conversion.fail(new Error('Old track playback failed'), previousAttempt);
+                }}
+            >
+                Switch, then old failure
+            </button>
             <button data-fail onClick={() => conversion.fail(new Error('Playback failed'))}>
                 Fail
             </button>
@@ -58,20 +88,17 @@ const box = (type: string, ...parts: Uint8Array[]) => {
     }
     return bytes;
 };
-const audioHeader = box(
-    'moov',
+const audioTrak = box(
+    'trak',
     box(
-        'trak',
-        box(
-            'mdia',
-            box('hdlr', new Uint8Array(8), new Uint8Array([115, 111, 117, 110])), // soun
-            box('minf', box('stbl', box('stsd', new Uint8Array([0, 0, 0, 0, 0, 0, 0, 1]), box('ac-3'))))
-        )
+        'mdia',
+        box('hdlr', new Uint8Array(8), new Uint8Array([115, 111, 117, 110])), // soun
+        box('minf', box('stbl', box('stsd', new Uint8Array([0, 0, 0, 0, 0, 0, 0, 1]), box('ac-3'))))
     )
 );
-const file = (id: string): FileWithId => ({
+const file = (id: string, audioTracks = 1): FileWithId => ({
     id,
-    file: new File([audioHeader], `${id}.mp4`),
+    file: new File([box('moov', ...Array.from({ length: audioTracks }, () => audioTrak))], `${id}.mp4`),
 });
 const state = () => container.querySelector('output')!.getAttribute('data-state');
 const render = async (file: FileWithId | undefined, host: TestHost) => {
@@ -167,6 +194,110 @@ it('starts converting an undecodable track automatically and reports its codec',
     expect(host.workers).toHaveLength(1);
     await act(async () => host.workers[0].complete());
     await waitForComplete();
+});
+
+it('converts another audio track when the user chooses it', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    const trackIndexes: number[] = [];
+    const transcodeAudio = host.transcodeAudio;
+    host.transcodeAudio = (options) => {
+        trackIndexes.push(options.trackIndex);
+        return transcodeAudio(options);
+    };
+    await render(file('a', 2), host);
+    await waitForState('transcoding');
+    const output = container.querySelector('output')!;
+    expect(output.getAttribute('data-tracks')).toBe('2');
+    expect(output.getAttribute('data-selected')).toBe('0');
+    expect(output.getAttribute('data-attempt')).toBe('1');
+
+    await click('[data-select-second]');
+    await waitForWorker(host, 1);
+    expect(trackIndexes).toEqual([0, 1]);
+    expect(output.getAttribute('data-selected')).toBe('1');
+    expect(output.getAttribute('data-attempt')).toBe('2');
+    expect(state()).toBe('transcoding');
+
+    // Choosing the track that is already converting must not throw that work away.
+    await click('[data-select-second]');
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(trackIndexes).toEqual([0, 1]);
+    expect(host.workers).toHaveLength(2);
+});
+
+const recordTrackIndexes = (host: TestHost) => {
+    const trackIndexes: number[] = [];
+    const transcodeAudio = host.transcodeAudio;
+    host.transcodeAudio = (options) => {
+        trackIndexes.push(options.trackIndex);
+        return transcodeAudio(options);
+    };
+    return trackIndexes;
+};
+
+it('restarts conversion only once when the same track is chosen twice before a re-render', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    const trackIndexes = recordTrackIndexes(host);
+    await render(file('a', 2), host);
+    await waitForWorker(host);
+    await click('[data-select-second-twice]');
+    await waitForWorker(host, 1);
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(trackIndexes).toEqual([0, 1]);
+});
+
+it('ignores a playback failure from the conversion a track switch replaced', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    await render(file('a', 2), host);
+    await waitForWorker(host);
+    await click('[data-switch-then-old-failure]');
+    await waitForWorker(host, 1);
+    expect(state()).toBe('transcoding');
+    expect(host.workers[1].active).toBe(true);
+    expect(container.querySelector('output')!.getAttribute('data-selected')).toBe('1');
+});
+
+it('converts another track after the first conversion finished', async () => {
+    const host = new TestHost();
+    const trackIndexes = recordTrackIndexes(host);
+    await render(file('a', 2), host);
+    await waitForComplete();
+    await click('[data-select-second]');
+    await waitForWorker(host, 1);
+    await waitForComplete();
+    expect(trackIndexes).toEqual([0, 1]);
+    expect(container.querySelector('output')!.getAttribute('data-selected')).toBe('1');
+});
+
+it('retries the chosen track after its conversion failed', async () => {
+    const host = new TestHost();
+    host.autoComplete = false;
+    const trackIndexes = recordTrackIndexes(host);
+    await render(file('a', 2), host);
+    await waitForWorker(host);
+    await click('[data-fail]');
+    expect(state()).toBe('failed');
+    await click('[data-select-first]');
+    await waitForWorker(host, 1);
+    expect(trackIndexes).toEqual([0, 0]);
+    expect(state()).toBe('transcoding');
+});
+
+it('offers no track choice when converted audio cannot play', async () => {
+    const host = new TestHost();
+    host.supportsAudioPlayback = () => false;
+    await render(file('a', 2), host);
+    await waitForRequirement();
+    expect(container.querySelector('output')!.getAttribute('data-tracks')).toBeNull();
+    await click('[data-select-second]');
+    expect(host.workers).toHaveLength(0);
 });
 
 it('retains complete audio for mining and clears it when the file changes', async () => {
@@ -271,4 +402,30 @@ it('dismisses the notice without clearing the failure and shows a new failure fo
     await waitForWorker(host, 1);
     await waitForState('failed');
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
+});
+
+it('labels track choices so no two look the same', () => {
+    expect(
+        convertedAudioTrackModels([
+            { index: 0, codec: 'eac3', language: 'eng', name: 'English' },
+            { index: 1, codec: 'eac3', language: 'dut', name: '' },
+        ])
+    ).toEqual([
+        { id: 'converted-0', language: 'eng', label: 'English' },
+        { id: 'converted-1', language: 'dut', label: '#2' },
+    ]);
+    // A generated suffix must not collide with a name that already looks like one.
+    const labels = convertedAudioTrackModels([
+        { index: 0, codec: 'eac3', language: 'eng', name: 'Stereo' },
+        { index: 1, codec: 'eac3', language: 'eng', name: 'Stereo' },
+        { index: 2, codec: 'eac3', language: 'eng', name: 'Stereo #1' },
+    ]).map(({ label }) => label);
+    expect(labels).toEqual(['Stereo #1', 'Stereo #2', 'Stereo #1 #3']);
+    // The menu collapses whitespace, so names differing only in spacing look the same.
+    expect(
+        convertedAudioTrackModels([
+            { index: 0, codec: 'eac3', language: 'eng', name: 'Director  Commentary' },
+            { index: 1, codec: 'eac3', language: 'eng', name: 'Director Commentary' },
+        ]).map(({ label }) => label)
+    ).toEqual(['Director Commentary #1', 'Director Commentary #2']);
 });

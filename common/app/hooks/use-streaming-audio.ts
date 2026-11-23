@@ -16,16 +16,23 @@ export const useStreamingAudio = ({
     conversion: TranscodedAudioPayload;
     video: HTMLVideoElement | undefined;
     onBuffered: (range: AudioSeekableRange | undefined) => void;
-    onError: (error: unknown) => void;
-}) => {
-    const [url, setUrl] = useState<string>();
+    /** Receives the conversion attempt whose audio failed, which may be superseded by now. */
+    onError: (error: unknown, attempt: number | undefined) => void;
+}): { url: string | undefined; attempt: number | undefined } => {
+    // The attempt is kept with its URL so errors from a superseded source can be told apart.
+    const [source, setSource] = useState<{ url: string | undefined; attempt: number | undefined }>({
+        url: undefined,
+        attempt: undefined,
+    });
     const stream = useRef<StreamingAudioSource>(undefined);
     const latest = useRef({ conversion, video, onBuffered, onError });
     latest.current = { conversion, video, onBuffered, onError };
-    const { state, audio } = conversion;
+    // A new track restarts conversion without leaving 'transcoding', so it needs a fresh MediaSource too.
+    const { state, audio, attempt } = conversion;
 
     useEffect(() => {
         const conversion = latest.current.conversion;
+        const setUrl = (url: string | undefined) => setSource({ url, attempt });
         if (!usesConvertedAudio(conversion.state)) {
             setUrl(undefined);
             latest.current.onBuffered(undefined);
@@ -49,7 +56,7 @@ export const useStreamingAudio = ({
         const source = createStreamingAudio({
             currentTimeMs: () => (latest.current.video?.currentTime ?? 0) * 1000,
             onBuffered: (range) => latest.current.onBuffered(range),
-            onError: (error) => latest.current.onError(error),
+            onError: (error) => latest.current.onError(error, attempt),
         });
         stream.current = source;
         asbTrace('audio/streaming', 'Using progressive MediaSource audio', { url: source.url });
@@ -60,11 +67,11 @@ export const useStreamingAudio = ({
             source.dispose();
             stream.current = undefined;
         };
-    }, [state]);
+    }, [state, attempt]);
 
     useEffect(() => {
         if (audio !== undefined && state === 'transcoding') stream.current?.append(audio);
     }, [audio, state]);
 
-    return url;
+    return source;
 };

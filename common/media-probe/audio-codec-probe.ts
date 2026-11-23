@@ -4,7 +4,7 @@ import {
     isoBmffBoxTypeOffset,
     isoBmffBoxTypeBytes,
 } from '@project/common/media-probe/iso-bmff';
-import { matroskaAudioCodecIds } from '@project/common/media-probe/matroska';
+import { matroskaAudioTracks } from '@project/common/media-probe/matroska';
 import { ebmlHeaderId, ebmlHeaderIdBytes } from '@project/common/media-probe/ebml';
 import { asbTrace, asbWarn } from '@project/common/util/log';
 
@@ -14,6 +14,8 @@ export interface ProbedAudioTrack {
      */
     readonly index: number;
     readonly codec: string;
+    readonly language?: string;
+    readonly name?: string;
 }
 
 const containerProbeBytes = 12;
@@ -81,7 +83,7 @@ const codecFromIsoBmffFormat = (format: string) => isoBmffCodecs[format] ?? form
 interface ProbedContainer {
     /** MIME type used to ask the browser whether it can play this container at all. */
     readonly mimeType: string;
-    readonly audioCodecs: string[];
+    readonly audioTracks: Omit<ProbedAudioTrack, 'index'>[];
 }
 
 /** Recognizes the container signature and normalizes its format-specific audio codec IDs. */
@@ -93,13 +95,26 @@ const probeContainer = async (reader: ByteReader): Promise<ProbedContainer | und
     }
 
     if ((await reader.unsignedInt(0, ebmlHeaderIdBytes)) === ebmlHeaderId) {
-        const codecIds = await matroskaAudioCodecIds(reader);
-        return codecIds && { mimeType: 'video/x-matroska', audioCodecs: codecIds.map(codecFromMatroskaCodecId) };
+        const tracks = await matroskaAudioTracks(reader);
+        return (
+            tracks && {
+                mimeType: 'video/x-matroska',
+                audioTracks: tracks.map(({ codecId, ...track }) => ({
+                    ...track,
+                    codec: codecFromMatroskaCodecId(codecId),
+                })),
+            }
+        );
     }
 
     if (isoBmffTopLevelBoxTypes.includes((await reader.ascii(isoBmffBoxTypeOffset, isoBmffBoxTypeBytes)) ?? '')) {
         const formats = await isoBmffAudioSampleFormats(reader);
-        return formats && { mimeType: 'video/mp4', audioCodecs: formats.map(codecFromIsoBmffFormat) };
+        return (
+            formats && {
+                mimeType: 'video/mp4',
+                audioTracks: formats.map((format) => ({ codec: codecFromIsoBmffFormat(format) })),
+            }
+        );
     }
 
     return;
@@ -134,10 +149,11 @@ export const audioCodecDisplayName = (codec: string) => displayNamesByCodec[code
  * playable and unplayable tracks a browser falls back to one it can decode, so transcoding would
  * be pointless.
  *
- * @returns the track to transcode, or undefined when the file plays fine, has no audio, or is in a
- * container that could not be parsed.
+ * @returns the audio tracks the user can choose from, in order, the first being the default to
+ * transcode; or undefined when the file plays fine, has no audio, or is in a container that could
+ * not be parsed.
  */
-export const audioTrackRequiringTranscode = async (blob: Blob): Promise<ProbedAudioTrack | undefined> => {
+export const audioTracksRequiringTranscode = async (blob: Blob): Promise<ProbedAudioTrack[] | undefined> => {
     const startedAt = performance.now();
     asbTrace('media/probe', 'Probing source audio', { inputBytes: blob.size, inputType: blob.type });
     let container: ProbedContainer | undefined;
@@ -149,7 +165,7 @@ export const audioTrackRequiringTranscode = async (blob: Blob): Promise<ProbedAu
         return;
     }
 
-    if (container === undefined || container.audioCodecs.length === 0) {
+    if (container === undefined || container.audioTracks.length === 0) {
         asbTrace('media/probe', 'Skipping audio conversion', {
             reason: container === undefined ? 'unrecognized-container' : 'no-audio-tracks',
             inputBytes: blob.size,
@@ -159,7 +175,7 @@ export const audioTrackRequiringTranscode = async (blob: Blob): Promise<ProbedAu
 
     asbTrace('media/probe', 'Detected audio codecs', {
         container: container.mimeType,
-        codecs: container.audioCodecs,
+        codecs: container.audioTracks.map(({ codec }) => codec),
         inputBytes: blob.size,
         elapsedMs: performance.now() - startedAt,
     });
@@ -171,11 +187,11 @@ export const audioTrackRequiringTranscode = async (blob: Blob): Promise<ProbedAu
         return;
     }
 
-    if (container.audioCodecs.some(browserCanDecodeAudioCodec)) {
+    if (container.audioTracks.some(({ codec }) => browserCanDecodeAudioCodec(codec))) {
         asbTrace('media/probe', 'Skipping audio conversion: browser can decode an existing audio track');
         return;
     }
 
-    asbTrace('media/probe', 'Audio conversion required', { trackIndex: 0, codec: container.audioCodecs[0] });
-    return { index: 0, codec: container.audioCodecs[0] };
+    asbTrace('media/probe', 'Audio conversion required', { tracks: container.audioTracks });
+    return container.audioTracks.map((track, index) => ({ ...track, index }));
 };

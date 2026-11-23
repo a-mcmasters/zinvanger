@@ -82,7 +82,8 @@ export default class VideoChannel {
         url: string | undefined,
         postMineAction: PostMineAction,
         id: string | undefined,
-        mediaTimestamp: number | undefined
+        mediaTimestamp: number | undefined,
+        convertedAudio: TranscodedAudioPayload | undefined
     ) => void)[];
     private hideSubtitlePlayerToggleCallbacks: (() => void)[];
     private appBarToggleCallbacks: (() => void)[];
@@ -107,7 +108,7 @@ export default class VideoChannel {
     oncanplay: ((ev: Event) => void) | null = null;
     onTokenSelectionFocus: (() => void) | null = null;
     audioTracks?: AudioTrackModel[];
-    private audioConversionFailedCallbacks: (() => void)[] = [];
+    private audioConversionFailedCallbacks: ((attempt: number | undefined) => void)[] = [];
     audioSeekableRange?: { readonly start: number; readonly end: number };
     private latestTranscodedAudio?: TranscodedAudioToVideoMessage;
     selectedAudioTrack?: string;
@@ -169,7 +170,8 @@ export default class VideoChannel {
                     break;
                 }
                 case 'audioConversionFailed': {
-                    for (const callback of this.audioConversionFailedCallbacks) callback();
+                    const { attempt } = event.data as { attempt?: number };
+                    for (const callback of this.audioConversionFailedCallbacks) callback(attempt);
                     break;
                 }
                 case 'requestTranscodedAudio': {
@@ -279,7 +281,8 @@ export default class VideoChannel {
                             copyMessage.url,
                             copyMessage.postMineAction ?? PostMineAction.none,
                             copyMessage.id,
-                            copyMessage.mediaTimestamp
+                            copyMessage.mediaTimestamp,
+                            copyMessage.convertedAudio
                         );
                     }
                     break;
@@ -465,7 +468,8 @@ export default class VideoChannel {
             url: string | undefined,
             postMineAction: PostMineAction,
             id: string | undefined,
-            mediaTimestamp: number | undefined
+            mediaTimestamp: number | undefined,
+            convertedAudio: TranscodedAudioPayload | undefined
         ) => void
     ) {
         this.copyCallbacks.push(callback);
@@ -573,7 +577,7 @@ export default class VideoChannel {
         this.protocol.postMessage(message);
     }
 
-    onAudioConversionFailed(callback: () => void) {
+    onAudioConversionFailed(callback: (attempt: number | undefined) => void) {
         this.audioConversionFailedCallbacks.push(callback);
         return () => this._remove(callback, this.audioConversionFailedCallbacks);
     }

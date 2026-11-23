@@ -237,6 +237,8 @@ export interface StopRecordingMediaMessage extends Message, ImageCaptureParams {
 export interface CopyMessage extends Message, CardModel {
     readonly command: 'copy';
     readonly postMineAction?: PostMineAction;
+    /** Converted audio the sender checked covers the subtitle; the owner's latest may be another track by now. */
+    readonly convertedAudio?: TranscodedAudioPayload;
 }
 
 export interface PublishCardMessage extends Message, CardModel {
@@ -497,6 +499,11 @@ export type TranscodedAudioPayload = {
     /** The original track must not be recorded, even if conversion is unavailable or fails. */
     readonly required: boolean;
     readonly codecName?: string;
+    /** The file's audio tracks, any of which can be chosen for conversion via `audioTrackSelected`. */
+    readonly tracks?: AudioTrackModel[];
+    readonly selectedTrack?: string;
+    /** Identifies the conversion this audio comes from; see `useTranscodedAudio`. */
+    readonly attempt?: number;
 } & (
     | { readonly state: 'idle' | 'failed'; readonly audio?: never }
     | { readonly state: 'transcoding'; readonly audio?: Blob }

@@ -93,7 +93,12 @@ import type {
 import { createTheme } from '@project/common/theme/theme';
 import Alert, { AlertStack } from '@project/common/app/components/Alert';
 import type { AlertNotification } from '@project/common/app/components/Alert';
-import { useTranscodedAudio } from '@project/common/app/hooks/use-transcoded-audio';
+import {
+    convertedAudioTrackId,
+    convertedAudioTrackModels,
+    convertedAudioTrackPrefix,
+    useTranscodedAudio,
+} from '@project/common/app/hooks/use-transcoded-audio';
 import { clampAudioSeekMs } from '@project/common/audio-transcode/streaming-audio';
 import type { AudioTranscodeHost } from '@project/common/audio-transcode';
 import useSnackbar from '@project/common/hooks/use-snackbar';
@@ -215,15 +220,25 @@ const Player = React.memo(React.forwardRef<PlayerRef, PlayerProps>(PlayerCompone
 
 /** Send only playback data across documents, preserving the relationship between state and audio. */
 function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAudio>): TranscodedAudioPayload {
-    const { required, codecName } = conversion;
+    const { required, codecName, selectedTrackIndex, attempt } = conversion;
+    const tracks = conversion.tracks && convertedAudioTrackModels(conversion.tracks);
+    const selectedTrack = selectedTrackIndex === undefined ? undefined : convertedAudioTrackId(selectedTrackIndex);
     switch (conversion.state) {
         case 'idle':
         case 'failed':
-            return { state: conversion.state, required, codecName };
+            return { state: conversion.state, required, codecName, tracks, selectedTrack, attempt };
         case 'transcoding':
-            return { state: 'transcoding', audio: conversion.blob, required, codecName };
+            return {
+                state: 'transcoding',
+                audio: conversion.blob,
+                required,
+                codecName,
+                tracks,
+                selectedTrack,
+                attempt,
+            };
         case 'ready':
-            return { state: 'ready', audio: conversion.blob, required, codecName };
+            return { state: 'ready', audio: conversion.blob, required, codecName, tracks, selectedTrack, attempt };
     }
 }
 
@@ -1056,14 +1071,19 @@ function PlayerComponent(
     );
     // Sent over the channel rather than as an iframe query parameter: changing the iframe src
     // unloads the player frame, which the outer frame treats as the video being closed.
+    const transcodedAudioPayload = useMemo(() => toTranscodedAudioPayload(transcodedAudio), [transcodedAudio]);
     useEffect(() => {
         if (channel === undefined) return;
 
         // The channel caches this state so a newly subscribed frame can request it before video readiness.
-        channel.transcodedAudio(toTranscodedAudioPayload(transcodedAudio));
-    }, [channel, transcodedAudio]);
+        channel.transcodedAudio(transcodedAudioPayload);
+    }, [channel, transcodedAudioPayload]);
     useEffect(
-        () => channel?.onAudioConversionFailed(() => failAudioConversion(new Error('Opus playback failed'))),
+        () =>
+            channel?.onAudioConversionFailed((attempt) => {
+                // Untagged reports can't be attributed to a conversion, so they must not cancel the current one.
+                if (attempt !== undefined) failAudioConversion(new Error('Opus playback failed'), attempt);
+            }),
         [channel, failAudioConversion]
     );
     useEffect(() => channel?.ankiSettings(settings), [channel, settings]);
@@ -1145,15 +1165,18 @@ function PlayerComponent(
                     url,
                     postMineAction,
                     id,
-                    mediaTimestamp
+                    mediaTimestamp,
+                    convertedAudio
                 ) => {
                     try {
-                        const currentAudio = transcodedAudioRef.current;
+                        // Prefer the audio the video player checked; the latest may be another track by now.
+                        const currentAudio = convertedAudio ?? toTranscodedAudioPayload(transcodedAudioRef.current);
                         const transcodedAudioSource = AudioClip.createTranscodedAudioSource({
-                            audio: currentAudio.blob,
+                            audio: currentAudio.audio,
                             required: currentAudio.required,
                             complete: currentAudio.state === 'ready',
                         });
+                        const audioTrack = channel?.selectedAudioTrack;
                         onCopy(
                             {
                                 subtitle,
@@ -1165,7 +1188,10 @@ function PlayerComponent(
                                     ? {
                                           name: videoFile.file.name,
                                           blobUrl: createBlobUrl(videoFile.file),
-                                          audioTrack: channel?.selectedAudioTrack,
+                                          // Converted track ids aren't the video element's; the converted audio is used instead.
+                                          audioTrack: audioTrack?.startsWith(convertedAudioTrackPrefix)
+                                              ? undefined
+                                              : audioTrack,
                                           playbackRate: channel?.playbackRate,
                                           transcodedAudio: transcodedAudioSource,
                                       }
@@ -1208,6 +1234,14 @@ function PlayerComponent(
     useEffect(
         () =>
             channel?.onAudioTrackSelected((id) => {
+                const convertedTrack = transcodedAudioRef.current.tracks?.find(
+                    ({ index }) => convertedAudioTrackId(index) === id
+                );
+                if (convertedTrack) {
+                    transcodedAudioRef.current.selectTrack(convertedTrack.index);
+                    return;
+                }
+
                 void (async () => {
                     const playing = clock.running;
 
@@ -1380,6 +1414,18 @@ function PlayerComponent(
 
     const handleAudioTrackSelected = useCallback(
         async (id: string) => {
+            const convertedTrack = transcodedAudioRef.current.tracks?.find(
+                ({ index }) => convertedAudioTrackId(index) === id
+            );
+            if (convertedTrack) {
+                // Applied here rather than through the video player, which may still be opening (a pop-out) or
+                // have a newer choice of its own pending; it learns the result from the transcodedAudio payload.
+                const switched = transcodedAudioRef.current.selectTrack(convertedTrack.index);
+                // Like the video's own controls: converting another track keeps the playback position.
+                if (switched) pause(clock, mediaAdapter, true);
+                return;
+            }
+
             channel?.audioTrackSelected(id);
             pause(clock, mediaAdapter, true);
 
@@ -1759,8 +1805,12 @@ function PlayerComponent(
                                     ? (channel?.audioSeekableRange?.end ?? 0)
                                     : undefined
                             }
-                            audioTracks={audioTracks}
-                            selectedAudioTrack={selectedAudioTrack}
+                            audioTracks={transcodedAudioPayload.tracks ?? audioTracks}
+                            selectedAudioTrack={
+                                transcodedAudioPayload.tracks
+                                    ? transcodedAudioPayload.selectedTrack
+                                    : selectedAudioTrack
+                            }
                             tabs={(!videoFileUrl && availableTabs) || undefined}
                             selectedTab={tab}
                             offsetEnabled={true}
