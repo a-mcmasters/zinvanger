@@ -221,7 +221,7 @@ function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAud
     const tracks = conversion.tracks?.map(({ index, language, name }) => ({
         id: convertedAudioTrackId(index),
         language: language ?? '',
-        label: name ?? (language ? '' : `#${index + 1}`),
+        label: name ?? `#${index + 1}`,
     }));
     const selectedTrack = selectedTrackIndex === undefined ? undefined : convertedAudioTrackId(selectedTrackIndex);
     switch (conversion.state) {

@@ -1062,8 +1062,11 @@ export default function VideoPlayer({
         });
 
         playerChannel.onAudioTrackSelected((id) => {
-            selectAudioTrack(id);
-            setSelectedAudioTrack(id);
+            // Converted tracks are tracked by the owner, not as the element's selected track.
+            if (!convertedAudioRef.current.tracks?.some((track) => track.id === id)) {
+                selectAudioTrack(id);
+                setSelectedAudioTrack(id);
+            }
             playerChannel.audioTrackSelected(id);
         });
 

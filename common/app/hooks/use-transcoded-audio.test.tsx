@@ -191,6 +191,14 @@ it('converts another audio track when the user chooses it', async () => {
     expect(trackIndexes).toEqual([0, 1]);
     expect(output.getAttribute('data-selected')).toBe('1');
     expect(state()).toBe('transcoding');
+
+    // Choosing the track that is already converting must not throw that work away.
+    await click('[data-select-second]');
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(trackIndexes).toEqual([0, 1]);
+    expect(host.workers).toHaveLength(2);
 });
 
 it('retains complete audio for mining and clears it when the file changes', async () => {

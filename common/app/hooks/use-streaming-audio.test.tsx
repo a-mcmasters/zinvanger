@@ -91,3 +91,12 @@ it.each(['idle', 'failed'] as const)(
         expect(url()).toBe('');
     }
 );
+
+it('replaces the MSE source when another track starts converting mid-stream', async () => {
+    await render({ state: 'transcoding', required: true, audio: prefix, selectedTrack: 'converted-0' });
+    expect(url()).toBe('blob:audio-1');
+    await render({ state: 'transcoding', required: true, selectedTrack: 'converted-1' });
+    expect(url()).toBe('blob:audio-2');
+    expect(created[1]).toBeInstanceOf(Source);
+    expect(released).toEqual(['blob:audio-1']);
+});

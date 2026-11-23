@@ -22,7 +22,8 @@ export const useStreamingAudio = ({
     const stream = useRef<StreamingAudioSource>(undefined);
     const latest = useRef({ conversion, video, onBuffered, onError });
     latest.current = { conversion, video, onBuffered, onError };
-    const { state, audio } = conversion;
+    // A new track restarts conversion without leaving 'transcoding', so it needs a fresh MediaSource too.
+    const { state, audio, selectedTrack } = conversion;
 
     useEffect(() => {
         const conversion = latest.current.conversion;
@@ -60,7 +61,7 @@ export const useStreamingAudio = ({
             source.dispose();
             stream.current = undefined;
         };
-    }, [state]);
+    }, [state, selectedTrack]);
 
     useEffect(() => {
         if (audio !== undefined && state === 'transcoding') stream.current?.append(audio);

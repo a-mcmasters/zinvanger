@@ -124,7 +124,8 @@ export const useTranscodedAudio = (
                 videoFile === undefined ||
                 host === undefined ||
                 !host.supportsAudioPlayback() ||
-                !tracks?.some((track) => track.index === index)
+                !tracks?.some((track) => track.index === index) ||
+                (index === selectedTrackIndex && conversion.state !== 'failed')
             ) {
                 return;
             }
@@ -135,7 +136,7 @@ export const useTranscodedAudio = (
             });
             void convert(videoFile, index, host);
         },
-        [videoFile, host, tracks, convert]
+        [videoFile, host, tracks, selectedTrackIndex, conversion.state, convert]
     );
 
     const fail = useCallback((error: unknown) => {
