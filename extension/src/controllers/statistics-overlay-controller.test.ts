@@ -160,7 +160,7 @@ describe('StatisticsOverlayController mobile overlay positioning', () => {
         jest.mocked(uiFrameForSrc)
             .mockReturnValueOnce(failed as any)
             .mockReturnValueOnce(retried as any);
-        jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
         const controller = new StatisticsOverlayController([]);
         controller.bind();
         const openDetails = async () => {
@@ -179,16 +179,20 @@ describe('StatisticsOverlayController mobile overlay positioning', () => {
                     () => {}
                 );
             }
-            for (let i = 0; i < 10; ++i) await Promise.resolve();
+            await new Promise((resolve) => setTimeout(resolve, 0)); // let the whole async open settle
         };
 
-        await openDetails();
-        expect(failed.hidden).toBe(true);
-        await openDetails();
-        expect(retried.hidden).toBe(false);
+        try {
+            await openDetails();
+            expect(failed.hidden).toBe(true);
+            await openDetails();
+            expect(retried.hidden).toBe(false);
 
-        retried.close();
-        expect(retried.hidden).toBe(true);
-        controller.unbind();
+            retried.close();
+            expect(retried.hidden).toBe(true);
+        } finally {
+            controller.unbind();
+            consoleError.mockRestore();
+        }
     });
 });

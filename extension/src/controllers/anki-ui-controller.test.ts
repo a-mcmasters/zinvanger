@@ -80,7 +80,7 @@ describe('AnkiUiController', () => {
         expect(mockFrame.show).not.toHaveBeenCalled();
     });
 
-    it('leaves the frame hidden when building the dialog state fails, so it cannot block page clicks', async () => {
+    it('does not show its frame when building the dialog state fails', async () => {
         const binding = fakeBinding();
         binding.settings.profiles = () => Promise.reject(new Error('storage unavailable'));
 

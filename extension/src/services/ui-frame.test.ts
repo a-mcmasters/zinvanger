@@ -47,8 +47,7 @@ describe('UiFrame', () => {
         let dialogBindSettled = false;
         const settingsClient = frame.client().then(() => (settingsClientReady = true));
         const dialogBind = frame.bind().finally(() => (dialogBindSettled = true));
-        await Promise.resolve();
-        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0)); // a full turn while the bridge load stays pending
         expect(settingsClientReady).toBe(false);
         expect(dialogBindSettled).toBe(false);
 
