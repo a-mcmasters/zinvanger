@@ -219,12 +219,19 @@ const convertedAudioTrackId = (index: number) => `${convertedAudioTrackPrefix}${
 /** Send only playback data across documents, preserving the relationship between state and audio. */
 function toTranscodedAudioPayload(conversion: ReturnType<typeof useTranscodedAudio>): TranscodedAudioPayload {
     const { required, codecName, selectedTrackIndex, attempt } = conversion;
-    const tracks = conversion.tracks?.map(({ index, language, name }) => ({
+    const named = conversion.tracks?.map(({ index, language, name }) => ({
         id: convertedAudioTrackId(index),
         language: language ?? '',
-        // Blank or zero-padded names would leave two same-language tracks looking identical.
+        // Blank or zero-padded names fall back to the track number.
         label: name?.trim() || `#${index + 1}`,
+        number: index + 1,
     }));
+    // Tracks that would still look identical, e.g. two "eng Stereo", get their number appended.
+    const tracks = named?.map(({ number, ...track }) =>
+        named.filter((other) => other.language === track.language && other.label === track.label).length > 1
+            ? { ...track, label: `${track.label} #${number}` }
+            : track
+    );
     const selectedTrack = selectedTrackIndex === undefined ? undefined : convertedAudioTrackId(selectedTrackIndex);
     switch (conversion.state) {
         case 'idle':
@@ -342,11 +349,6 @@ function PlayerComponent(
     const failAudioConversion = transcodedAudio.fail;
     const transcodedAudioRef = useRef(transcodedAudio);
     transcodedAudioRef.current = transcodedAudio;
-    // The converted track most recently asked for; the conversion's selected track lags until the round trip ends.
-    const requestedConvertedTrackRef = useRef<number>(undefined);
-    useEffect(() => {
-        if (transcodedAudio.tracks === undefined) requestedConvertedTrackRef.current = undefined;
-    }, [transcodedAudio.tracks]);
     const syntheticPlayback = videoFileUrl === undefined && tab === undefined;
     const playModeEnabled = subtitles && subtitles.length > 0 && Boolean(videoFileUrl);
     const [subtitlePlayerResizing, setSubtitlePlayerResizing] = useState<boolean>(false);
@@ -1088,9 +1090,10 @@ function PlayerComponent(
     }, [channel, transcodedAudioPayload]);
     useEffect(
         () =>
-            channel?.onAudioConversionFailed((attempt) =>
-                failAudioConversion(new Error('Opus playback failed'), attempt)
-            ),
+            channel?.onAudioConversionFailed((attempt) => {
+                // Untagged reports can't be attributed to a conversion, so they must not cancel the current one.
+                if (attempt !== undefined) failAudioConversion(new Error('Opus playback failed'), attempt);
+            }),
         [channel, failAudioConversion]
     );
     useEffect(() => channel?.ankiSettings(settings), [channel, settings]);
@@ -1421,13 +1424,11 @@ function PlayerComponent(
 
     const handleAudioTrackSelected = useCallback(
         async (id: string) => {
-            const converted = transcodedAudioRef.current;
-            const convertedTrack = converted.tracks?.find(({ index }) => convertedAudioTrackId(index) === id);
-            // Choosing the track already being converted changes nothing, so don't interrupt playback.
-            const current = requestedConvertedTrackRef.current ?? converted.selectedTrackIndex;
-            if (convertedTrack && convertedTrack.index === current && converted.state !== 'failed') return;
-            if (convertedTrack) requestedConvertedTrackRef.current = convertedTrack.index;
-
+            // Always forwarded: the video player tracks the latest request from either control path, and
+            // the owner's hook ignores a repeat of the current track.
+            const convertedTrack = transcodedAudioRef.current.tracks?.some(
+                ({ index }) => convertedAudioTrackId(index) === id
+            );
             channel?.audioTrackSelected(id);
             pause(clock, mediaAdapter, true);
 
