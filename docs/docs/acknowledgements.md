@@ -8,4 +8,4 @@ Zinvanger is a fork of [asbplayer](https://github.com/asbplayer/asbplayer), and 
 
 ## AI assistance {#ai-assistance}
 
-Parts of Zinvanger were written with help from AI coding assistants: [Claude](https://claude.com/claude-code) by Anthropic and [Codex](https://openai.com/codex) by OpenAI.
+Zinvanger was written with the help of AI coding assistants: [Claude](https://claude.com/claude-code) by Anthropic and [Codex](https://openai.com/codex) by OpenAI.
