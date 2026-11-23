@@ -74,6 +74,10 @@ The proxy passes through all AnkiConnect requests as-is except for `addNote`. Th
 The server is configured with an `.env` file placed next to it in the same directory. Below is an example file with explanation.
 
 ```
+# Address that the proxy will listen on. The default only accepts connections from this computer.
+# 0.0.0.0 lets any device on your network send AnkiConnect actions (including deleting decks) through the proxy.
+HOST=127.0.0.1
+
 # Port that the proxy will listen on
 PORT=8766
 

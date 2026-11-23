@@ -23,7 +23,7 @@ Use the video name shown in the **Load Subtitles** picker as the key. The server
 
 Open the video in the extension with the server running. Select **Nederlands (Whisper)** in **Load Subtitles**. With [Auto-load detected subtitles](../reference/settings.md#auto-load-detected-subtitles) enabled, asbplayer selects the Whisper track when the site has no saved choice or its first saved language is Dutch. Saved choices for other languages and explicit empty tracks still apply.
 
-In Chrome, **Load Subtitles → Transcribe this episode** records the episode tab. When the site autoplays the next episode, a new recording starts on its own from 0:00. Choose **Finish and transcribe** or **Cancel** to stop. The recording is saved to `asbplayer-transcripts/audio/` every 30 seconds while it plays, so a browser or extension crash loses at most the last 30 seconds. To transcribe a recording that never finished, run `python transcriber/server.py transcribe "<file>.webm" --key "<video name>"`.
+In Chrome, **Load Subtitles → Transcribe this episode** records the episode tab. When the site autoplays the next episode, a new recording starts on its own from 0:00. Choose **Finish and transcribe** or **Cancel** to stop. The recording is saved to `asbplayer-transcripts/audio/` every 30 seconds while it plays, so a browser or extension crash loses at most the last 30 seconds. To transcribe a recording that never finished, run `python transcriber/server.py transcribe "<file>.webm" --key "<video name>"`. Recording needs the same token as Anki lookups (steps 1 to 3 [below](#set-up-automatic-anki-lookups)), so other web pages can't upload audio or start jobs on the server.
 
 ## Set up automatic Anki lookups
 

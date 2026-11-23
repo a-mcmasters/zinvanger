@@ -166,6 +166,7 @@ test('packages changed service defaults and names for Python, Go, and the exampl
     const files = generatedProjectFiles(config);
     assert.deepEqual(JSON.parse(files['plugins/anki/asbplayer-addon/config.json']), {
         enabled: true,
+        host: '127.0.0.1',
         port: 9876,
         postMineAction: 1,
     });
@@ -182,6 +183,7 @@ test('packages changed service defaults and names for Python, Go, and the exampl
     assert.match(go, /defaultAnkiConnectURL = "http:\/\/localhost:9875"/);
     assert.match(go, /defaultPostMineAction = "1"/);
     const environment = files['scripts/web-socket-server/.env.example'];
+    assert.match(environment, /^HOST=127\.0\.0\.1$/m);
     assert.match(environment, /^PORT=9876$/m);
     assert.match(environment, /^ANKI_CONNECT_URL=http:\/\/localhost:9875$/m);
     assert.match(environment, /^POST_MINE_ACTION=1$/m);

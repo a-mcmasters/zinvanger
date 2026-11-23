@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -707,13 +708,17 @@ func (forwarder forwarder) disconnectWebsocketClients(c echo.Context) error {
 }
 
 func main() {
+	host := getenv("HOST", "")
+	if host == "" { // a blank HOST= must not mean every interface: this proxies every AnkiConnect action
+		host = "127.0.0.1"
+	}
 	port := getenv("PORT", defaultWebSocketPort)
 	ankiConnectUrl := getenv("ANKI_CONNECT_URL", defaultAnkiConnectURL)
 	postMineAction, _ := strconv.Atoi(getenv("POST_MINE_ACTION", defaultPostMineAction))
 	interceptField := getenv("INTERCEPT_FIELD", "")
 	interceptValue := getenv("INTERCEPT_VALUE", "")
-	fmt.Printf("Started with config:\n\n\tPORT=%v\n\tANKI_CONNECT_URL=%v\n\tPOST_MINE_ACTION=%v\n\tINTERCEPT_FIELD=%v\n\tINTERCEPT_VALUE=%v\n",
-		port, ankiConnectUrl, postMineAction, interceptField, interceptValue)
+	fmt.Printf("Started with config:\n\n\tHOST=%v\n\tPORT=%v\n\tANKI_CONNECT_URL=%v\n\tPOST_MINE_ACTION=%v\n\tINTERCEPT_FIELD=%v\n\tINTERCEPT_VALUE=%v\n",
+		host, port, ankiConnectUrl, postMineAction, interceptField, interceptValue)
 
 	e := echo.New()
 	e.Use(middleware.Recover())
@@ -746,5 +751,5 @@ func main() {
 		InterceptField:   interceptField,
 		InterceptValue:   interceptValue}
 	forwarder.registerRoutes(e)
-	e.Logger.Fatal(e.Start(":" + port))
+	e.Logger.Fatal(e.Start(net.JoinHostPort(host, port)))
 }
