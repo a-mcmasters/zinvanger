@@ -1571,6 +1571,20 @@ describe('Binding playback mode integration', () => {
         binding.unbind();
     });
 
+    it('keeps the remember-track-choices switch on when empty choices were remembered on a page without tracks', async () => {
+        mockUseRealSyncController = true;
+        await storage.set({ streamingLastLanguagesSynced: { [window.location.host]: ['-', '-', '-'] } });
+        const binding = new Binding(createVideo(), bindingOptions(false, false));
+        binding.bind();
+        await flushPlaybackTiming();
+        try {
+            await binding.videoDataSyncController.show({ reason: VideoDataUiOpenReason.userRequested });
+            expect(pickerStates.at(-1)).toMatchObject({ defaultCheckboxState: true });
+        } finally {
+            binding.unbind();
+        }
+    });
+
     it('does not revert subtitles when an older settings refresh completes last', async () => {
         const binding = new Binding(createVideo(), bindingOptions(false, false));
         binding.bind();

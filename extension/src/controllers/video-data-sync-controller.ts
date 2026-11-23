@@ -446,7 +446,7 @@ export default class VideoDataSyncController {
             return tracks;
         }
 
-        const emptyChoice = this.lastLanguagesSynced.some((lang) => lang !== '-') === undefined;
+        const emptyChoice = !this.lastLanguagesSynced.some((lang) => lang !== '-');
 
         if (!subtitleTrackChoices.length && emptyChoice) {
             tracks.completeMatch = true;
