@@ -1720,7 +1720,6 @@ function App({
             (event) => {
                 event.preventDefault();
                 event.stopImmediatePropagation();
-                setDisableKeyEvents(true);
                 handleOpenStatistics();
             },
             () => ankiDialogOpen || !supportsDictionaryStatistics,
