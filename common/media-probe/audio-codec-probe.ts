@@ -16,6 +16,8 @@ export interface ProbedAudioTrack {
     readonly codec: string;
     readonly language?: string;
     readonly name?: string;
+    /** The browser decodes and plays this track itself, so choosing it needs no conversion. */
+    readonly native?: boolean;
 }
 
 const containerProbeBytes = 12;
@@ -143,17 +145,16 @@ const browserCanDecodeAudioCodec = (codec: string) => {
 export const audioCodecDisplayName = (codec: string) => displayNamesByCodec[codec] ?? codec.toUpperCase();
 
 /**
- * Decides whether a file needs its audio transcoded to be heard at all.
+ * Lists the audio tracks a user can choose between by converting them.
  *
- * A file is only a problem when the browser can decode none of its audio tracks: given a mix of
- * playable and unplayable tracks a browser falls back to one it can decode, so transcoding would
- * be pointless.
+ * When the browser can decode none of the tracks, one must be converted to be heard at all. When it
+ * can decode one, it plays that track natively (marked `native`) but offers no way to pick another,
+ * so the others are only reachable by converting them.
  *
- * @returns the audio tracks the user can choose from, in order, the first being the default to
- * transcode; or undefined when the file plays fine, has no audio, or is in a container that could
- * not be parsed.
+ * @returns the audio tracks in order; or undefined when there's nothing to choose (a single track
+ * that plays natively), no audio, or a container that can't be played or parsed.
  */
-export const audioTracksRequiringTranscode = async (blob: Blob): Promise<ProbedAudioTrack[] | undefined> => {
+export const probeAudioTrackChoices = async (blob: Blob): Promise<ProbedAudioTrack[] | undefined> => {
     const startedAt = performance.now();
     asbTrace('media/probe', 'Probing source audio', { inputBytes: blob.size, inputType: blob.type });
     let container: ProbedContainer | undefined;
@@ -187,11 +188,17 @@ export const audioTracksRequiringTranscode = async (blob: Blob): Promise<ProbedA
         return;
     }
 
-    if (container.audioTracks.some(({ codec }) => browserCanDecodeAudioCodec(codec))) {
-        asbTrace('media/probe', 'Skipping audio conversion: browser can decode an existing audio track');
+    // Browsers play the first audio track they can decode and expose no way to pick another.
+    const nativeIndex = container.audioTracks.findIndex(({ codec }) => browserCanDecodeAudioCodec(codec));
+    if (nativeIndex !== -1 && container.audioTracks.length === 1) {
+        asbTrace('media/probe', 'Skipping audio conversion: the only audio track plays natively');
         return;
     }
 
-    asbTrace('media/probe', 'Audio conversion required', { tracks: container.audioTracks });
-    return container.audioTracks.map((track, index) => ({ ...track, index }));
+    asbTrace('media/probe', 'Audio tracks to choose from', { tracks: container.audioTracks, nativeIndex });
+    return container.audioTracks.map((track, index) => ({
+        ...track,
+        index,
+        ...(index === nativeIndex && { native: true }),
+    }));
 };

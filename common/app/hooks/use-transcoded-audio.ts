@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AudioTranscodeHost, AudioConversion } from '@project/common/audio-transcode';
 import type { FileWithId } from '@project/common/file-selector';
-import { audioCodecDisplayName, audioTracksRequiringTranscode } from '@project/common/media-probe';
+import { audioCodecDisplayName, probeAudioTrackChoices } from '@project/common/media-probe';
 import type { ProbedAudioTrack } from '@project/common/media-probe';
 import type { AudioTrackModel } from '@project/common';
 import { asbError, asbTrace, asbWarn } from '@project/common/util/log';
@@ -50,6 +50,9 @@ type TranscodedAudio = AudioConversion & {
  * Detects audio tracks the browser cannot decode - Dolby formats like E-AC-3, most commonly - and
  * automatically transcodes the first one into a playable format in the background. Another track
  * can be chosen with `selectTrack`, which restarts the conversion for that track.
+ *
+ * When the browser plays one track itself, nothing is converted until another track is chosen;
+ * choosing the native track again stops conversion and returns to the browser's own audio.
  */
 export const useTranscodedAudio = (
     videoFile: FileWithId | undefined,
@@ -121,8 +124,8 @@ export const useTranscodedAudio = (
         const detectAndConvert = async () => {
             let track: ProbedAudioTrack | undefined;
             try {
-                const tracks = await audioTracksRequiringTranscode(videoFile.file);
-                track = tracks?.[0];
+                const tracks = await probeAudioTrackChoices(videoFile.file);
+                track = tracks?.find(({ native }) => native) ?? tracks?.[0];
                 if (cancelled || tracks === undefined || track === undefined) return;
                 // Mining must avoid the original track even when conversion cannot start.
                 setTracks(tracks);
@@ -145,6 +148,7 @@ export const useTranscodedAudio = (
                 return;
             }
             setSelectable(true);
+            if (track.native) return;
             asbTrace('audio/transcode', 'Starting audio conversion', {
                 fileId: videoFile.id,
                 trackIndex: track.index,
@@ -173,6 +177,14 @@ export const useTranscodedAudio = (
             }
             selectionRef.current = { index, failed: false };
             setSelectedTrackIndex(index);
+            if (tracks?.find((track) => track.index === index)?.native) {
+                // Back to the browser's own audio; the new attempt disowns the stopped conversion's failures.
+                abortControllerRef.current?.abort();
+                abortControllerRef.current = undefined;
+                setAttempt(++attemptRef.current);
+                setConversion({ state: 'idle' });
+                return true;
+            }
             asbTrace('audio/transcode', 'Converting the chosen audio track', {
                 fileId: videoFile.id,
                 trackIndex: index,
@@ -195,7 +207,7 @@ export const useTranscodedAudio = (
     return useMemo(
         () => ({
             ...conversion,
-            required: track !== undefined,
+            required: track !== undefined && !track.native,
             codecName: track === undefined ? undefined : audioCodecDisplayName(track.codec),
             tracks: selectable ? tracks : undefined,
             selectedTrackIndex,
