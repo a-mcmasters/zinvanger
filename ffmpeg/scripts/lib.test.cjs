@@ -180,7 +180,7 @@ it('does not retry a local filesystem failure', async () => {
     await runScenario(`
         let requests = 0;
         globalThis.fetch = async () => { requests++; return new Response(body); };
-        await assert.rejects(download('https://example.test/runtime', destination, hash), { code: 'EISDIR' });
+        await assert.rejects(download('https://example.test/runtime', destination, hash), { code: process.platform === 'win32' ? 'EPERM' : 'EISDIR' });
         assert.equal(requests, 1);
         assert.deepEqual(delays, []);
     `);

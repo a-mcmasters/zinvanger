@@ -5,9 +5,12 @@ const { createHash } = require('node:crypto');
 const { chmod, copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { dirname, resolve } = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { promisify } = require('node:util');
 
 const exec = promisify(execFile);
+// These tests fake `gh` with an extensionless script, which Windows can't execute, so the real gh would run.
+const ghIt = process.platform === 'win32' ? it.skip : it;
 const repository = 'example/repo';
 const tag = 'ffmpeg-v0.2.0';
 const body = 'verified draft runtime';
@@ -147,7 +150,7 @@ const run = async (script, args = [], overrides = {}) => {
     await save();
     return exec(
         process.execPath,
-        ['--import', resolve(root, 'http.mjs'), resolve(directory, 'scripts', script), ...args],
+        ['--import', pathToFileURL(resolve(root, 'http.mjs')).href, resolve(directory, 'scripts', script), ...args],
         { env: env(overrides) }
     );
 };
@@ -157,11 +160,11 @@ const prepare = async (overrides = {}) => {
         process.execPath,
         [
             '--import',
-            resolve(root, 'http.mjs'),
+            pathToFileURL(resolve(root, 'http.mjs')).href,
             '--input-type=module',
             '-e',
             `
-        import { prepareRuntime } from ${JSON.stringify(resolve(directory, 'scripts/build/prepare-runtime.mjs'))};
+        import { prepareRuntime } from ${JSON.stringify(pathToFileURL(resolve(directory, 'scripts/build/prepare-runtime.mjs')).href)};
         console.log(await prepareRuntime(${JSON.stringify(lock)}, ${JSON.stringify(resolve(directory, '.cache/runtimes'))}));
     `,
         ],
@@ -209,7 +212,7 @@ it.each(
     expect(await mutations()).toEqual([]);
 });
 
-it('replaces draft assets and updates their exact source commit without replacing release notes', async () => {
+ghIt('replaces draft assets and updates their exact source commit without replacing release notes', async () => {
     await run('release/publish-release.mjs');
     const commands = await mutations();
     expect(commands).toHaveLength(2);
@@ -238,13 +241,13 @@ it.each(['published', 'missing', 'replaced', 'published before upload'])(
     }
 );
 
-it('rechecks draft state before updating the target commit', async () => {
+ghIt('rechecks draft state before updating the target commit', async () => {
     options.publishAfterUpload = true;
     await expect(run('release/publish-release.mjs')).rejects.toThrow('draft only');
     expect((await mutations()).map((args) => args[1])).toEqual(['upload']);
 });
 
-it.each(['patch', 'minor'])('creates a new draft for %s with the built commit as its source', async (bump) => {
+ghIt.each(['patch', 'minor'])('creates a new draft for %s with the built commit as its source', async (bump) => {
     options.releases = [];
     await run('release/publish-release.mjs', [], { FFMPEG_VERSION_BUMP: bump, RELEASE_ID: '' });
     const [command] = await mutations();
@@ -270,24 +273,27 @@ it.each([200, 403])('fails closed if the tag exists or cannot be checked (HTTP %
     expect(await mutations()).toEqual([]);
 });
 
-it('downloads a selected draft using the gh login, verifies it, and reuses the cache without authentication', async () => {
-    const result = await prepare({ GH_TOKEN: '', GITHUB_TOKEN: '' });
-    const path = result.stdout.trim();
-    expect(await readFile(path, 'utf8')).toBe(body);
-    const requests = await lines('requests');
-    expect(requests[0].headers.authorization).toBeUndefined();
-    expect(
-        requests
-            .filter(({ url }) => url.startsWith('https://api.github.com/'))
-            .every(({ headers }) => headers.authorization === 'Bearer test-token')
-    ).toBe(true);
-    options.noAuth = true;
-    options.apiStatus = 503;
-    options.publicStatus = 503;
-    await writeFile(resolve(root, 'requests'), '');
-    expect((await prepare({ GH_TOKEN: '', GITHUB_TOKEN: '' })).stdout.trim()).toBe(path);
-    expect(await readFile(resolve(root, 'requests'), 'utf8')).toBe('');
-});
+ghIt(
+    'downloads a selected draft using the gh login, verifies it, and reuses the cache without authentication',
+    async () => {
+        const result = await prepare({ GH_TOKEN: '', GITHUB_TOKEN: '' });
+        const path = result.stdout.trim();
+        expect(await readFile(path, 'utf8')).toBe(body);
+        const requests = await lines('requests');
+        expect(requests[0].headers.authorization).toBeUndefined();
+        expect(
+            requests
+                .filter(({ url }) => url.startsWith('https://api.github.com/'))
+                .every(({ headers }) => headers.authorization === 'Bearer test-token')
+        ).toBe(true);
+        options.noAuth = true;
+        options.apiStatus = 503;
+        options.publicStatus = 503;
+        await writeFile(resolve(root, 'requests'), '');
+        expect((await prepare({ GH_TOKEN: '', GITHUB_TOKEN: '' })).stdout.trim()).toBe(path);
+        expect(await readFile(resolve(root, 'requests'), 'utf8')).toBe('');
+    }
+);
 
 it.each(['metadata hash', 'metadata size', 'bytes'])(
     'rejects draft %s that differ from the lock without leaving a cached archive',
@@ -302,7 +308,7 @@ it.each(['metadata hash', 'metadata size', 'bytes'])(
     }
 );
 
-it('keeps an unavailable draft unavailable without credentials', async () => {
+ghIt('keeps an unavailable draft unavailable without credentials', async () => {
     options.noAuth = true;
     await expect(prepare({ GH_TOKEN: '', GITHUB_TOKEN: '' })).rejects.toThrow('HTTP 404');
     expect((await lines('requests')).some(({ url }) => url.startsWith('https://api.github.com/'))).toBe(false);

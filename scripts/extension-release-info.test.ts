@@ -93,7 +93,7 @@ test('milestone collection uses the configured release tag template for both def
         writeFileSync(
             join(root, 'bin/gh'),
             [
-                `#!${process.execPath}`,
+                '#!/usr/bin/env node',
                 "const { appendFileSync } = require('node:fs');",
                 'const args = process.argv.slice(2);',
                 "appendFileSync(process.env.GH_CALLS, JSON.stringify(args) + '\\n');",

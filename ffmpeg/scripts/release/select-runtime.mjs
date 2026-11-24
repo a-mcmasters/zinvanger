@@ -16,7 +16,7 @@ const execFileAsync = promisify(execFile);
 const verifyPublishedRuntimeArchive = async (archivePath, extractionRoot, version, rootName) => {
     await verifyRuntimeArchiveContents(archivePath, rootName);
     await mkdir(extractionRoot, { recursive: true });
-    await execFileAsync('tar', ['-xzf', archivePath, '-C', extractionRoot]);
+    await execFileAsync('tar', ['-xzf', archivePath], { cwd: extractionRoot });
 
     const runtimeRoot = resolve(extractionRoot, rootName);
     const manifest = await readJson(resolve(runtimeRoot, 'manifest.json'));
