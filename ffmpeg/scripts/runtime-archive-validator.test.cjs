@@ -30,7 +30,8 @@ it('accepts only the selected runtime directory', async () => {
     await expect(verifyRuntimeArchive(archive, '0.2.0')).rejects.toThrow('unexpected root directory');
 });
 
-it('rejects symbolic links', async () => {
+// Windows needs admin rights or Developer Mode to create symlinks.
+(process.platform === 'win32' ? it.skip : it)('rejects symbolic links', async () => {
     await symlink('ffmpeg-core.wasm', join(temporary, '0.1.0/link'));
     await pack('0.1.0');
     await expect(verifyRuntimeArchive(archive, '0.1.0')).rejects.toThrow('link or special file');

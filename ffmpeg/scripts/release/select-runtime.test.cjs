@@ -5,9 +5,12 @@ const { createHash } = require('node:crypto');
 const { chmod, copyFile, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { dirname, resolve } = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { promisify } = require('node:util');
 
 const exec = promisify(execFile);
+// These tests fake `gh` with an extensionless script, which Windows can't execute, so the real gh would run.
+const ghIt = process.platform === 'win32' ? it.skip : it;
 const version = '0.1.0';
 const initialLock = JSON.stringify({ runtimeVersion: '0.0.0' });
 const releaseConfig = {
@@ -51,7 +54,7 @@ const prepareRuntime = async () => {
     await mkdir(resolve(root, 'release'), { recursive: true });
     await copyFile(resolve(release, runtimeName), resolve(root, 'release', runtimeName));
     await mkdir(resolve(root, 'dist'), { recursive: true });
-    await exec('tar', ['-xzf', resolve(release, runtimeName), '-C', resolve(root, 'dist')]);
+    await exec('tar', ['-xzf', resolve(release, runtimeName)], { cwd: resolve(root, 'dist') });
     await rename(resolve(root, 'dist', runtimeRoot), resolve(root, 'dist', version));
 };
 
@@ -170,9 +173,13 @@ afterEach(async () => {
 });
 
 const run = (script, args = [], env = {}) =>
-    exec(process.execPath, ['--import', resolve(root, 'http.mjs'), resolve(root, 'scripts', script), ...args], {
-        env: { ...process.env, ASB_FFMPEG_RUNTIME_VERSION: undefined, ...env },
-    });
+    exec(
+        process.execPath,
+        ['--import', pathToFileURL(resolve(root, 'http.mjs')).href, resolve(root, 'scripts', script), ...args],
+        {
+            env: { ...process.env, ASB_FFMPEG_RUNTIME_VERSION: undefined, ...env },
+        }
+    );
 const select = (args = [], env = {}) => run('release/select-runtime.mjs', ['--version', version, ...args], env);
 const readLock = async () => readFile(resolve(root, 'artifact-lock.json'), 'utf8');
 
@@ -268,7 +275,7 @@ it('permits repeated draft selection until publication', async () => {
     expect(await readLock()).toBe(finalLock);
 });
 
-it('uses the existing GitHub CLI login when no token environment variable is set', async () => {
+ghIt('uses the existing GitHub CLI login when no token environment variable is set', async () => {
     await configureGithub({ draft: true });
     const bin = resolve(root, 'bin');
     await mkdir(bin);

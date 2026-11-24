@@ -1,3 +1,6 @@
+// GNU tar reads `C:\...` as remote host `C`. Set here, not in setupFiles, so child processes inherit it.
+if (process.platform === 'win32') process.env.TAR_OPTIONS = '--force-local';
+
 module.exports = {
     preset: 'ts-jest/presets/default-esm',
     extensionsToTreatAsEsm: ['.ts'],

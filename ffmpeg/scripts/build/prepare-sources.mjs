@@ -13,7 +13,7 @@ for (const { name, url, sha256 } of upstreamSources(config)) {
     const staged = `${destination}.staged`;
     await rm(staged, { recursive: true, force: true });
     await mkdir(staged, { recursive: true });
-    await execFileAsync('tar', ['-xf', archive, '--strip-components=1', '-C', staged]);
+    await execFileAsync('tar', ['-xf', archive, '--strip-components=1'], { cwd: staged });
     await rm(destination, { recursive: true, force: true });
     await rename(staged, destination);
 }

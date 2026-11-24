@@ -21,7 +21,7 @@
         "test:native-wasm": "bash scripts/verify/test-native-wasm.sh",
         "select:runtime": "node scripts/release/select-runtime.mjs",
         "verify:reproducible": "bash scripts/verify/verify-reproducible.sh",
-        "verify:code": "pnpm run test && pnpm run compile && pnpm --workspace-root exec eslint ffmpeg/src ffmpeg/scripts && pnpm --workspace-root exec prettier --check './ffmpeg/**/*.(js|mjs|cjs|ts|tsx|css)'",
+        "verify:code": "pnpm run test && pnpm run compile && pnpm --workspace-root exec eslint ffmpeg/src ffmpeg/scripts && pnpm --workspace-root exec prettier --check \"./ffmpeg/**/*.(js|mjs|cjs|ts|tsx|css)\"",
         "verify:release": "bash scripts/verify/release-check.sh",
         "compile": "tsc --noEmit",
         "test": "jest --config jest.config.cjs"

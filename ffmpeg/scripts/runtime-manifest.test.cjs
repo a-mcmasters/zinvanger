@@ -76,12 +76,16 @@ it('rejects changed bytes even when the file size matches', async () => {
     await expect(verify()).rejects.toThrow('hash or size mismatch');
 });
 
-it('rejects a symlink even when its target matches the declared hash and size', async () => {
-    await addFile('core.wasm');
-    await symlink('core.wasm', resolve(root, 'linked.wasm'));
-    manifest.runtime.push({ ...manifest.runtime[0], filename: 'linked.wasm' });
-    await expect(verify()).rejects.toThrow('hash or size mismatch');
-});
+// Windows needs admin rights or Developer Mode to create symlinks.
+(process.platform === 'win32' ? it.skip : it)(
+    'rejects a symlink even when its target matches the declared hash and size',
+    async () => {
+        await addFile('core.wasm');
+        await symlink('core.wasm', resolve(root, 'linked.wasm'));
+        manifest.runtime.push({ ...manifest.runtime[0], filename: 'linked.wasm' });
+        await expect(verify()).rejects.toThrow('hash or size mismatch');
+    }
+);
 
 it('rejects a manifest for a different runtime version', async () => {
     manifest.runtimeVersion = '0.2.0';
