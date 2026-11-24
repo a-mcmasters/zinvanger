@@ -448,12 +448,12 @@ func httpStatusForRpcError(rpcError *rpcError) int {
 func (forwarder forwarder) forwardToAnkiConnect(buf *bytes.Buffer, c echo.Context, method string) ([]byte, error) {
 	ankiConnectRequest, err := http.NewRequest(method, forwarder.AnkiConnectUrl, buf)
 
-	for key, values := range c.Request().Header {
-		ankiConnectRequest.Header[key] = values
-	}
-
 	if err != nil {
 		return nil, err
+	}
+
+	for key, values := range c.Request().Header {
+		ankiConnectRequest.Header[key] = values
 	}
 
 	ankiConnectResponse, err := http.DefaultClient.Do(ankiConnectRequest)
@@ -461,6 +461,8 @@ func (forwarder forwarder) forwardToAnkiConnect(buf *bytes.Buffer, c echo.Contex
 	if err != nil {
 		return nil, err
 	}
+
+	defer ankiConnectResponse.Body.Close()
 
 	ankiConnectResponseBuf := new(bytes.Buffer)
 	ankiConnectResponseBuf.ReadFrom(ankiConnectResponse.Body)
@@ -471,7 +473,7 @@ func (forwarder forwarder) forwardToAnkiConnect(buf *bytes.Buffer, c echo.Contex
 		}
 	}
 
-	c.Blob(ankiConnectResponse.StatusCode, ankiConnectResponse.Header["Content-Type"][0], ankiConnectResponseBuf.Bytes())
+	c.Blob(ankiConnectResponse.StatusCode, ankiConnectResponse.Header.Get("Content-Type"), ankiConnectResponseBuf.Bytes())
 	return ankiConnectResponseBuf.Bytes(), nil
 }
 
@@ -494,9 +496,10 @@ func (forwarder forwarder) handleGetRequest(c echo.Context) error {
 		c.Logger().Error(err)
 		c.JSON(http.StatusInternalServerError, nil)
 	} else {
+		defer ankiConnectResponse.Body.Close()
 		ankiConnectResponseBuf := new(bytes.Buffer)
 		ankiConnectResponseBuf.ReadFrom(ankiConnectResponse.Body)
-		c.Blob(ankiConnectResponse.StatusCode, ankiConnectResponse.Header["Content-Type"][0], ankiConnectResponseBuf.Bytes())
+		c.Blob(ankiConnectResponse.StatusCode, ankiConnectResponse.Header.Get("Content-Type"), ankiConnectResponseBuf.Bytes())
 	}
 
 	return nil

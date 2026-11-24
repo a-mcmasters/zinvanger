@@ -889,3 +889,29 @@ func TestCancelDoesNotDiscardADeliveredResponse(t *testing.T) {
 		t.Fatalf("expected no pending requests, got %d", broker.pendingCount())
 	}
 }
+
+func TestAnkiConnectResponseWithoutContentTypeIsPassedThrough(t *testing.T) {
+	ankiConnect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.Header()["Content-Type"] = nil // stop net/http from sniffing one
+		_, _ = w.Write([]byte(`{"result":6}`))
+	}))
+	t.Cleanup(ankiConnect.Close)
+	h := newHarnessWithAnkiConnect(t, 2*time.Second, 2, ankiConnect.URL)
+
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		status, body := h.request(t, method, "/", `{"action":"version"}`)
+
+		if status != http.StatusOK || body != `{"result":6}` {
+			t.Fatalf("%s: expected the AnkiConnect reply, got %d %s", method, status, body)
+		}
+	}
+}
+
+func TestInvalidAnkiConnectUrlFailsTheRequest(t *testing.T) {
+	h := newHarnessWithAnkiConnect(t, 2*time.Second, 2, "://not a url")
+
+	if status, _ := h.request(t, http.MethodPost, "/", `{"action":"version"}`); status != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for an invalid AnkiConnect URL, got %d", status)
+	}
+}
