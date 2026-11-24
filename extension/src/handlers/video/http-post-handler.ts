@@ -22,6 +22,8 @@ const allowedActions = [
     'storeMediaFile',
     'version',
     'addTags',
+    'createDeck',
+    'createModel',
 ];
 
 export default class HttpPostHandler {
