@@ -474,9 +474,10 @@ def run_job(key, audio_path, offset, keep=True):
         with jobs_lock:
             jobs[key]["progress"] = round(value, 3)
 
-    if keep:
-        audio_path = keep_audio(key, audio_path)
     try:
+        if keep:
+            audio_path = keep_audio(key, audio_path)
+
         with job_semaphore:
             with jobs_lock:
                 jobs[key]["state"] = "running"
