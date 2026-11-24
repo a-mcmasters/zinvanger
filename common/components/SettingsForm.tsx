@@ -221,6 +221,20 @@ export default function SettingsForm({
                         testCard={testCard}
                     />
                     {ankiSettingsExtra}
+                    {extensionInstalled && (
+                        <SwitchLabelWithHoverEffect
+                            control={
+                                <Switch
+                                    checked={settings.streamingTakeScreenshot}
+                                    onChange={(event) =>
+                                        void handleSettingChanged('streamingTakeScreenshot', event.target.checked)
+                                    }
+                                />
+                            }
+                            label={t('extension.settings.takeScreenshot')}
+                            labelPlacement="start"
+                        />
+                    )}
                 </section>
                 <section id="subtitle-appearance">
                     <SettingsSection>{t('settings.subtitles')}</SettingsSection>
