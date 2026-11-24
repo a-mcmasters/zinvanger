@@ -48,12 +48,13 @@ export default class FrameBridgeClient {
         return this.bindPromise;
     }
 
-    updateState(state: any) {
+    /** `onError` hears when runtime messaging could not deliver the state; window messages give no such signal. */
+    updateState(state: any, onError?: (error: unknown) => void) {
         const message = { command: 'updateState', state };
-        this.sendMessage(message);
+        this.sendMessage(message, onError);
     }
 
-    sendMessage(message: any) {
+    sendMessage(message: any, onError?: (error: unknown) => void) {
         if (!this.frameId) {
             throw new Error('Attempted to send message when frame is not ready');
         }
@@ -64,7 +65,10 @@ export default class FrameBridgeClient {
                 frameId: this.frameId,
                 message,
             };
-            void browser.runtime.sendMessage(request).catch((error) => asbError('bridge', error));
+            void browser.runtime.sendMessage(request).catch((error) => {
+                asbError('bridge', error);
+                onError?.(error);
+            });
             return;
         }
 
