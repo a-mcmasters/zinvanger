@@ -125,12 +125,12 @@ import { SubtitleReader } from '@project/common/subtitle-reader';
 import AnkiUiController from '@project/extension/src/controllers/anki-ui-controller';
 import LivingSubtitleHost from '@/controllers/living-subtitle-host';
 import { Yomitan } from '@project/common/yomitan';
-import { distinctLemma } from '@/controllers/living-subtitle-controller';
+import { defineWithYomitan } from '@project/common/living-subtitle/living-subtitle-controller';
 import type {
     LivingSubtitleDefinition,
     LivingSubtitleMineOutcome,
     LivingSubtitleState,
-} from '@/controllers/living-subtitle-controller';
+} from '@project/common/living-subtitle/living-subtitle-controller';
 import ControlsController from '@project/extension/src/controllers/controls-controller';
 import DragController from '@project/extension/src/controllers/drag-controller';
 import { MobileGestureController } from '@project/extension/src/controllers/mobile-gesture-controller';
@@ -1892,15 +1892,7 @@ export default class Binding {
             const fetcher = new VideoFetcher(() => this._registeredVideoSrc);
             this._livingSubtitleYomitan = { url, yomitan: new Yomitan(dt, fetcher) }; // keeps its gloss cache
         }
-        try {
-            const { yomitan } = this._livingSubtitleYomitan;
-            const text = (await yomitan.gloss(word)) ?? '';
-            // Read from the same Yomitan response as the gloss, so normally no second request.
-            const lemma = (await yomitan.lemmatize(word))?.[0];
-            return { text, lemma: distinctLemma(word, lemma) };
-        } catch {
-            throw new Error('dictionaryUnavailable');
-        }
+        return defineWithYomitan(this._livingSubtitleYomitan.yomitan, word);
     }
 
     /**

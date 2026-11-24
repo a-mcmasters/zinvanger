@@ -185,3 +185,9 @@
 .asbplayer-fullscreen-subtitles[aria-hidden='true'] .asb-token-adaptive-hidden {
     visibility: hidden;
 }
+
+::highlight(asbplayer-living-subtitle-word) {
+    color: #e2ceff;
+    background-color: rgba(98, 49, 185, 0.45);
+    text-decoration: underline 2px #c4a1ff;
+}

@@ -118,6 +118,16 @@ import MobileVideoOverlay from '@project/common/components/MobileVideoOverlay';
 import BlurOverlay from '@project/common/app/components/BlurOverlay';
 import { CachedLocalStorage } from '@project/common/app/services/cached-local-storage';
 import useLastScrollableControlType from '@project/common/hooks/use-last-scrollable-control-type';
+import LivingSubtitleController, {
+    defineWithYomitan,
+    livingSubtitleActionable,
+    livingSubtitleCueWords,
+} from '@project/common/living-subtitle/living-subtitle-controller';
+import type { LivingSubtitleState } from '@project/common/living-subtitle/living-subtitle-controller';
+import { domWords, wordIndexAt } from '@project/common/living-subtitle/dom-words';
+import LivingSubtitleCard from '@project/common/components/LivingSubtitleCard';
+import type { LivingSubtitleAction } from '@project/common/components/LivingSubtitleCard';
+import { Yomitan } from '@project/common/yomitan';
 import type { Theme } from '@mui/material/styles';
 
 const overlayContainerHeight = 48;
@@ -248,6 +258,7 @@ interface CachedShowingSubtitleProps {
     className?: string;
     onMouseOver: React.MouseEventHandler<HTMLDivElement>;
     onMouseOut: React.MouseEventHandler<HTMLDivElement>;
+    onClick: React.MouseEventHandler<HTMLDivElement>;
 }
 
 const CachedShowingSubtitle = React.memo(function CachedShowingSubtitle({
@@ -258,6 +269,7 @@ const CachedShowingSubtitle = React.memo(function CachedShowingSubtitle({
     className,
     onMouseOver,
     onMouseOut,
+    onClick,
 }: CachedShowingSubtitleProps) {
     const currentSubtitle = useRef(subtitle);
     currentSubtitle.current = subtitle;
@@ -277,6 +289,7 @@ const CachedShowingSubtitle = React.memo(function CachedShowingSubtitle({
             style={visible ? { pointerEvents: 'auto' } : { visibility: 'hidden', pointerEvents: 'none' }}
             onMouseOver={onMouseOver}
             onMouseOut={onMouseOut}
+            onClick={onClick}
             ref={attach}
         />
     );
@@ -1694,6 +1707,7 @@ export default function VideoPlayer({
         return undefined;
     }, [subtitles, calculateSurroundingSubtitles, lengthMs, clock]);
 
+    /** Resolves to why nothing was mined, if nothing was; the player shows that reason as well. */
     const mineSubtitle = useCallback(
         async (
             postMineAction: PostMineAction,
@@ -1706,7 +1720,7 @@ export default function VideoPlayer({
             cardTextFieldValues: CardTextFieldValues,
             timestamp: number,
             minedAudio?: TranscodedAudioPayload
-        ) => {
+        ): Promise<string | undefined> => {
             try {
                 const miningAudio = minedAudio ?? convertedAudioRef.current;
                 const requested = requestedConvertedTrackRef.current;
@@ -1720,7 +1734,7 @@ export default function VideoPlayer({
                             { message: { locKey: 'info.audioNotReadyForMining', replacements: {} }, severity: 'info' },
                         ],
                     });
-                    return;
+                    return i18n.t('info.audioNotReadyForMining');
                 }
                 const showAnkiDialog = postMineAction === PostMineAction.showAnkiDialog;
                 if (showAnkiDialog) {
@@ -1766,6 +1780,7 @@ export default function VideoPlayer({
                 });
             } catch (error) {
                 onErrorRef.current?.(String(error));
+                return String(error);
             }
         },
         [onAnkiDialogRequest, playerChannel]
@@ -1803,7 +1818,7 @@ export default function VideoPlayer({
                 mediaTimestamp = subtitleTimestampWithDelay(subtitle, settings.streamingScreenshotDelay);
             }
 
-            void mineSubtitle(
+            return mineSubtitle(
                 postMineAction,
                 videoFile,
                 videoFileName ?? '',
@@ -1936,7 +1951,7 @@ export default function VideoPlayer({
                     setMineIntervalStartTimestamp(undefined);
                 }
 
-                mineCurrentSubtitle(postMineAction, subtitle, surroundingSubtitles, cardTextFieldValues);
+                void mineCurrentSubtitle(postMineAction, subtitle, surroundingSubtitles, cardTextFieldValues);
             }
         },
         [mineCurrentSubtitle, toggleSelectMiningInterval, mineIntervalStartTimestamp, subtitles]
@@ -2310,6 +2325,111 @@ export default function VideoPlayer({
         [hoveredToken]
     );
 
+    // The word card: clicking a main-track word pauses, highlights it and shows its meaning and Mine.
+    const [wordCard, setWordCard] = useState<LivingSubtitleState>();
+    const wordCardYomitanRef = useRef<{ url: string; yomitan: Yomitan }>(undefined);
+    const wordCardActions = {
+        define: (word: string) => {
+            const dt = playbackSettings.dictionaryTracks[0];
+            const url = dt?.dictionaryYomitanUrl?.trim();
+            if (!dt || !url) return Promise.reject(new Error('noDictionary'));
+            if (wordCardYomitanRef.current?.url !== url) {
+                wordCardYomitanRef.current = { url, yomitan: new Yomitan(dt) }; // keeps its gloss cache
+            }
+            return defineWithYomitan(wordCardYomitanRef.current.yomitan, word);
+        },
+        mine: async ({ target, word, definition }: Readonly<LivingSubtitleState>) => {
+            const postMineAction = settings.clickToMineDefaultAction;
+            const notMined = await mineCurrentSubtitle(postMineAction, target!.cue, [...target!.surrounding], {
+                word: word?.text,
+                definition: definition.status === 'success' && definition.text ? definition.text : undefined,
+            });
+            if (notMined) throw new Error(notMined);
+            return 'submitted' as const;
+        },
+    };
+    const wordCardActionsRef = useRef(wordCardActions);
+    wordCardActionsRef.current = wordCardActions;
+    const wordCardController = useMemo(
+        () =>
+            new LivingSubtitleController({
+                pause: () => {
+                    isPausedDueToHoverRef.current = false; // leaving the subtitle must not resume a captured sentence
+                    playerChannel.pause();
+                },
+                define: (word) => wordCardActionsRef.current.define(word),
+                mine: (state) => wordCardActionsRef.current.mine(state),
+                render: setWordCard,
+            }),
+        [playerChannel]
+    );
+
+    const handleSubtitleClick = useCallback(
+        (e: React.MouseEvent) => {
+            if (e.button !== 0 || !window.getSelection()?.isCollapsed) return; // keep subtitle text selection working
+            const element = (e.target as Element).closest<HTMLElement>(`[${ASB_SUBTITLE_INDEX_ATTRIBUTE}]`);
+            const index = Number(element?.getAttribute(ASB_SUBTITLE_INDEX_ATTRIBUTE));
+            const cue = showSubtitlesRef.current.find((subtitle) => subtitle.index === index);
+            if (!element || !cue || !livingSubtitleActionable(cue)) return;
+            const wordIndex = wordIndexAt(element, cue.text, e.clientX, e.clientY);
+            if (wordIndex === undefined) return;
+            if (wordCard?.target && subtitleKey(wordCard.target.cue) !== subtitleKey(cue)) wordCardController.clear();
+            wordCardController.hover({ video: videoFile, cue, surrounding: [cue] });
+            void wordCardController.selectWord(wordIndex);
+        },
+        [wordCard?.target, wordCardController, videoFile]
+    );
+
+    const handleWordCardAction = useCallback(
+        (action: LivingSubtitleAction) => {
+            if (action === 'mine') void wordCardController.mine();
+            else if (action === 'retry-definition') wordCardController.retryDefinition();
+            else wordCardController.closeWord();
+        },
+        [wordCardController]
+    );
+
+    // Resuming playback, or the sentence leaving the screen, dismisses the card.
+    useEffect(() => {
+        if (!video) return;
+        const clear = () => wordCardController.hasTarget && wordCardController.clear();
+        video.addEventListener('play', clear);
+        video.addEventListener('seeking', clear);
+        return () => {
+            video.removeEventListener('play', clear);
+            video.removeEventListener('seeking', clear);
+        };
+    }, [video, wordCardController]);
+    useEffect(
+        () =>
+            wordCardController.reconcile((target) => {
+                if (target.video !== videoFile || !displaySubtitles) return undefined;
+                const cue = showSubtitles.find((subtitle) => subtitleKey(subtitle) === subtitleKey(target.cue));
+                return cue && { ...target, cue, surrounding: [cue] };
+            }),
+        [displaySubtitles, showSubtitles, videoFile, wordCardController]
+    );
+
+    const wordCardWord = wordCard?.word;
+    useEffect(() => {
+        if (!wordCardWord) return;
+        const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' && wordCardController.closeWord();
+        document.addEventListener('keydown', closeOnEscape);
+        return () => document.removeEventListener('keydown', closeOnEscape);
+    }, [wordCardWord, wordCardController]);
+
+    const wordCardCue = wordCard?.target?.cue;
+    useEffect(() => {
+        const element = containerRef.current?.querySelector<HTMLElement>(
+            `[${ASB_SUBTITLE_INDEX_ATTRIBUTE}="${wordCardCue?.index}"]`
+        );
+        if (!wordCardCue || !wordCardWord || !element || !globalThis.CSS?.highlights) return;
+        const index = livingSubtitleCueWords(wordCardCue.text).findIndex((w) => w.start === wordCardWord.start);
+        const ranges = domWords(element, wordCardCue.text).filter((w) => w.modelIndex === index);
+        CSS.highlights.set('asbplayer-living-subtitle-word', new Highlight(...ranges.map((w) => w.range)));
+        return () => void CSS.highlights.delete('asbplayer-living-subtitle-word');
+    }, [wordCardCue, wordCardWord]);
+
     useEffect(() => {
         return keyBinder.bindMarkHoveredToken(
             (event, tokenStatus) => {
@@ -2394,6 +2514,7 @@ export default function VideoPlayer({
             renderHtml={getSubtitleHtml}
             onMouseOver={handleSubtitleMouseOver}
             onMouseOut={handleSubtitleMouseOut}
+            onClick={handleSubtitleClick}
         />
     );
 
@@ -2405,6 +2526,17 @@ export default function VideoPlayer({
         );
         return mapSubtitlesForDisplay(showing, invisible, elementForSubtitle);
     };
+    const wordCardAlignment = wordCard?.word && subtitleAlignmentForTrack(wordCard.target!.cue.track);
+    const wordCardElement = wordCard?.word && (
+        <div key="word-card" style={{ pointerEvents: 'auto', width: 'fit-content', margin: '4px auto' }}>
+            <LivingSubtitleCard
+                word={wordCard.word.text}
+                definition={wordCard.definition}
+                mining={wordCard.mining}
+                onAction={handleWordCardAction}
+            />
+        </div>
+    );
     const topSubtitleElements = displaySubtitles ? subtitleElementsWithAlignment('top') : [];
     const bottomSubtitleElements = displaySubtitles ? subtitleElementsWithAlignment('bottom') : [];
     const mobileOverlayModel = () => {
@@ -2561,6 +2693,7 @@ export default function VideoPlayer({
                     subtitleZIndex={settings.subtitleAboveThumbnail}
                 >
                     {topSubtitleElements}
+                    {wordCardAlignment === 'top' && wordCardElement}
                 </SubtitleContainer>
             )}
             {bottomSubtitleElements.length > 0 && (
@@ -2571,6 +2704,7 @@ export default function VideoPlayer({
                     baseOffset={baseBottomSubtitleOffset}
                     subtitleZIndex={settings.subtitleAboveThumbnail}
                 >
+                    {wordCardAlignment === 'bottom' && wordCardElement}
                     {bottomSubtitleElements}
                 </SubtitleContainer>
             )}

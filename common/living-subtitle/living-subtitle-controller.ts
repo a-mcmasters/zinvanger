@@ -1,5 +1,7 @@
 import type { IndexedSubtitleModel, SubtitleModel } from '@project/common';
 import { subtitleKey } from '@project/common/subtitle-reader/subtitle-stream';
+import { removeSubtitleHtml } from '@project/common/util';
+import type { Yomitan } from '@project/common/yomitan';
 
 export interface LivingSubtitleTarget {
     readonly video: string;
@@ -20,9 +22,15 @@ export const livingSubtitleWords = (text: string): LivingSubtitleWord[] =>
         text: match[0].normalize('NFC'),
     }));
 
+export const livingSubtitleCueWords = (text: string) => livingSubtitleWords(removeSubtitleHtml(text));
+
 /** The dictionary form to show beside a word, or undefined when it is the word itself ("Hij" → "hij" is not). */
 export const distinctLemma = (word: string, lemma?: string) =>
     lemma && lemma.toLowerCase() !== word.toLowerCase() ? lemma : undefined;
+
+/** Only the main subtitle track (the language being learned) is clickable; a translation track shown alongside is not. */
+export const livingSubtitleActionable = (cue: IndexedSubtitleModel) =>
+    cue.track === 0 && !cue.textImage && cue.text.trim() !== '';
 
 export type LivingSubtitleResult =
     | { status: 'idle' | 'pending' }
@@ -44,14 +52,26 @@ export interface LivingSubtitleDefinition {
     readonly lemma?: string;
 }
 
-/** `dialog`: the Anki dialog took over the card, so nothing is mined yet. */
-export type LivingSubtitleMineOutcome = 'saved' | 'dialog';
+/** A word's meaning from Yomitan, with no model tokens; rejects with a `livingSubtitle.error` key. */
+export const defineWithYomitan = async (yomitan: Yomitan, word: string): Promise<LivingSubtitleDefinition> => {
+    try {
+        const text = (await yomitan.gloss(word)) ?? '';
+        // Read from the same Yomitan response as the gloss, so normally no second request.
+        const lemma = (await yomitan.lemmatize(word))?.[0];
+        return { text, lemma: distinctLemma(word, lemma) };
+    } catch {
+        throw new Error('dictionaryUnavailable');
+    }
+};
+
+/** The web app reports the result of a submitted card through its own dialog or alerts. */
+export type LivingSubtitleMineOutcome = 'saved' | 'dialog' | 'submitted';
 
 interface Actions {
     pause(): void;
     /** The word's meaning; rejects with a `livingSubtitle.error` key. */
     define(word: string): Promise<LivingSubtitleDefinition>;
-    /** Resolves when a card is saved or a dialog takes it over, never on message acknowledgement. */
+    /** Resolves when a card is saved or handed off to the UI responsible for reporting the result. */
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     render(state: Readonly<LivingSubtitleState>): void;
 }
@@ -133,14 +153,14 @@ export default class LivingSubtitleController {
     }
 
     retryDefinition() {
-        const words = this.state.target ? livingSubtitleWords(this.state.target.cue.text) : [];
+        const words = this.state.target ? livingSubtitleCueWords(this.state.target.cue.text) : [];
         const index = words.findIndex((w) => w.start === this.state.word?.start);
         if (index >= 0) void this.selectWord(index);
     }
 
     async selectWord(index: number) {
         const target = this.state.target;
-        const word = target && livingSubtitleWords(target.cue.text)[index];
+        const word = target && livingSubtitleCueWords(target.cue.text)[index];
         if (this.disposed || !target || !word) return;
         this.capture();
         this.state.word = word;
@@ -174,6 +194,10 @@ export default class LivingSubtitleController {
         try {
             const outcome = await this.actions.mine(snapshot);
             if (generation !== this.generation) return;
+            if (outcome === 'submitted') {
+                this.clear();
+                return;
+            }
             this.state.mining = outcome === 'dialog' ? { status: 'idle' } : { status: 'success', text: '' };
         } catch (error) {
             if (generation !== this.generation) return;
