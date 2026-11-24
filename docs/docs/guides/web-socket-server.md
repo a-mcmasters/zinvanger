@@ -90,4 +90,8 @@ ANKI_CONNECT_URL=http://127.0.0.1:8765
 # 2 = 'Update last card' (updates last card with asbplayer media AFTER passing through original addNote request)
 # 3 = 'Export card'
 POST_MINE_ACTION=2
+
+# Extra comma-separated origins allowed to connect to the WebSocket, e.g. a self-hosted or dev (http://localhost:3000) web app.
+# Browser extensions and the hosted web app are always allowed.
+ALLOWED_ORIGINS=
 ```

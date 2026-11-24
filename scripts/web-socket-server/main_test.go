@@ -889,3 +889,80 @@ func TestCancelDoesNotDiscardADeliveredResponse(t *testing.T) {
 		t.Fatalf("expected no pending requests, got %d", broker.pendingCount())
 	}
 }
+
+func TestAnkiConnectResponseWithoutContentTypeIsPassedThrough(t *testing.T) {
+	ankiConnect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.Header()["Content-Type"] = nil // stop net/http from sniffing one
+		_, _ = w.Write([]byte(`{"result":6}`))
+	}))
+	t.Cleanup(ankiConnect.Close)
+	h := newHarnessWithAnkiConnect(t, 2*time.Second, 2, ankiConnect.URL)
+
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		status, body := h.request(t, method, "/", `{"action":"version"}`)
+
+		if status != http.StatusOK || body != `{"result":6}` {
+			t.Fatalf("%s: expected the AnkiConnect reply, got %d %s", method, status, body)
+		}
+	}
+}
+
+func TestWebSocketUpgradeChecksOrigin(t *testing.T) {
+	h := newHarness(t, 2*time.Second, 1)
+	url := strings.Replace(h.server.URL, "http://", "ws://", 1) + "/ws"
+	cases := map[string]bool{
+		"":                                    true,
+		"chrome-extension://abcdefghijklmnop": true,
+		"moz-extension://0a1b2c3d-uuid":       true,
+		defaultAppOrigin:                      true,
+		"https://evil.example":                false,
+		"http://localhost:3000":               false,
+		defaultAppOrigin + ".evil.example":    false,
+	}
+
+	for origin, allowed := range cases {
+		header := http.Header{}
+		if origin != "" {
+			header.Set("Origin", origin)
+		}
+
+		conn, response, err := websocket.DefaultDialer.Dial(url, header)
+
+		if allowed && err != nil {
+			t.Fatalf("expected origin %q to connect, got %v", origin, err)
+		}
+
+		if !allowed && (err == nil || response.StatusCode != http.StatusForbidden) {
+			t.Fatalf("expected origin %q to be refused with 403, got %v", origin, err)
+		}
+
+		if conn != nil {
+			conn.Close()
+		}
+	}
+}
+
+func TestAllowedOriginsAreAccepted(t *testing.T) {
+	forwarder := forwarder{AllowedOrigins: []string{"http://localhost:3000"}}
+	request := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	request.Header.Set("Origin", "http://localhost:3000")
+
+	if !forwarder.checkOrigin(request) {
+		t.Fatal("expected an origin from ALLOWED_ORIGINS to be accepted")
+	}
+
+	request.Header.Set("Origin", "http://localhost:3001")
+
+	if forwarder.checkOrigin(request) {
+		t.Fatal("expected an origin outside ALLOWED_ORIGINS to be refused")
+	}
+}
+
+func TestInvalidAnkiConnectUrlFailsTheRequest(t *testing.T) {
+	h := newHarnessWithAnkiConnect(t, 2*time.Second, 2, "://not a url")
+
+	if status, _ := h.request(t, http.MethodPost, "/", `{"action":"version"}`); status != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for an invalid AnkiConnect URL, got %d", status)
+	}
+}

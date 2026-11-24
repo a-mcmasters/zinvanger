@@ -157,6 +157,7 @@ test('packages changed service defaults and names for Python, Go, and the exampl
         releaseTag: 'example-addon-v{{version}}',
     };
     config.urls.repo = 'https://code.example/player';
+    config.urls.app = 'https://app.example.com/player/';
     config.services.webSocket.host = 'socket.example.com';
     config.services.webSocket.port = 9876;
     config.services.webSocket.path = '/socket';
@@ -182,6 +183,7 @@ test('packages changed service defaults and names for Python, Go, and the exampl
     assert.match(go, /defaultWebSocketPath = "\/socket"/);
     assert.match(go, /defaultAnkiConnectURL = "http:\/\/localhost:9875"/);
     assert.match(go, /defaultPostMineAction = "1"/);
+    assert.match(go, /defaultAppOrigin = "https:\/\/app\.example\.com"/);
     const environment = files['scripts/web-socket-server/.env.example'];
     assert.match(environment, /^HOST=127\.0\.0\.1$/m);
     assert.match(environment, /^PORT=9876$/m);

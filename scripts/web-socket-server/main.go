@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,10 +35,6 @@ const (
 
 // gorilla/websocket allows only one concurrent writer per connection, so each client
 // serializes its writes (PONG replies and published commands) behind a mutex.
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
 type (
 	wsClient struct {
 		conn           *websocket.Conn
@@ -53,6 +50,7 @@ type (
 		PostMineAction   int
 		InterceptField   string
 		InterceptValue   string
+		AllowedOrigins   []string
 	}
 	ankiConnectRequest struct {
 		Action string                 `json:"action"`
@@ -156,7 +154,19 @@ func (forwarder forwarder) clients() []*wsClient {
 	return clients
 }
 
+// Browsers let any page open a WebSocket to 127.0.0.1, so only extensions, the web app and
+// ALLOWED_ORIGINS may connect. Non-browser clients send no Origin.
+func (forwarder forwarder) checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	return origin == "" ||
+		strings.HasPrefix(origin, "chrome-extension://") ||
+		strings.HasPrefix(origin, "moz-extension://") ||
+		origin == defaultAppOrigin ||
+		slices.Contains(forwarder.AllowedOrigins, origin)
+}
+
 func (forwarder forwarder) handleWebsocketClient(c echo.Context) error {
+	upgrader := websocket.Upgrader{CheckOrigin: forwarder.checkOrigin}
 	conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	if err != nil {
 		c.Logger().Error(err)
@@ -448,12 +458,12 @@ func httpStatusForRpcError(rpcError *rpcError) int {
 func (forwarder forwarder) forwardToAnkiConnect(buf *bytes.Buffer, c echo.Context, method string) ([]byte, error) {
 	ankiConnectRequest, err := http.NewRequest(method, forwarder.AnkiConnectUrl, buf)
 
-	for key, values := range c.Request().Header {
-		ankiConnectRequest.Header[key] = values
-	}
-
 	if err != nil {
 		return nil, err
+	}
+
+	for key, values := range c.Request().Header {
+		ankiConnectRequest.Header[key] = values
 	}
 
 	ankiConnectResponse, err := http.DefaultClient.Do(ankiConnectRequest)
@@ -461,6 +471,8 @@ func (forwarder forwarder) forwardToAnkiConnect(buf *bytes.Buffer, c echo.Contex
 	if err != nil {
 		return nil, err
 	}
+
+	defer ankiConnectResponse.Body.Close()
 
 	ankiConnectResponseBuf := new(bytes.Buffer)
 	ankiConnectResponseBuf.ReadFrom(ankiConnectResponse.Body)
@@ -471,7 +483,7 @@ func (forwarder forwarder) forwardToAnkiConnect(buf *bytes.Buffer, c echo.Contex
 		}
 	}
 
-	c.Blob(ankiConnectResponse.StatusCode, ankiConnectResponse.Header["Content-Type"][0], ankiConnectResponseBuf.Bytes())
+	c.Blob(ankiConnectResponse.StatusCode, ankiConnectResponse.Header.Get("Content-Type"), ankiConnectResponseBuf.Bytes())
 	return ankiConnectResponseBuf.Bytes(), nil
 }
 
@@ -494,9 +506,10 @@ func (forwarder forwarder) handleGetRequest(c echo.Context) error {
 		c.Logger().Error(err)
 		c.JSON(http.StatusInternalServerError, nil)
 	} else {
+		defer ankiConnectResponse.Body.Close()
 		ankiConnectResponseBuf := new(bytes.Buffer)
 		ankiConnectResponseBuf.ReadFrom(ankiConnectResponse.Body)
-		c.Blob(ankiConnectResponse.StatusCode, ankiConnectResponse.Header["Content-Type"][0], ankiConnectResponseBuf.Bytes())
+		c.Blob(ankiConnectResponse.StatusCode, ankiConnectResponse.Header.Get("Content-Type"), ankiConnectResponseBuf.Bytes())
 	}
 
 	return nil
@@ -717,8 +730,14 @@ func main() {
 	postMineAction, _ := strconv.Atoi(getenv("POST_MINE_ACTION", defaultPostMineAction))
 	interceptField := getenv("INTERCEPT_FIELD", "")
 	interceptValue := getenv("INTERCEPT_VALUE", "")
-	fmt.Printf("Started with config:\n\n\tHOST=%v\n\tPORT=%v\n\tANKI_CONNECT_URL=%v\n\tPOST_MINE_ACTION=%v\n\tINTERCEPT_FIELD=%v\n\tINTERCEPT_VALUE=%v\n",
-		host, port, ankiConnectUrl, postMineAction, interceptField, interceptValue)
+	var allowedOrigins []string
+	for _, origin := range strings.Split(getenv("ALLOWED_ORIGINS", ""), ",") {
+		if origin = strings.TrimSpace(origin); origin != "" {
+			allowedOrigins = append(allowedOrigins, origin)
+		}
+	}
+	fmt.Printf("Started with config:\n\n\tHOST=%v\n\tPORT=%v\n\tANKI_CONNECT_URL=%v\n\tPOST_MINE_ACTION=%v\n\tINTERCEPT_FIELD=%v\n\tINTERCEPT_VALUE=%v\n\tALLOWED_ORIGINS=%v\n",
+		host, port, ankiConnectUrl, postMineAction, interceptField, interceptValue, strings.Join(allowedOrigins, ","))
 
 	e := echo.New()
 	e.Use(middleware.Recover())
@@ -749,7 +768,8 @@ func main() {
 		AnkiConnectUrl:   ankiConnectUrl,
 		PostMineAction:   postMineAction,
 		InterceptField:   interceptField,
-		InterceptValue:   interceptValue}
+		InterceptValue:   interceptValue,
+		AllowedOrigins:   allowedOrigins}
 	forwarder.registerRoutes(e)
 	e.Logger.Fatal(e.Start(net.JoinHostPort(host, port)))
 }

@@ -120,6 +120,7 @@ export function generatedProjectFiles(project: Project): Record<string, string> 
             `const defaultWebSocketPath = ${JSON.stringify(webSocket.path)}`,
             `const defaultAnkiConnectURL = ${JSON.stringify(`http://${ankiConnect.host}:${ankiConnect.port}`)}`,
             `const defaultPostMineAction = ${JSON.stringify(String(webSocket.postMineAction))}`,
+            `const defaultAppOrigin = ${JSON.stringify(new URL(project.urls.app).origin)}`,
             '',
         ].join('\n'),
         'scripts/web-socket-server/.env.example': [
@@ -141,6 +142,10 @@ export function generatedProjectFiles(project: Project): Record<string, string> 
             "# 2 = 'Update last card' (updates last card with asbplayer media AFTER passing through original addNote request)",
             "# 3 = 'Export card'",
             `POST_MINE_ACTION=${webSocket.postMineAction}`,
+            '',
+            `# Extra comma-separated origins allowed to connect to the WebSocket, e.g. a self-hosted or dev (http://${project.development.host}:${project.development.port}) web app.`,
+            `# Browser extensions and ${new URL(project.urls.app).origin} are always allowed.`,
+            'ALLOWED_ORIGINS=',
             '',
         ].join('\n'),
     };
