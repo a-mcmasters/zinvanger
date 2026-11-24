@@ -56,6 +56,8 @@ The Chromium extension can also [fill in sentence translations](./local-whisper.
 
 For local files, clicking the **Preview Button** <ImageIcon /> on the **Image Field** can be used to change the video timestamp from which the screenshot is extracted.
 
+Pause a local video on the frame you want before mining. To save the picture shown in the preview, map **Image Field** to a field in your Anki note type under **Settings → Anki**.
+
 ## Exporting cards {#exporting-cards}
 
 Use the buttons at the bottom of the dialog to finally export the card. There are three types of export:

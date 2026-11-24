@@ -90,6 +90,7 @@
         "foundNoDuplicateNote": "Nach Anki exportieren",
         "image": "Bild",
         "imageCaptureFailed": "Bildaufnahme fehlgeschlagen",
+        "imageUnmapped": "Choose an Image Field in Anki settings to save this picture.",
         "imageFileLinkLost": "Bilddatei verloren aufgrund Seitenneuladens",
         "openInAnki": "In Anki öffnen",
         "rerecord": "Neuaufnahme",

@@ -90,6 +90,7 @@
         "foundNoDuplicateNote": "未发现 {{field}} 字段包含单词“{{word}}”的卡片",
         "image": "图像",
         "imageCaptureFailed": "截图失败",
+        "imageUnmapped": "Choose an Image Field in Anki settings to save this picture.",
         "imageFileLinkLost": "页面已刷新，图像文件链接丢失",
         "openInAnki": "在 Anki 中打开",
         "rerecord": "重新录音",

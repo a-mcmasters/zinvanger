@@ -90,6 +90,7 @@
         "foundNoDuplicateNote": "フィールド「{{field}}」に単語「{{word}}」 が含まれるメモはありません",
         "image": "画像",
         "imageCaptureFailed": "画像キャプチャに失敗しました",
+        "imageUnmapped": "Choose an Image Field in Anki settings to save this picture.",
         "imageFileLinkLost": "ブラウザページを更新したため、画像ファイルの参照先が失われました",
         "openInAnki": "Anki で開く",
         "rerecord": "再録音",

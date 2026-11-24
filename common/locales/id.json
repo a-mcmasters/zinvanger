@@ -90,6 +90,7 @@
         "foundNoDuplicateNote": "Tidak ditemukan catatan dengan kata \"{{word}}\" di kolom \"{{field}}\"",
         "image": "Gambar",
         "imageCaptureFailed": "Gagal mengambil gambar",
+        "imageUnmapped": "Choose an Image Field in Anki settings to save this picture.",
         "imageFileLinkLost": "Tautan berkas gambar hilang karena halaman dimuat ulang",
         "openInAnki": "Buka di Anki",
         "rerecord": "Rekam Ulang",

@@ -956,6 +956,9 @@ const AnkiDialog = ({
                         {!translationMapped && translation && (
                             <Alert severity="warning">{t('ankiDialog.sentenceTranslationUnmapped')}</Alert>
                         )}
+                        {image && image.error === undefined && !settings.imageField && (
+                            <Alert severity="warning">{t('ankiDialog.imageUnmapped')}</Alert>
+                        )}
                         {ankiFieldModels.map((model) => {
                             const key = model.custom ? `custom_${model.key}` : `standard_${model.key}`;
 

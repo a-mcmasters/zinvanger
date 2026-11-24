@@ -1799,7 +1799,7 @@ export default function VideoPlayer({
                 return;
             }
 
-            const currentTimestamp = clock.time({ maxMs: lengthMs });
+            const currentTimestamp = video.paused ? video.currentTime * 1000 : clock.time({ maxMs: lengthMs });
             let mediaTimestamp: number;
 
             if (subtitle === undefined || surroundingSubtitles === undefined) {
@@ -2020,7 +2020,8 @@ export default function VideoPlayer({
                 if (ankiDialogOpen) {
                     onAnkiDialogRewind();
                 } else if (lastMinedRecord) {
-                    const currentTimestamp = clock.time({ maxMs: lengthMs });
+                    const video = videoRef.current;
+                    const currentTimestamp = video?.paused ? video.currentTime * 1000 : clock.time({ maxMs: lengthMs });
                     void mineSubtitle(
                         PostMineAction.showAnkiDialog,
                         lastMinedRecord.videoFileUrl,

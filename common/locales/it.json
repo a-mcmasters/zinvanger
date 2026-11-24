@@ -90,6 +90,7 @@
         "foundNoDuplicateNote": "Nessuna nota trovata con la parola \"{{word}}\" nel campo \"{{field}}\"",
         "image": "Immagine",
         "imageCaptureFailed": "Cattura immagine fallita",
+        "imageUnmapped": "Choose an Image Field in Anki settings to save this picture.",
         "imageFileLinkLost": "Collegamento file immagine perso a causa del ricarico della pagina",
         "openInAnki": "Apri in Anki",
         "rerecord": "Registra Nuovamente",
