@@ -89,8 +89,6 @@ const nonNegativeMs = (value: number) => (Number.isFinite(value) ? Math.max(0, v
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : typeof e === 'string' ? e : String(e));
 
-// S13/U2: only the connection, deck, note type, the five fields this workflow fills and the audio padding are configurable.
-// Other Anki settings (tags, extra and custom fields, field order) keep their stored values but have no UI.
 const AnkiSettingsTab: React.FC<Props> = ({
     settings,
     isMobile,
@@ -119,6 +117,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
         sentenceField,
         definitionField,
         audioField,
+        imageField,
         wordField,
         customAnkiFields,
         audioPaddingStart,
@@ -420,6 +419,12 @@ const AnkiSettingsTab: React.FC<Props> = ({
                 value={audioField}
                 selections={fieldNames}
                 onValueChange={(value) => onSettingChanged('audioField', value)}
+            />
+            <AnkiSelect
+                label={t('settings.imageField')}
+                value={imageField}
+                selections={fieldNames}
+                onValueChange={(value) => onSettingChanged('imageField', value)}
             />
             <NumericSettingInput
                 label={t('settings.audioPaddingStart')}
