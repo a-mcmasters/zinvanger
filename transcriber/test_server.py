@@ -1,5 +1,6 @@
 import unittest
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -278,6 +279,19 @@ class Http(Translate):
         with self.assertRaises(urllib.error.HTTPError) as bad:
             self.request("/append?key=Ep.S1&session=..%2Fescape", b"x")
         self.assertEqual(bad.exception.code, 400)
+
+    def test_a_failed_move_of_the_upload_fails_the_job_instead_of_blocking_the_episode(self):
+        from unittest import mock
+
+        server.jobs["Ep.S1"] = {"state": "queued", "progress": 0}
+        with mock.patch.object(server, "keep_audio", side_effect=OSError("disk full")), mock.patch.object(server, "transcribe") as transcribe:
+            server.run_job("Ep.S1", "upload.webm", 0.0)
+        transcribe.assert_not_called()
+        self.assertEqual(server.jobs["Ep.S1"], {"state": "error", "progress": 0, "error": "disk full"})
+
+        with mock.patch.object(server, "run_job") as run_job:
+            self.assertEqual(self.request("/transcribe?key=Ep.S1", b"audio").status, 202)
+        os.unlink(run_job.call_args.args[1])  # the stubbed job never moves the temp upload
 
 
 if __name__ == "__main__":
