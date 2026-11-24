@@ -28,6 +28,7 @@ import type { SettingsProvider } from '@project/common/settings';
 import type Binding from '@project/extension/src/services/binding';
 import { fetchLocalization } from '@project/extension/src/services/localization-fetcher';
 import UiFrame, { uiFrameForHtml } from '@project/extension/src/services/ui-frame';
+import type FrameBridgeClient from '@project/extension/src/services/frame-bridge-client';
 import { ExtensionGlobalStateProvider } from '@project/extension/src/services/extension-global-state-provider';
 import { isOnTutorialPage } from '@/services/tutorial';
 import { frameColorScheme, frameColorSchemeStyleBlock } from '@/services/frame-color-scheme';
@@ -69,6 +70,12 @@ export default class AnkiUiController {
     private focusInListener?: (event: FocusEvent) => void;
     private _settings?: AnkiDialogSettings;
     private _inTutorial: boolean;
+    // Opens still loading; a failed open restores the player only once none is left and no dialog is shown.
+    private _opening = 0;
+    // Whether that restore plays: the video played when the first of these opens paused it, and no close chose since.
+    private _playAfterFailedOpen = false;
+    // Cards sent to the shown frame that it holds or may still receive.
+    private _cardsInFrame = new Set<object>();
 
     constructor() {
         this.frame = uiFrameForHtml(html);
@@ -113,32 +120,36 @@ export default class AnkiUiController {
         }
 
         this._prepareShow(context);
-        const client = await this._client(context);
-        const url = context.url(subtitle.start, subtitle.end);
+        try {
+            const client = await this._client(context);
+            const url = context.url(subtitle.start, subtitle.end);
 
-        const state: AnkiUiInitialState = {
-            type: 'initial',
-            open: true,
-            canRerecord: true,
-            settings: this._settings,
-            source: sourceString(context.subtitleFileName(), subtitle.start),
-            url: url,
-            subtitle: subtitle,
-            surroundingSubtitles: surroundingSubtitles,
-            image: image,
-            audio: audio,
-            dialogRequestedTimestamp: context.currentTimeMs,
-            text,
-            word,
-            definition,
-            customFieldValues,
-            inTutorial: this._inTutorial,
-            ...(await this._additionalUiState(context)),
-        };
-        client.updateState(state);
-        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
-        // blocks every click on the page.
-        if (this.frame.clientIfLoaded === client) this.frame.show();
+            const state: AnkiUiInitialState = {
+                type: 'initial',
+                open: true,
+                canRerecord: true,
+                settings: this._settings,
+                source: sourceString(context.subtitleFileName(), subtitle.start),
+                url: url,
+                subtitle: subtitle,
+                surroundingSubtitles: surroundingSubtitles,
+                image: image,
+                audio: audio,
+                dialogRequestedTimestamp: context.currentTimeMs,
+                text,
+                word,
+                definition,
+                customFieldValues,
+                inTutorial: this._inTutorial,
+                ...(await this._additionalUiState(context)),
+            };
+            this._showCard(context, client, state);
+        } catch (error) {
+            this._openFailed(context);
+            throw error;
+        } finally {
+            this._opening--;
+        }
     }
 
     async showCardSelect(
@@ -159,31 +170,35 @@ export default class AnkiUiController {
         }
 
         this._prepareShow(context);
-        const client = await this._client(context);
-        const state: AnkiUiInitialState = {
-            type: 'initial',
-            open: true,
-            cardSelectOpen: true,
-            canRerecord: true,
-            settings: this._settings,
-            source: sourceString(context.subtitleFileName(), subtitle.start),
-            url: context.url(subtitle.start, subtitle.end),
-            subtitle,
-            surroundingSubtitles,
-            image,
-            audio,
-            dialogRequestedTimestamp: context.currentTimeMs,
-            text,
-            word,
-            definition,
-            customFieldValues,
-            inTutorial: this._inTutorial,
-            ...(await this._additionalUiState(context)),
-        };
-        client.updateState(state);
-        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
-        // blocks every click on the page.
-        if (this.frame.clientIfLoaded === client) this.frame.show();
+        try {
+            const client = await this._client(context);
+            const state: AnkiUiInitialState = {
+                type: 'initial',
+                open: true,
+                cardSelectOpen: true,
+                canRerecord: true,
+                settings: this._settings,
+                source: sourceString(context.subtitleFileName(), subtitle.start),
+                url: context.url(subtitle.start, subtitle.end),
+                subtitle,
+                surroundingSubtitles,
+                image,
+                audio,
+                dialogRequestedTimestamp: context.currentTimeMs,
+                text,
+                word,
+                definition,
+                customFieldValues,
+                inTutorial: this._inTutorial,
+                ...(await this._additionalUiState(context)),
+            };
+            this._showCard(context, client, state);
+        } catch (error) {
+            this._openFailed(context);
+            throw error;
+        } finally {
+            this._opening--;
+        }
     }
 
     async showAfterRerecord(context: Binding, uiState: AnkiUiSavedState) {
@@ -192,21 +207,25 @@ export default class AnkiUiController {
         }
 
         this._prepareShow(context);
-        const client = await this._client(context);
-        const state: AnkiUiResumeState = {
-            ...uiState,
-            type: 'resume',
-            open: true,
-            canRerecord: true,
-            settings: this._settings,
-            dialogRequestedTimestamp: context.currentTimeMs,
-            inTutorial: this._inTutorial,
-            ...(await this._additionalUiState(context)),
-        };
-        client.updateState(state);
-        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
-        // blocks every click on the page.
-        if (this.frame.clientIfLoaded === client) this.frame.show();
+        try {
+            const client = await this._client(context);
+            const state: AnkiUiResumeState = {
+                ...uiState,
+                type: 'resume',
+                open: true,
+                canRerecord: true,
+                settings: this._settings,
+                dialogRequestedTimestamp: context.currentTimeMs,
+                inTutorial: this._inTutorial,
+                ...(await this._additionalUiState(context)),
+            };
+            this._showCard(context, client, state);
+        } catch (error) {
+            this._openFailed(context);
+            throw error;
+        } finally {
+            this._opening--;
+        }
     }
 
     async showAfterRetakingScreenshot(context: Binding, uiState: AnkiUiSavedState) {
@@ -215,20 +234,24 @@ export default class AnkiUiController {
         }
 
         this._prepareShow(context);
-        const client = await this._client(context);
-        const state: AnkiUiResumeState = {
-            ...uiState,
-            type: 'resume',
-            open: true,
-            canRerecord: true,
-            settings: this._settings,
-            inTutorial: this._inTutorial,
-            ...(await this._additionalUiState(context)),
-        };
-        client.updateState(state);
-        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
-        // blocks every click on the page.
-        if (this.frame.clientIfLoaded === client) this.frame.show();
+        try {
+            const client = await this._client(context);
+            const state: AnkiUiResumeState = {
+                ...uiState,
+                type: 'resume',
+                open: true,
+                canRerecord: true,
+                settings: this._settings,
+                inTutorial: this._inTutorial,
+                ...(await this._additionalUiState(context)),
+            };
+            this._showCard(context, client, state);
+        } catch (error) {
+            this._openFailed(context);
+            throw error;
+        } finally {
+            this._opening--;
+        }
     }
 
     async requestRewind(context: Binding) {
@@ -237,6 +260,7 @@ export default class AnkiUiController {
     }
 
     private _prepareShow(context: Binding) {
+        if (this._opening++ === 0 && this.frame.hidden) this._playAfterFailedOpen = !context.video.paused;
         context.pause();
 
         if (document.activeElement) {
@@ -251,6 +275,59 @@ export default class AnkiUiController {
         context.keyBindings.unbind();
         context.subtitleController.forceHideSubtitles = true;
         context.mobileVideoOverlayController.forceHide = true;
+    }
+
+    private _showCard(context: Binding, client: FrameBridgeClient, state: AnkiUiInitialState | AnkiUiResumeState) {
+        client.updateState(state, () => this._cardUndelivered(context, state));
+        // Only now, and only if no other open replaced the frame meanwhile: a shown frame with no dialog in it
+        // blocks every click on the page.
+        if (this.frame.clientIfLoaded !== client) return;
+        if (this.frame.lost) {
+            this.frame.unbind(); // the next open builds a new frame
+            throw new Error('Anki dialog not opened: the page removed its frame.');
+        }
+        if (this.frame.hidden) this._cardsInFrame.clear();
+        this._cardsInFrame.add(state);
+        this.frame.show();
+    }
+
+    // A lookup frame that received none of its cards is an empty frame over the page.
+    private _cardUndelivered(context: Binding, card: object) {
+        if (!this._cardsInFrame.delete(card) || this._cardsInFrame.size > 0) return;
+        this.frame.hide();
+        this._openFailed(context, 0);
+    }
+
+    // Undoes _prepareShow unless something else owns the player: an open still loading (a failing open counts
+    // itself until it settles) or a dialog on screen.
+    private _openFailed(context: Binding, loading = 1) {
+        if (this._opening > loading || (!this.frame.hidden && !this.frame.lost) || !context.subscribed) return;
+        this._restorePage(context);
+        if (this._playAfterFailedOpen) void context.play();
+    }
+
+    private _restorePage(context: Binding) {
+        context.keyBindings.bind(context);
+        context.subtitleController.forceHideSubtitles = false;
+        context.mobileVideoOverlayController.forceHide = false;
+        this.frame?.hide();
+
+        if (this.fullscreenElement) {
+            void this.fullscreenElement.requestFullscreen();
+            this.fullscreenElement = undefined;
+        }
+
+        if (this.activeElement) {
+            const activeHtmlElement = this.activeElement as HTMLElement;
+
+            if (typeof activeHtmlElement.focus === 'function') {
+                activeHtmlElement.focus();
+            }
+
+            this.activeElement = undefined;
+        } else {
+            window.focus();
+        }
     }
 
     private async _client(context: Binding) {
@@ -401,27 +478,8 @@ export default class AnkiUiController {
                         }
                     }
 
-                    context.keyBindings.bind(context);
-                    context.subtitleController.forceHideSubtitles = false;
-                    context.mobileVideoOverlayController.forceHide = false;
-                    this.frame?.hide();
-
-                    if (this.fullscreenElement) {
-                        void this.fullscreenElement.requestFullscreen();
-                        this.fullscreenElement = undefined;
-                    }
-
-                    if (this.activeElement) {
-                        const activeHtmlElement = this.activeElement as HTMLElement;
-
-                        if (typeof activeHtmlElement.focus === 'function') {
-                            activeHtmlElement.focus();
-                        }
-
-                        this.activeElement = undefined;
-                    } else {
-                        window.focus();
-                    }
+                    this._playAfterFailedOpen = false; // a close decides playback
+                    this._restorePage(context);
 
                     switch (message.command) {
                         case 'resume': {

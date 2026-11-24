@@ -36,6 +36,8 @@ export default class UiFrame {
     private _fetchOptions: FetchOptions | undefined;
     private _client: FrameBridgeClient | undefined;
     private _frame: HTMLIFrameElement | undefined;
+    // The frame's window once loaded. Removing or moving the iframe replaces it, losing the dialog document.
+    private _window: Window | null | undefined;
     private _language: string = project.defaultLanguage;
     private _dirty = true;
     private _bound = false;
@@ -76,6 +78,15 @@ export default class UiFrame {
         return this._frame;
     }
 
+    /** True once the page removed the frame after it loaded, or moved one whose document was written in place. */
+    get lost() {
+        if (this._window === undefined) return false;
+        const frame = this._frame!;
+        if (!frame.isConnected) return true;
+        // A frame loaded from src or srcdoc reloads itself when moved and handshakes again; a written one stays blank.
+        return !frame.src && !frame.srcdoc && frame.contentWindow !== this._window;
+    }
+
     get clientIfLoaded() {
         return this._client;
     }
@@ -106,6 +117,7 @@ export default class UiFrame {
         this._bound = true;
         this._client?.unbind();
         this._frame?.remove();
+        this._window = undefined;
 
         this._frame = document.createElement('iframe');
         this._frame.classList.add('asbplayer-ui-frame');
@@ -124,8 +136,11 @@ export default class UiFrame {
         this._unclaimedClient = true;
 
         const client = this._client;
-        this._ready = Promise.all([client.bind(), this._frameInitializer(this._frame, this._language)]).then(
-            () => undefined,
+        const frame = this._frame;
+        this._ready = Promise.all([client.bind(), this._frameInitializer(frame, this._language)]).then(
+            () => {
+                if (this._client === client) this._window = frame.contentWindow;
+            },
             (error) => {
                 if (this._client === client) this._dirty = true; // Retry with a fresh frame next time.
                 throw error;
