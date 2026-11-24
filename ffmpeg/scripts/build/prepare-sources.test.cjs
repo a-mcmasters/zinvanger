@@ -5,6 +5,7 @@ const { createHash } = require('node:crypto');
 const { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
 const { dirname, join } = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { promisify } = require('node:util');
 
 const exec = promisify(execFile);
@@ -34,7 +35,7 @@ const prepare = async () => {
     await writeFile(join(temporary, 'build-config.json'), JSON.stringify(config));
     return exec(process.execPath, [
         '--import',
-        join(temporary, 'offline.mjs'),
+        pathToFileURL(join(temporary, 'offline.mjs')).href,
         join(temporary, 'scripts/build/prepare-sources.mjs'),
     ]);
 };

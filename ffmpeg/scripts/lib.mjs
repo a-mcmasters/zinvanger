@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
-import { basename, dirname, relative, resolve } from 'node:path';
+import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
@@ -93,7 +93,7 @@ export const runtimeFiles = async (root) => {
         for (const entry of await readdir(directory, { withFileTypes: true })) {
             const path = resolve(directory, entry.name);
             if (entry.isDirectory()) await visit(path);
-            else if (entry.name !== 'manifest.json') files.push(relative(root, path));
+            else if (entry.name !== 'manifest.json') files.push(relative(root, path).split(sep).join('/'));
         }
     };
     await visit(root);

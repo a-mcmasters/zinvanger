@@ -146,7 +146,7 @@ if (candidate) {
 await verifyRuntimeArchive(runtimeArchive, runtimeRoot);
 const extracted = await mkdtemp(resolve(tmpdir(), 'asbplayer-ffmpeg-verify-'));
 try {
-    await execFileAsync('tar', ['-xzf', runtimeArchive, '-C', extracted]);
+    await execFileAsync('tar', ['-xzf', runtimeArchive], { cwd: extracted });
     const archived = resolve(extracted, runtimeRoot);
     if ((await sha256(resolve(archived, 'manifest.json'))) !== (await sha256(manifestPath))) {
         throw new Error('Runtime archive manifest differs from the prepared runtime');

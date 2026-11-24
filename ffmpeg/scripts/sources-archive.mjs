@@ -13,7 +13,7 @@ export const extractSourcesArchive = async (archivePath, version, sources, desti
     const { sourcesRoot } = releaseNames(version);
     await verifySourcesArchive(archivePath, sourcesRoot);
     await mkdir(destination, { recursive: true });
-    await execFileAsync('tar', ['-xzf', archivePath, '-C', destination]);
+    await execFileAsync('tar', ['-xzf', archivePath], { cwd: destination });
     const root = resolve(destination, sourcesRoot);
     const expected = sources.map(({ url }) => upstreamTarballName(url)).sort();
     if (JSON.stringify((await readdir(root)).sort()) !== JSON.stringify(expected)) {

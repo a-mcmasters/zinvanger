@@ -7,6 +7,8 @@ const { dirname, join } = require('node:path');
 const { promisify } = require('node:util');
 
 const exec = promisify(execFile);
+// The fixture uses a newline in a file name, a dangling symlink and a `:`-joined PATH, none of which work on Windows.
+const posixIt = process.platform === 'win32' ? it.skip : it;
 const version = '0.1.0';
 let temporary;
 let root;
@@ -131,7 +133,7 @@ const reproduce = (env = {}) =>
         },
     });
 
-it.each(['Git checkout', 'source archive'])('rebuilds clean inputs from a %s', async (kind) => {
+posixIt.each(['Git checkout', 'source archive'])('rebuilds clean inputs from a %s', async (kind) => {
     if (kind === 'Git checkout') {
         await exec('git', ['init', '-q', root]);
         await exec('git', ['-C', root, 'add', '.']);
@@ -141,7 +143,7 @@ it.each(['Git checkout', 'source archive'])('rebuilds clean inputs from a %s', a
     expect(stdout).toContain('The published source reproduces the FFmpeg release');
 });
 
-it('rejects a source archive rebuild whose runtime bytes differ', async () => {
+posixIt('rejects a source archive rebuild whose runtime bytes differ', async () => {
     await updateSources();
     await expect(reproduce({ TEST_MISMATCH: '1' })).rejects.toMatchObject({
         code: 1,

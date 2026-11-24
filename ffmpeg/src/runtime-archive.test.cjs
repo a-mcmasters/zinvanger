@@ -74,7 +74,8 @@ it.each(['ffmpeg-worker.js', 'ffmpeg-core.js', 'ffmpeg-core.wasm'])(
     }
 );
 
-it('rejects links instead of following them', async () => {
+// Windows needs admin rights or Developer Mode to create symlinks.
+(process.platform === 'win32' ? it.skip : it)('rejects links instead of following them', async () => {
     symlinkSync('ffmpeg-core.js', join(root, runtimeRoot, 'link'));
     await expect(unpackFfmpegRuntime(new Blob([pack()]), version)).rejects.toThrow(
         `Unsupported FFmpeg runtime archive entry: ${runtimeRoot}/link`

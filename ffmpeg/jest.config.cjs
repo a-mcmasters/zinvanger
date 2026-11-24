@@ -1,3 +1,6 @@
+// GNU tar (Git Bash) reads `C:\...` as host `C`; BSD tar ignores TAR_OPTIONS. Set here so test workers and their children inherit it.
+if (process.platform === 'win32') process.env.TAR_OPTIONS = '--force-local';
+
 module.exports = {
     preset: 'ts-jest/presets/default-esm',
     extensionsToTreatAsEsm: ['.ts'],

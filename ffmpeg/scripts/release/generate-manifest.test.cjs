@@ -55,7 +55,11 @@ beforeEach(async () => {
         await mkdir(dirname(destination), { recursive: true });
         await copyFile(resolve(__dirname, '..', script), destination);
     }
-    await symlink(resolve(__dirname, '../../node_modules/rolldown'), resolve(root, 'node_modules/rolldown'), 'dir');
+    await symlink(
+        resolve(__dirname, '../../node_modules/rolldown'),
+        resolve(root, 'node_modules/rolldown'),
+        'junction'
+    );
     await writeFile(resolve(root, 'package.json'), JSON.stringify({ type: 'module' }));
     await writeFile(resolve(root, 'artifact-lock.json'), JSON.stringify({ runtimeVersion: version }));
     await writeFile(
