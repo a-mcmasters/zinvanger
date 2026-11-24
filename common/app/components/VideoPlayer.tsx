@@ -2345,9 +2345,7 @@ export default function VideoPlayer({
                 definition: definition.status === 'success' && definition.text ? definition.text : undefined,
             });
             if (notMined) throw new Error(notMined);
-            // shortcut: 'saved' means the card went to the app, which reports the Anki export itself; have the app
-            // reply per card if Mined must wait for Anki.
-            return postMineAction === PostMineAction.showAnkiDialog ? ('dialog' as const) : ('saved' as const);
+            return 'submitted' as const;
         },
     };
     const wordCardActionsRef = useRef(wordCardActions);

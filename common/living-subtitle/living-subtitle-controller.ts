@@ -64,14 +64,14 @@ export const defineWithYomitan = async (yomitan: Yomitan, word: string): Promise
     }
 };
 
-/** `dialog`: the Anki dialog took over the card, so nothing is mined yet. */
-export type LivingSubtitleMineOutcome = 'saved' | 'dialog';
+/** The web app reports the result of a submitted card through its own dialog or alerts. */
+export type LivingSubtitleMineOutcome = 'saved' | 'dialog' | 'submitted';
 
 interface Actions {
     pause(): void;
     /** The word's meaning; rejects with a `livingSubtitle.error` key. */
     define(word: string): Promise<LivingSubtitleDefinition>;
-    /** Resolves when a card is saved or a dialog takes it over, never on message acknowledgement. */
+    /** Resolves when a card is saved or handed off to the UI responsible for reporting the result. */
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     render(state: Readonly<LivingSubtitleState>): void;
 }
@@ -194,6 +194,10 @@ export default class LivingSubtitleController {
         try {
             const outcome = await this.actions.mine(snapshot);
             if (generation !== this.generation) return;
+            if (outcome === 'submitted') {
+                this.clear();
+                return;
+            }
             this.state.mining = outcome === 'dialog' ? { status: 'idle' } : { status: 'success', text: '' };
         } catch (error) {
             if (generation !== this.generation) return;

@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@j
 import { ThemeProvider } from '@mui/material/styles';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { PostMineAction } from '@project/common';
 import type { IndexedSubtitleModel } from '@project/common';
 import { defaultSettings, SettingsProvider } from '@project/common/settings';
 import { MockSettingsStorage } from '@project/common/settings/mock-settings-storage';
@@ -82,12 +83,12 @@ describe('VideoPlayer', () => {
         delete (document as any).caretPositionFromPoint;
     });
 
-    const renderPlayer = async (cues = [cue]) => {
+    const renderPlayer = async (cues = [cue], settings = defaultSettings) => {
         await act(async () =>
             root.render(
                 <ThemeProvider theme={createTheme('dark')}>
                     <VideoPlayer
-                        settings={defaultSettings}
+                        settings={settings}
                         settingsProvider={new SettingsProvider(new MockSettingsStorage())}
                         extension={{ supportsAppIntegration: false } as any}
                         supportsDictionaryPlayback={false}
@@ -140,6 +141,21 @@ describe('VideoPlayer', () => {
         expect(minedSubtitle).toMatchObject({ text: cue.text, start: cue.start, end: cue.end });
         expect(surroundingSubtitles).toEqual([cue]);
         expect(cardTextFieldValues).toMatchObject({ word: 'zet', definition: 'meaning of zet' });
+    });
+
+    it('lets the app report the outcome of a direct export', async () => {
+        const { channel, subtitle } = await renderPlayer([cue], {
+            ...defaultSettings,
+            clickToMineDefaultAction: PostMineAction.exportCard,
+        });
+        await clickAt(subtitle, subtitle.firstChild!, 5);
+        const card = container.querySelector<HTMLElement>('[role="dialog"][aria-label="zet"]')!;
+        const mine = [...card.querySelectorAll('button')].find((button) => button.textContent === 'Mine')!;
+
+        await act(async () => mine.click());
+
+        expect(channel.copy).toHaveBeenCalledTimes(1);
+        expect(container.contains(card)).toBe(false);
     });
 
     it('opens the decoded word after a subtitle line break', async () => {
