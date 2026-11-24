@@ -47,6 +47,8 @@ On streaming sites, the lookup-enabled dialog runs in the extension's own frame,
 
 On desktop, click a word in the first subtitle track. Playback pauses, the word is highlighted, and a card opens above the line with its dictionary meaning from [Yomitan](annotation.md) (no model tokens).
 
+This also works for local video in the web app's own player, with or without the extension. There, the web app asks Yomitan for the meaning itself and mines the card the same way as its other mining shortcuts.
+
 **Mine** mines exactly this sentence, without joining neighboring lines, using your usual audio padding and click-to-mine action. The clicked word goes to the Anki card's word field, and its meaning, once shown, to the definition field.
 
 The dictionary links an inflected form to its base form, so the card shows the base form's meaning: _hadden_ shows the meaning of _hebben_ (to have).

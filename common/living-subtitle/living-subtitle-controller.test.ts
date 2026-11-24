@@ -1,6 +1,12 @@
 import type { IndexedSubtitleModel } from '@project/common';
-import LivingSubtitleController, { distinctLemma, livingSubtitleWords } from '@/controllers/living-subtitle-controller';
-import type { LivingSubtitleState, LivingSubtitleTarget } from '@/controllers/living-subtitle-controller';
+import LivingSubtitleController, {
+    distinctLemma,
+    livingSubtitleWords,
+} from '@project/common/living-subtitle/living-subtitle-controller';
+import type {
+    LivingSubtitleState,
+    LivingSubtitleTarget,
+} from '@project/common/living-subtitle/living-subtitle-controller';
 
 const cue = (text: string, overrides: Partial<IndexedSubtitleModel> = {}): IndexedSubtitleModel => ({
     text,

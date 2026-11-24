@@ -1,5 +1,6 @@
 import type { IndexedSubtitleModel, SubtitleModel } from '@project/common';
 import { subtitleKey } from '@project/common/subtitle-reader/subtitle-stream';
+import type { Yomitan } from '@project/common/yomitan';
 
 export interface LivingSubtitleTarget {
     readonly video: string;
@@ -24,6 +25,10 @@ export const livingSubtitleWords = (text: string): LivingSubtitleWord[] =>
 export const distinctLemma = (word: string, lemma?: string) =>
     lemma && lemma.toLowerCase() !== word.toLowerCase() ? lemma : undefined;
 
+/** Only the main subtitle track (the language being learned) is clickable; a translation track shown alongside is not. */
+export const livingSubtitleActionable = (cue: IndexedSubtitleModel) =>
+    cue.track === 0 && !cue.textImage && cue.text.trim() !== '';
+
 export type LivingSubtitleResult =
     | { status: 'idle' | 'pending' }
     /** `lemma`: the dictionary form the meaning belongs to, when it differs from the word. */
@@ -43,6 +48,18 @@ export interface LivingSubtitleDefinition {
     readonly text: string;
     readonly lemma?: string;
 }
+
+/** A word's meaning from Yomitan, with no model tokens; rejects with a `livingSubtitle.error` key. */
+export const defineWithYomitan = async (yomitan: Yomitan, word: string): Promise<LivingSubtitleDefinition> => {
+    try {
+        const text = (await yomitan.gloss(word)) ?? '';
+        // Read from the same Yomitan response as the gloss, so normally no second request.
+        const lemma = (await yomitan.lemmatize(word))?.[0];
+        return { text, lemma: distinctLemma(word, lemma) };
+    } catch {
+        throw new Error('dictionaryUnavailable');
+    }
+};
 
 /** `dialog`: the Anki dialog took over the card, so nothing is mined yet. */
 export type LivingSubtitleMineOutcome = 'saved' | 'dialog';

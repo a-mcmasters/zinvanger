@@ -1,16 +1,21 @@
 import type { IndexedSubtitleModel } from '@project/common';
 import { ASB_SUBTITLE_INDEX_ATTRIBUTE } from '@project/common/annotations/dom-annotations';
-import LivingSubtitleController, { livingSubtitleWords } from '@/controllers/living-subtitle-controller';
+import LivingSubtitleController, {
+    livingSubtitleActionable,
+    livingSubtitleWords,
+} from '@project/common/living-subtitle/living-subtitle-controller';
+import { domWords, wordIndexAt } from '@project/common/living-subtitle/dom-words';
 import type {
     LivingSubtitleDefinition,
     LivingSubtitleMineOutcome,
     LivingSubtitleState,
     LivingSubtitleTarget,
-} from '@/controllers/living-subtitle-controller';
+} from '@project/common/living-subtitle/living-subtitle-controller';
 import { frameColorScheme, frameColorSchemeClass } from '@/services/frame-color-scheme';
 import UiFrame from '@/services/ui-frame';
 import type FrameBridgeClient from '@/services/frame-bridge-client';
-import type { LivingSubtitleAction, LivingSubtitleViewModel } from '@/ui/components/LivingSubtitleUi';
+import type { LivingSubtitleAction } from '@project/common/components/LivingSubtitleCard';
+import type { LivingSubtitleViewModel } from '@/ui/components/LivingSubtitleUi';
 import i18n from 'i18next';
 
 export interface LivingSubtitleHostContext {
@@ -29,63 +34,6 @@ export interface LivingSubtitleHostContext {
 }
 
 const gap = 4;
-
-interface DomWord {
-    readonly range: Range;
-    readonly start: number;
-    readonly end: number;
-    /** Index into livingSubtitleWords(cue.text), when the rendered word matches one. */
-    readonly modelIndex?: number;
-}
-
-/**
- * Maps the rendered subtitle text back to the cue's words without changing the subtitle DOM. With hover-only
- * annotations the cue holds two copies of the sentence (plain and annotated, CSS shows one); each copy is matched on
- * its own, so both get the full set of word indexes.
- */
-const domWords = (element: HTMLElement, cueText: string): DomWord[] => {
-    const copies = element.querySelectorAll<HTMLElement>(
-        ':scope > .asbplayer-subtitle-text, :scope > .asbplayer-subtitle-rich'
-    );
-    return (copies.length > 0 ? [...copies] : [element]).flatMap((copy) => copyWords(copy, cueText));
-};
-
-const copyWords = (element: HTMLElement, cueText: string): DomWord[] => {
-    const nodes: { node: Text; start: number }[] = [];
-    let text = '';
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
-        if (node.parentElement?.closest('rt, rp')) continue;
-        nodes.push({ node, start: text.length });
-        text += node.data;
-    }
-    const position = (offset: number, end: boolean) => {
-        const entry = nodes.findLast((n) => (end ? n.start < offset : n.start <= offset)) ?? nodes[0];
-        return [entry.node, offset - entry.start] as const;
-    };
-    const model = livingSubtitleWords(cueText);
-    let next = 0;
-    return livingSubtitleWords(text).map((word) => {
-        const range = document.createRange();
-        range.setStart(...position(word.start, false));
-        range.setEnd(...position(word.end, true));
-        const match = model.findIndex((candidate, index) => index >= next && candidate.text === word.text);
-        if (match >= 0) next = match + 1;
-        return { range, start: word.start, end: word.end, modelIndex: match >= 0 ? match : undefined };
-    });
-};
-
-const caretPoint = (element: HTMLElement, x: number, y: number): { node: Node; offset: number } | undefined => {
-    const caret = document.caretPositionFromPoint?.(x, y);
-    const node = caret?.offsetNode ?? document.caretRangeFromPoint?.(x, y)?.startContainer;
-    const offset = caret?.offset ?? document.caretRangeFromPoint?.(x, y)?.startOffset;
-    return node && offset !== undefined && element.contains(node) ? { node, offset } : undefined;
-};
-
-/** Only the main subtitle track (the language being learned) is clickable; a translation track shown alongside is not. */
-const mainTrack = 0;
-
-const actionable = (cue: IndexedSubtitleModel) => cue.track === mainTrack && !cue.textImage && cue.text.trim() !== '';
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, Math.max(min, max)));
 
@@ -195,7 +143,7 @@ export default class LivingSubtitleHost {
         const cue = element
             ? this.context.cueAt(Number(element.getAttribute(ASB_SUBTITLE_INDEX_ATTRIBUTE)))
             : undefined;
-        return cue && element && actionable(cue) ? { cue, element } : undefined;
+        return cue && element && livingSubtitleActionable(cue) ? { cue, element } : undefined;
     }
 
     private click(event: MouseEvent) {
@@ -203,19 +151,15 @@ export default class LivingSubtitleHost {
         if (!window.getSelection()?.isCollapsed) return; // keep subtitle text selection working
         const hit = this.eventCue(event);
         if (!hit) return;
-        // Compare DOM positions, not text offsets: domWords skips ruby glosses (rt, rp) that a text offset would count.
-        const caret = caretPoint(hit.element, event.clientX, event.clientY);
-        const word =
-            caret &&
-            domWords(hit.element, hit.cue.text).find((w) => w.range.comparePoint(caret.node, caret.offset) === 0);
-        if (word?.modelIndex === undefined) return;
+        const wordIndex = wordIndexAt(hit.element, hit.cue.text, event.clientX, event.clientY);
+        if (wordIndex === undefined) return;
         event.stopPropagation(); // the word belongs to this interaction, not to the player or annotations
         event.preventDefault();
         if (this.state?.target && this.context.resolve(this.state.target)?.cue.index !== hit.cue.index) {
             this.controller.clear();
         }
         this.controller.hover(this.context.targetFor(hit.cue));
-        void this.controller.selectWord(word.modelIndex);
+        void this.controller.selectWord(wordIndex);
     }
 
     private action(action: LivingSubtitleAction) {
