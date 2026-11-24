@@ -90,6 +90,7 @@
         "foundNoDuplicateNote": "Ei mitään muistiinpanoja sanalla \"{{word}}\" kentällä \"{{field}}\"",
         "image": "Kuva",
         "imageCaptureFailed": "Kuvan tallentaminen epäonnistui",
+        "imageUnmapped": "Choose an Image Field in Anki settings to save this picture.",
         "imageFileLinkLost": "Kuvan linkki menetetty sivun uudelleenlatauksen vuoksi",
         "openInAnki": "Avaa Ankilla",
         "rerecord": "Ennätys uudelleen",

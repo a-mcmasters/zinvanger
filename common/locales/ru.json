@@ -90,6 +90,7 @@
         "foundNoDuplicateNote": "Не найдено дубликатов со словом \"{{word}}\" в поле \"{{field}}\"",
         "image": "Изображение",
         "imageCaptureFailed": "Ошибка копирования изображения",
+        "imageUnmapped": "Choose an Image Field in Anki settings to save this picture.",
         "imageFileLinkLost": "Ссылка на файл изображения потеряна из-за перезагрузки страницы",
         "openInAnki": "Открыть в Anki",
         "rerecord": "Перезаписать",

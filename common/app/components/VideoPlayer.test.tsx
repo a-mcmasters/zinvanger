@@ -158,6 +158,20 @@ describe('VideoPlayer', () => {
         expect(container.contains(card)).toBe(false);
     });
 
+    it('mines the displayed position of a paused video even before the subtitle clock catches up', async () => {
+        const { channel, subtitle } = await renderPlayer();
+        await clickAt(subtitle, subtitle.firstChild!, 5);
+        const video = container.querySelector('video')!;
+        expect(video.paused).toBe(true);
+        video.currentTime = 2.75;
+        const card = container.querySelector<HTMLElement>('[role="dialog"][aria-label="zet"]')!;
+        const mine = [...card.querySelectorAll('button')].find((button) => button.textContent === 'Mine')!;
+
+        await act(async () => mine.click());
+
+        expect(channel.copy.mock.calls[0][4]).toBe(2750);
+    });
+
     it('opens the decoded word after a subtitle line break', async () => {
         const { subtitle } = await renderPlayer([{ ...cue, text: 'Drie<br>auto&#39;s' }]);
 

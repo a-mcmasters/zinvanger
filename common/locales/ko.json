@@ -90,6 +90,7 @@
         "foundNoDuplicateNote": "\"‘{{field}}’ 필드에 ‘{{word}}’를 포함한 노트가 없습니다.\"",
         "image": "이미지",
         "imageCaptureFailed": "이미지 캡처 실패",
+        "imageUnmapped": "Choose an Image Field in Anki settings to save this picture.",
         "imageFileLinkLost": "페이지 새로고침으로 인한 이미지 파일 링크 유실",
         "openInAnki": "Anki에서 열기",
         "rerecord": "다시 녹화",
