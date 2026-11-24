@@ -53,17 +53,18 @@ export const retryWithAnimationFrame = (
     };
 };
 
-let subtitleHtmlHelperElement: HTMLDivElement | undefined;
+let subtitleHtmlTemplate: HTMLTemplateElement | undefined;
 const subtitleGraphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 const invisibleGraphemePattern = /^[\s\p{Default_Ignorable_Code_Point}]*$/u;
 
 /** Removes presentation markup, ruby readings, and ruby fallback text from subtitle text. */
 export const removeSubtitleHtml = (text: string): string => {
-    subtitleHtmlHelperElement ??= document.createElement('div');
-    subtitleHtmlHelperElement.innerHTML = text;
-    for (const element of subtitleHtmlHelperElement.querySelectorAll('br')) element.replaceWith('\n');
-    for (const element of subtitleHtmlHelperElement.querySelectorAll('rt, rp')) element.remove();
-    return subtitleHtmlHelperElement.textContent ?? subtitleHtmlHelperElement.innerText;
+    subtitleHtmlTemplate ??= document.createElement('template');
+    subtitleHtmlTemplate.innerHTML = text;
+    const content = subtitleHtmlTemplate.content;
+    for (const element of content.querySelectorAll('br')) element.replaceWith('\n');
+    for (const element of content.querySelectorAll('rt, rp')) element.remove();
+    return content.textContent ?? '';
 };
 
 /** Counts visible subtitle graphemes, excluding markup, ruby annotations, whitespace, and formatting controls. */

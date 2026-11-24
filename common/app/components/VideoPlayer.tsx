@@ -121,7 +121,7 @@ import useLastScrollableControlType from '@project/common/hooks/use-last-scrolla
 import LivingSubtitleController, {
     defineWithYomitan,
     livingSubtitleActionable,
-    livingSubtitleWords,
+    livingSubtitleCueWords,
 } from '@project/common/living-subtitle/living-subtitle-controller';
 import type { LivingSubtitleState } from '@project/common/living-subtitle/living-subtitle-controller';
 import { domWords, wordIndexAt } from '@project/common/living-subtitle/dom-words';
@@ -2376,10 +2376,10 @@ export default function VideoPlayer({
             const wordIndex = wordIndexAt(element, cue.text, e.clientX, e.clientY);
             if (wordIndex === undefined) return;
             if (wordCard?.target && subtitleKey(wordCard.target.cue) !== subtitleKey(cue)) wordCardController.clear();
-            wordCardController.hover({ video: videoFile, cue, surrounding: calculateSurroundingSubtitles(cue.index) });
+            wordCardController.hover({ video: videoFile, cue, surrounding: [cue] });
             void wordCardController.selectWord(wordIndex);
         },
-        [wordCard?.target, wordCardController, videoFile, calculateSurroundingSubtitles]
+        [wordCard?.target, wordCardController, videoFile]
     );
 
     const handleWordCardAction = useCallback(
@@ -2396,15 +2396,20 @@ export default function VideoPlayer({
         if (!video) return;
         const clear = () => wordCardController.hasTarget && wordCardController.clear();
         video.addEventListener('play', clear);
-        return () => video.removeEventListener('play', clear);
+        video.addEventListener('seeking', clear);
+        return () => {
+            video.removeEventListener('play', clear);
+            video.removeEventListener('seeking', clear);
+        };
     }, [video, wordCardController]);
     useEffect(
         () =>
             wordCardController.reconcile((target) => {
+                if (target.video !== videoFile || !displaySubtitles) return undefined;
                 const cue = showSubtitles.find((subtitle) => subtitleKey(subtitle) === subtitleKey(target.cue));
-                return cue && { ...target, cue };
+                return cue && { ...target, cue, surrounding: [cue] };
             }),
-        [showSubtitles, wordCardController]
+        [displaySubtitles, showSubtitles, videoFile, wordCardController]
     );
 
     const wordCardWord = wordCard?.word;
@@ -2421,7 +2426,7 @@ export default function VideoPlayer({
             `[${ASB_SUBTITLE_INDEX_ATTRIBUTE}="${wordCardCue?.index}"]`
         );
         if (!wordCardCue || !wordCardWord || !element || !globalThis.CSS?.highlights) return;
-        const index = livingSubtitleWords(wordCardCue.text).findIndex((w) => w.start === wordCardWord.start);
+        const index = livingSubtitleCueWords(wordCardCue.text).findIndex((w) => w.start === wordCardWord.start);
         const ranges = domWords(element, wordCardCue.text).filter((w) => w.modelIndex === index);
         CSS.highlights.set('asbplayer-living-subtitle-word', new Highlight(...ranges.map((w) => w.range)));
         return () => void CSS.highlights.delete('asbplayer-living-subtitle-word');

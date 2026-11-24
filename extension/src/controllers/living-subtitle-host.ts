@@ -2,7 +2,7 @@ import type { IndexedSubtitleModel } from '@project/common';
 import { ASB_SUBTITLE_INDEX_ATTRIBUTE } from '@project/common/annotations/dom-annotations';
 import LivingSubtitleController, {
     livingSubtitleActionable,
-    livingSubtitleWords,
+    livingSubtitleCueWords,
 } from '@project/common/living-subtitle/living-subtitle-controller';
 import { domWords, wordIndexAt } from '@project/common/living-subtitle/dom-words';
 import type {
@@ -277,7 +277,7 @@ export default class LivingSubtitleHost {
         }
 
         const cue = state.target.cue;
-        const words = livingSubtitleWords(cue.text);
+        const words = livingSubtitleCueWords(cue.text);
         const dom = domWords(element, cue.text);
         /** The word's ranges in every copy of the sentence: the highlight then shows in whichever copy is visible. */
         const rangesFor = (index?: number) =>

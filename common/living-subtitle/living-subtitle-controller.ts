@@ -1,5 +1,6 @@
 import type { IndexedSubtitleModel, SubtitleModel } from '@project/common';
 import { subtitleKey } from '@project/common/subtitle-reader/subtitle-stream';
+import { removeSubtitleHtml } from '@project/common/util';
 import type { Yomitan } from '@project/common/yomitan';
 
 export interface LivingSubtitleTarget {
@@ -20,6 +21,8 @@ export const livingSubtitleWords = (text: string): LivingSubtitleWord[] =>
         end: match.index + match[0].length,
         text: match[0].normalize('NFC'),
     }));
+
+export const livingSubtitleCueWords = (text: string) => livingSubtitleWords(removeSubtitleHtml(text));
 
 /** The dictionary form to show beside a word, or undefined when it is the word itself ("Hij" → "hij" is not). */
 export const distinctLemma = (word: string, lemma?: string) =>
@@ -150,14 +153,14 @@ export default class LivingSubtitleController {
     }
 
     retryDefinition() {
-        const words = this.state.target ? livingSubtitleWords(this.state.target.cue.text) : [];
+        const words = this.state.target ? livingSubtitleCueWords(this.state.target.cue.text) : [];
         const index = words.findIndex((w) => w.start === this.state.word?.start);
         if (index >= 0) void this.selectWord(index);
     }
 
     async selectWord(index: number) {
         const target = this.state.target;
-        const word = target && livingSubtitleWords(target.cue.text)[index];
+        const word = target && livingSubtitleCueWords(target.cue.text)[index];
         if (this.disposed || !target || !word) return;
         this.capture();
         this.state.word = word;

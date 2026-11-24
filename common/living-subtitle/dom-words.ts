@@ -1,10 +1,13 @@
-import { livingSubtitleWords } from '@project/common/living-subtitle/living-subtitle-controller';
+import {
+    livingSubtitleCueWords,
+    livingSubtitleWords,
+} from '@project/common/living-subtitle/living-subtitle-controller';
 
 export interface DomWord {
     readonly range: Range;
     readonly start: number;
     readonly end: number;
-    /** Index into livingSubtitleWords(cue.text), when the rendered word matches one. */
+    /** Index into livingSubtitleCueWords(cue.text), when the rendered word matches one. */
     readonly modelIndex?: number;
 }
 
@@ -23,17 +26,23 @@ export const domWords = (element: HTMLElement, cueText: string): DomWord[] => {
 const copyWords = (element: HTMLElement, cueText: string): DomWord[] => {
     const nodes: { node: Text; start: number }[] = [];
     let text = '';
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
-        if (node.parentElement?.closest('rt, rp')) continue;
-        nodes.push({ node, start: text.length });
-        text += node.data;
-    }
+    const appendText = (parent: Node) => {
+        for (const child of parent.childNodes) {
+            if (child instanceof Text && child.length) {
+                nodes.push({ node: child, start: text.length });
+                text += child.data;
+            } else if (child instanceof Element) {
+                if (child.matches('br')) text += '\n';
+                else if (!child.matches('rt, rp')) appendText(child);
+            }
+        }
+    };
+    appendText(element);
     const position = (offset: number, end: boolean) => {
         const entry = nodes.findLast((n) => (end ? n.start < offset : n.start <= offset)) ?? nodes[0];
         return [entry.node, offset - entry.start] as const;
     };
-    const model = livingSubtitleWords(cueText);
+    const model = livingSubtitleCueWords(cueText);
     let next = 0;
     return livingSubtitleWords(text).map((word) => {
         const range = document.createRange();
@@ -52,7 +61,7 @@ const caretPoint = (element: HTMLElement, x: number, y: number): { node: Node; o
     return node && offset !== undefined && element.contains(node) ? { node, offset } : undefined;
 };
 
-/** The index in livingSubtitleWords(cueText) of the word rendered under a point of the cue's element. */
+/** The index in livingSubtitleCueWords(cueText) of the word rendered under a point of the cue's element. */
 export const wordIndexAt = (element: HTMLElement, cueText: string, x: number, y: number) => {
     // Compare DOM positions, not text offsets: domWords skips ruby glosses (rt, rp) that a text offset would count.
     const caret = caretPoint(element, x, y);

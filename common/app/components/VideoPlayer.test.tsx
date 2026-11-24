@@ -82,7 +82,7 @@ describe('VideoPlayer', () => {
         delete (document as any).caretPositionFromPoint;
     });
 
-    const renderPlayer = async () => {
+    const renderPlayer = async (cues = [cue]) => {
         await act(async () =>
             root.render(
                 <ThemeProvider theme={createTheme('dark')}>
@@ -106,10 +106,10 @@ describe('VideoPlayer', () => {
         );
         const channel = channels[0];
         await act(async () => channel.callbacks.onReady(10, 'video.mp4'));
-        await act(async () => channel.callbacks.onSubtitles([cue], ['subs.srt']));
+        await act(async () => channel.callbacks.onSubtitles(cues, ['subs.srt', 'translation.srt']));
         await flush();
         const subtitle = container.querySelector<HTMLElement>('[data-asb-subtitle-index="0"]')!;
-        expect(subtitle.textContent).toBe(cue.text);
+        expect(subtitle).not.toBeNull();
         return { channel, subtitle };
     };
 
@@ -121,7 +121,8 @@ describe('VideoPlayer', () => {
     };
 
     it('clicking a word in the on-video subtitle opens its word card, and Mine mines it with that word', async () => {
-        const { channel, subtitle } = await renderPlayer();
+        const translation = { ...cue, text: 'He makes coffee.', track: 1, index: 1 };
+        const { channel, subtitle } = await renderPlayer([cue, translation]);
 
         await clickAt(subtitle, subtitle.firstChild!, 5); // inside "zet"
 
@@ -135,8 +136,28 @@ describe('VideoPlayer', () => {
         await flush();
 
         expect(channel.copy).toHaveBeenCalledTimes(1);
-        const [minedSubtitle, , cardTextFieldValues] = channel.copy.mock.calls[0];
+        const [minedSubtitle, surroundingSubtitles, cardTextFieldValues] = channel.copy.mock.calls[0];
         expect(minedSubtitle).toMatchObject({ text: cue.text, start: cue.start, end: cue.end });
+        expect(surroundingSubtitles).toEqual([cue]);
         expect(cardTextFieldValues).toMatchObject({ word: 'zet', definition: 'meaning of zet' });
+    });
+
+    it('opens the decoded word after a subtitle line break', async () => {
+        const { subtitle } = await renderPlayer([{ ...cue, text: 'Drie<br>auto&#39;s' }]);
+
+        await clickAt(subtitle, subtitle.lastChild!, 2);
+
+        expect(container.querySelector(`[role="dialog"][aria-label="auto's"]`)).not.toBeNull();
+    });
+
+    it('dismisses the word card when seeking within the same cue', async () => {
+        const { subtitle } = await renderPlayer();
+
+        await clickAt(subtitle, subtitle.firstChild!, 5);
+        expect(container.querySelector('[role="dialog"][aria-label="zet"]')).not.toBeNull();
+
+        await act(async () => container.querySelector('video')!.dispatchEvent(new Event('seeking')));
+
+        expect(container.querySelector('[role="dialog"][aria-label="zet"]')).toBeNull();
     });
 });
