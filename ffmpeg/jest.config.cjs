@@ -1,4 +1,4 @@
-// GNU tar (Git Bash) reads `C:\...` as host `C`; BSD tar ignores TAR_OPTIONS. Set here so test workers and their children inherit it.
+// GNU tar reads `C:\...` as remote host `C`. Set here, not in setupFiles, so child processes inherit it.
 if (process.platform === 'win32') process.env.TAR_OPTIONS = '--force-local';
 
 module.exports = {
