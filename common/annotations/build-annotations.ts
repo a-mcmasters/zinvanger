@@ -39,6 +39,8 @@ import {
     dictionaryTrackEnabled,
     getEnabledAnnotations,
     getFullyKnownTokenStatus,
+    ankiVocabularySource,
+    iPlusOneActive,
     shouldUseAnnotation,
     TokenState,
 } from '@project/common/settings';
@@ -722,6 +724,19 @@ export class BuildAnnotations {
                 }
             }
 
+            for (const ts of this.trackStates) {
+                if (!iPlusOneActive(ts.dt, ts.track)) continue;
+                const source = await this.options.dictionaryProvider
+                    .getAnkiCacheSource(profile, ts.track)
+                    .catch(() => undefined); // unknown: no cue
+                const ready = source === ankiVocabularySource(ts.dt);
+                if (ready === ts.iPlusOneReady) continue;
+                ts.iPlusOneReady = ready;
+                for (const subtitle of this.subtitles) {
+                    if (subtitle.track === ts.track && subtitle.__tokenized) this.refreshCache.add(subtitle.index);
+                }
+            }
+
             const statisticsSubtitles =
                 this.generateStatistics === true && this.initialized ? this.statisticsBatch() : [];
             const generatingStatistics =
@@ -840,6 +855,9 @@ export class BuildAnnotations {
                                           ts
                                       );
                                 if (this.shouldCancelBuild) return;
+                                if (tokenizationModel) {
+                                    tokenizationModel.tokenization.iPlusOneReady = ts.iPlusOneReady || undefined;
+                                }
                                 if (
                                     areTokenizationsEqual(tokenizationModel?.tokenization, existingTokenization) &&
                                     !this.statisticsBatchRequested

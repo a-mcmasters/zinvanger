@@ -49,6 +49,7 @@ import type {
     DictionaryGetRecordsMessage,
     DictionaryGetBulkMessage,
     DictionaryGetByLemmaBulkMessage,
+    DictionaryGetAnkiCacheSourceMessage,
     DictionarySaveRecordLocalBulkMessage,
     DictionaryDeleteRecordLocalBulkMessage,
     DictionaryDeleteRecordsMessage,
@@ -290,6 +291,11 @@ export default class ChromeExtension {
 
     get supportsDictionary() {
         return this.installed && gte(this.version, '1.14.0');
+    }
+
+    /** The extension's Anki cache reads the known-word source and reports a completed build for i+1 cues. */
+    get supportsIPlusOne() {
+        return this.installed && gte(this.version, '1.26.0');
     }
 
     get supportsPageSettings() {
@@ -872,6 +878,16 @@ export default class ChromeExtension {
                 lemmas,
                 messageId,
             },
+        };
+        window.postMessage(command);
+        return this._createResponsePromise(messageId);
+    }
+
+    async dictionaryGetAnkiCacheSource(profile: string | undefined, track: number): Promise<string | undefined> {
+        const messageId = uuidv4();
+        const command: AsbPlayerCommand<DictionaryGetAnkiCacheSourceMessage> = {
+            sender: 'asbplayerv2',
+            message: { command: 'dictionary-get-anki-cache-source', profile, track, messageId },
         };
         window.postMessage(command);
         return this._createResponsePromise(messageId);

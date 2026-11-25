@@ -1151,7 +1151,7 @@ export function areTokenizationsEqual(a: Tokenization | undefined, b: Tokenizati
     if (a === b) return true;
     if (!a || !b) return false;
 
-    if (a.error !== b.error) return false;
+    if (a.error !== b.error || a.iPlusOneReady !== b.iPlusOneReady) return false;
     return arrayEquals(a.tokens, b.tokens, areTokensEqual);
 }
 

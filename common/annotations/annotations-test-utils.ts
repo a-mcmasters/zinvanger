@@ -126,6 +126,7 @@ export const makeStorage = () => ({
     getBulk: jest.fn(async () => ({})),
     getAllTokens: jest.fn(async () => ({})),
     getByLemmaBulk: jest.fn(async () => ({})),
+    getAnkiCacheSource: jest.fn(async (): Promise<string | undefined> => undefined),
     saveRecordLocalBulk: jest.fn(async () => ({ savedTokens: [] })),
     deleteRecordLocalBulk: jest.fn(async () => ({ deletedTokens: [] })),
     deleteProfile: jest.fn(async () => ({})),

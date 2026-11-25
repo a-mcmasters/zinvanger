@@ -12,7 +12,13 @@ import type {
 } from '@project/common';
 import { DictionaryBuildAnkiCacheStateErrorCode, DictionaryBuildAnkiCacheStateType } from '@project/common';
 import type { AsbplayerSettings, DictionaryTrack } from '@project/common/settings';
-import { ankiStatusTrack, DictionaryTokenSource, isAnkiSource, TokenStatus } from '@project/common/settings';
+import {
+    ankiStatusTrack,
+    ankiVocabularySource,
+    DictionaryTokenSource,
+    isAnkiSource,
+    TokenStatus,
+} from '@project/common/settings';
 import { Yomitan } from '@project/common/yomitan';
 import { v4 as uuidv4 } from 'uuid';
 import type {
@@ -180,13 +186,16 @@ export async function buildAnkiCachePipeline(
                 await _buildIdHealthCheck(db, buildId, 'anki', activeTracks);
                 await _deleteCardBulk(db, profile, orphanedTrackCardIds, modifiedTokens);
                 await _gatherModifiedTokens(db, profile, modifiedTokens);
-                for (const { key, settings } of settingsToUpdate) {
+                for (const track of tracksToClear) {
+                    const key: DictionaryMetaKey = [profile, track];
                     const trackMeta = await db.meta.get(key);
                     if (!trackMeta) continue;
+                    const settings = settingsToUpdate.find((update) => update.key[1] === track)?.settings;
                     await db.meta.update(key, {
                         ankiMeta: {
                             ...trackMeta.ankiMeta,
-                            settings,
+                            settings: settings ?? trackMeta.ankiMeta.settings,
+                            builtSource: null, // The cleared cache holds no completed source until it is rebuilt
                         },
                     });
                 }
@@ -733,6 +742,16 @@ export async function _processTracks(
             progress,
             statusUpdates
         );
+        await db.transaction('rw', db.meta, async () => {
+            for (const [track, { dt }] of trackStates) {
+                const key: DictionaryMetaKey = [profile, track];
+                const trackMeta = await db.meta.get(key);
+                if (!trackMeta) continue;
+                await db.meta.update(key, {
+                    ankiMeta: { ...trackMeta.ankiMeta, builtSource: ankiVocabularySource(dt) },
+                });
+            }
+        });
     } catch (e) {
         error = e;
         asbError('dictionary/anki', e);

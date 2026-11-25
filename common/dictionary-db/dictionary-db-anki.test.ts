@@ -261,6 +261,34 @@ describe('DictionaryDB Anki cache', () => {
         ]);
     });
 
+    it('reports the i+1 source of the last completed build until the source changes', async () => {
+        const vocabulary = makeDictionaryTrack({
+            dictionaryAnkiDecks: ['Japanese'],
+            dictionaryAnkiWordFields: ['Word'],
+        });
+        useSettings([vocabulary]);
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBeUndefined();
+
+        stageAnkiNotes([makeNoteInfo()]);
+        await buildUntilComplete();
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBe('[["Japanese"],["Word"]]');
+
+        mockAnkiOverrides.push({ requestPermission: jest.fn(async () => ({ permission: 'denied' })) });
+        await buildUntilComplete(); // Anki offline: the loaded cache still serves its source
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBe('[["Japanese"],["Word"]]');
+
+        useSettings([{ ...vocabulary, dictionaryAnkiWordFields: ['Expression'] }]);
+        mockYomitanOverrides.push({ tokenize: jest.fn(() => new Promise(() => undefined)) }); // the rebuild hangs
+        mockAnkiOverrides.push({
+            findNotes: jest.fn(async () => [10]),
+            notesInfo: jest.fn(async () => [makeNoteInfo()]),
+        });
+        void dictionaryDB.buildAnkiCache(profile, () => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBeUndefined();
+        expect(await dictionaryDB.getAnkiCacheSource(otherProfile, track)).toBeUndefined();
+    });
+
     it('replaces changed card tokens while retaining references from unchanged cards', async () => {
         useSettings([makeDictionaryTrack({ dictionaryColorizeSubtitles: true, dictionaryAnkiWordFields: ['Word'] })]);
         stageAnkiNotes([

@@ -22,6 +22,7 @@ import type {
     DictionaryRequestStatisticsMineSentencesMessage,
     DictionaryGetBulkMessage,
     DictionaryGetByLemmaBulkMessage,
+    DictionaryGetAnkiCacheSourceMessage,
     DictionarySaveRecordLocalBulkMessage,
     DictionaryDeleteRecordLocalBulkMessage,
     DictionaryDeleteProfileMessage,
@@ -69,6 +70,14 @@ export default class DictionaryHandler {
                 const message = command.message as DictionaryGetByLemmaBulkMessage;
                 void this.dictionaryDB
                     .getByLemmaBulk(message.profile, message.track, message.lemmas)
+                    .then((result) => sendResponse(result))
+                    .catch((error) => asbError('dictionary', `Failed to handle ${command.message.command}:`, error));
+                return true;
+            }
+            case 'dictionary-get-anki-cache-source': {
+                const message = command.message as DictionaryGetAnkiCacheSourceMessage;
+                void this.dictionaryDB
+                    .getAnkiCacheSource(message.profile, message.track)
                     .then((result) => sendResponse(result))
                     .catch((error) => asbError('dictionary', `Failed to handle ${command.message.command}:`, error));
                 return true;

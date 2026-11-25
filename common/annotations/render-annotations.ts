@@ -254,10 +254,8 @@ export const computeRichText = (fullText: string, tokenization: Tokenization, ss
     const showFailures = !ss.iPlusOne || dictionaryTrackEnabled(ss.dt);
     if (tokenization.error && showFailures) return `<span ${ERROR_STYLE}>${fullText}</span>`;
     if (!tokenization.tokens.length) return;
-    // shortcut: before the Anki cache's first load, local Known words alone can qualify a line; expose the track's Anki
-    // build state through DictionaryStorage if that shows false cues.
     const newWord =
-        ss.iPlusOne && !tokenization.error
+        ss.iPlusOne && tokenization.iPlusOneReady && !tokenization.error
             ? tokenization.tokens[iPlusOneCandidate(fullText, tokenization.tokens) ?? -1]
             : undefined;
 

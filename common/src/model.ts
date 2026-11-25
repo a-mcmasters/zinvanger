@@ -44,6 +44,8 @@ export interface Token {
 export interface Tokenization {
     tokens: Token[];
     error?: boolean;
+    /** The statuses come from an Anki cache that completed a build for the main track's i+1 vocabulary source. */
+    iPlusOneReady?: boolean;
 }
 
 /**

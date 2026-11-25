@@ -10,6 +10,7 @@ import type {
     DictionaryDeleteRecordLocalBulkMessage,
     DictionaryGetBulkMessage,
     DictionaryGetByLemmaBulkMessage,
+    DictionaryGetAnkiCacheSourceMessage,
     DictionaryRequestStatisticsGenerationMessage,
     DictionaryRequestStatisticsSnapshotMessage,
     DictionaryRequestStatisticsMineSentencesMessage,
@@ -150,6 +151,14 @@ export default defineContentScript({
                             const { profile, track, lemmas } = command.message as DictionaryGetByLemmaBulkMessage;
                             sendMessageToPlayer({
                                 response: await dictionaryStorage.getByLemmaBulk(profile, track, lemmas),
+                                messageId: command.message.messageId,
+                            });
+                            break;
+                        }
+                        case 'dictionary-get-anki-cache-source': {
+                            const { profile, track } = command.message as DictionaryGetAnkiCacheSourceMessage;
+                            sendMessageToPlayer({
+                                response: await dictionaryStorage.getAnkiCacheSource(profile, track),
                                 messageId: command.message.messageId,
                             });
                             break;

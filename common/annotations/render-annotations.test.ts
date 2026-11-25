@@ -1077,23 +1077,32 @@ describe('i+1 cue', () => {
     const known = TokenStatus.MATURE;
 
     it('marks the new word of a main-track line without changing its text', () => {
-        const richText = render({ tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]) } })!;
+        const richText = render({
+            tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]), iPlusOneReady: true },
+        })!;
         expect(richText).toContain('<span data-asb-i-plus-one data-asb-token-start="7">straks</span>');
         expect(richText.match(/data-asb-i-plus-one/g)).toHaveLength(1);
         expect(richText.replace(/<[^>]+>/g, '')).toBe(text);
     });
 
     it('marks nothing on a secondary track or without the Anki vocabulary source', () => {
-        const tokenization = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]) };
+        const tokenization = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]), iPlusOneReady: true };
         expect(render({ tokenization, track: 1 })).not.toContain('data-asb-i-plus-one');
         expect(render({ tokenization }, makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'] }))).not.toContain(
             'data-asb-i-plus-one'
         );
     });
 
+    it('leaves a line plain until the Anki cache completed a build for the source', () => {
+        const tokenization = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]) };
+        expect(render({ tokenization })).not.toContain('data-asb-i-plus-one');
+    });
+
     it('leaves a line plain when Yomitan or a status lookup failed', () => {
         expect(render({ tokenization: { tokens: [], error: true } })).toBeUndefined();
-        const richText = render({ tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, null]) } });
+        const richText = render({
+            tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, null]), iPlusOneReady: true },
+        });
         expect(richText).not.toContain('line-through');
         expect(richText).not.toContain('data-asb-i-plus-one');
     });

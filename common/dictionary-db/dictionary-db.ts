@@ -46,6 +46,8 @@ export interface AnkiMeta {
     lastBuildExpiresAt: number;
     buildId: string | null;
     settings: string | null;
+    /** The i+1 vocabulary source (`ankiVocabularySource`) of the last build that completed since a clear. */
+    builtSource?: string | null;
 }
 
 export interface WaniKaniDataUpdatedAt {
@@ -299,6 +301,11 @@ export class DictionaryDB {
     ): Promise<void> {
         const settings = await this.settingsProvider.getAll();
         return buildWaniKaniCachePipeline(this.db, this._getProfile(inputProfile), settings, statusUpdates);
+    }
+
+    /** The i+1 vocabulary source the track's Anki cache last completed a build for, if any. */
+    async getAnkiCacheSource(inputProfile: string | undefined, track: number): Promise<string | undefined> {
+        return (await this.db.meta.get([this._getProfile(inputProfile), track]))?.ankiMeta.builtSource ?? undefined;
     }
 
     private _getProfile(inputProfile: string | undefined): string {

@@ -1266,6 +1266,29 @@ describe('BuildAnnotations public boundary', () => {
         expect(storage.getByLemmaBulk.mock.calls.map((call: unknown[]) => call[1])).toEqual([0]);
     });
 
+    it('marks i+1 statuses ready only once the Anki cache completed a build for the current source', async () => {
+        const vocabulary = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
+        const { build, settings, storage, subtitles, updated } = makeBuild(makeDictionaryTracks(vocabulary));
+        subtitles.push(makeSubtitle({ index: 0, track: 0, text: 'word' }));
+        build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
+        await settleBuild(build.buildInitial());
+        expect(subtitles[0].tokenization?.iPlusOneReady).toBeUndefined(); // never built for this profile
+
+        storage.getAnkiCacheSource.mockResolvedValue('[["Dutch"],["Word"]]');
+        updated.mockClear();
+        await settleBuild(build.buildInitial());
+        await waitForAsyncBuild();
+        expect(subtitles[0].tokenization?.iPlusOneReady).toBe(true);
+        expect(updated).toHaveBeenCalledWith([expect.objectContaining({ index: 0 })], expect.any(Array));
+
+        build.updateSettings({
+            ...settings,
+            dictionaryTracks: makeDictionaryTracks({ ...vocabulary, dictionaryAnkiDecks: ['Dutch::B1'] }),
+        });
+        await settleBuild(build.buildInitial());
+        expect(subtitles[0].tokenization?.iPlusOneReady).toBeUndefined();
+    });
+
     it('stops refreshing modified tokens once turning i+1 off leaves no active track', async () => {
         const vocabulary = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
         const { build, settings, subtitles } = makeBuild(makeDictionaryTracks(vocabulary));
