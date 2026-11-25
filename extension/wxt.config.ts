@@ -48,6 +48,11 @@ export default defineConfig({
         include: [/extension\/src\//],
     },
     vite: () => ({
+        define: {
+            'import.meta.env.ZINVANGER_PERSONAL_HOSTED_TRANSLATION': JSON.stringify(
+                process.env.ZINVANGER_PERSONAL_HOSTED_TRANSLATION === '1'
+            ),
+        },
         plugins: [
             {
                 name: 'project-html',

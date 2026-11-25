@@ -39,7 +39,7 @@ Whole-transcript translation and contextual word meanings still use the configur
 4. Add a custom asbplayer field named exactly `Sentence Translation` and map it to the corresponding field in your Anki note type. The translation box appears once the mapping is set.
 5. Mine a subtitle and open the Anki dialog. Review the translation and edit it before exporting. Fill in the word definition yourself.
 
-To enable auto-fill when mining local video on the hosted web app, also select **Allow the Zinvanger web app to use my local sentence translation service** in the extension's Anki settings and click **Save**. This lets the web app request translations through the extension. Any script running on the app's site can then use the service too. You can enter a mapped translation manually when auto-fill is off or the extension is unavailable.
+On the hosted web app, you can enter a mapped translation manually.
 
 On streaming sites, the lookup-enabled dialog runs in the extension's own frame, where page-injected dictionary popups are unavailable. Clear the token in **Anki** settings to use the dialog with those popups again.
 
