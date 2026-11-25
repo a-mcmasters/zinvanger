@@ -12,8 +12,7 @@ import type { LivingSubtitleResult } from '@project/common/living-subtitle/livin
 /** What the host sends to the word card. Text only: the frame never receives HTML. */
 export interface LivingSubtitleViewModel {
     readonly themeType: 'light' | 'dark';
-    readonly words: readonly string[];
-    readonly wordIndex: number;
+    readonly word: string;
     readonly definition: LivingSubtitleResult;
     readonly mining: LivingSubtitleResult;
     readonly known?: LivingSubtitleResult;
@@ -88,7 +87,7 @@ export default function LivingSubtitleUi({ bridge }: Props) {
                 }}
             >
                 <LivingSubtitleCard
-                    word={model.words[model.wordIndex]}
+                    word={model.word}
                     definition={model.definition}
                     mining={model.mining}
                     known={model.known}

@@ -75,19 +75,19 @@ const flush = async () => {
 const rect = (left: number, top: number, width: number, height: number) => () =>
     ({ left, top, width, height, right: left + width, bottom: top + height }) as DOMRect;
 
-const setup = () => {
+const setup = (mainCue = cue) => {
     (globalThis as any).browser = { runtime: { getURL: (path: string) => `chrome-extension://asb${path}` } };
     document.body.innerHTML =
-        `<div id="container"><span data-asb-subtitle-index="0">${cue.text}</span>` +
+        `<div id="container"><span data-asb-subtitle-index="0">${mainCue.text}</span>` +
         `<span data-asb-subtitle-index="1">${english.text}</span></div>`;
     const container = document.getElementById('container')!;
     const [span, englishSpan] = [...container.querySelectorAll('span')];
-    let displayed = [cue, english];
+    let displayed = [mainCue, english];
     const context = {
         video: document.createElement('video'),
         containers: () => [container],
         displayed: () => displayed,
-        cueAt: (index: number) => [cue, english][index],
+        cueAt: (index: number) => [mainCue, english][index],
         targetFor: (c: IndexedSubtitleModel) => ({ video: 'v', cue: c, surrounding: [] }),
         resolve: (target: any) => target,
         pause: jest.fn(),
@@ -133,8 +133,7 @@ describe('LivingSubtitleHost', () => {
         expect(context.pause).toHaveBeenCalled();
         expect(context.define).toHaveBeenCalledWith('zet', false);
         expect(lastModel()).toMatchObject({
-            words: ['Hij', 'zet', 'koffie'],
-            wordIndex: 1,
+            word: 'zet',
             definition: { status: 'success', text: 'meaning of zet', lemma: 'zetten' },
             mining: { status: 'idle' },
         });
@@ -150,24 +149,46 @@ describe('LivingSubtitleHost', () => {
         host.unbind();
     });
 
+    it('opens the whole i+1 phrase from either word and retries the same lookup', async () => {
+        const { host, context, span, click, lastModel } = setup({ ...cue, text: 'En ik ga voor een...' });
+        span.innerHTML = 'En ik <span data-asb-i-plus-one data-asb-token-start="6"><b>ga</b> voor</span> een...';
+        const phrase = span.querySelector('span')!;
+        const first = phrase.querySelector('b')!;
+        click(first, first.firstChild!, 1);
+        await flush();
+        expect(lastModel()).toMatchObject({ word: 'ga voor' });
+
+        context.define.mockRejectedValueOnce(new Error('dictionaryUnavailable'));
+        click(phrase, phrase.lastChild!, 3);
+        await flush();
+        expect(lastModel()).toMatchObject({ word: 'ga voor', definition: { status: 'error' } });
+        (host as any).action('retry-definition');
+        await flush();
+        expect(context.define.mock.calls).toEqual([
+            ['ga voor', false],
+            ['ga voor', false],
+            ['ga voor', true],
+        ]);
+        expect(lastModel()).toMatchObject({ word: 'ga voor', definition: { status: 'success' } });
+        host.unbind();
+    });
+
     it('maps a click to the right word when a ruby gloss precedes it', () => {
-        const { host, span, click } = setup();
+        const { host, context, span, click } = setup();
         span.innerHTML = '<ruby>Hij<rt>he</rt></ruby> zet koffie.';
-        const selectWord = jest.spyOn(host.controller, 'selectWord');
         click(span, span.childNodes[1], 4); // just after "zet" in " zet koffie."
-        expect(selectWord).toHaveBeenCalledWith(1); // "zet", not "koffie"
+        expect(context.define).toHaveBeenCalledWith('zet', false);
         host.unbind();
     });
 
     it('maps a click in the hover-annotated copy of the sentence', () => {
-        const { host, span, click } = setup();
+        const { host, context, span, click } = setup();
         span.innerHTML =
             '<span class="asbplayer-subtitle-text">Hij zet koffie.</span>' +
             '<span class="asbplayer-subtitle-rich">Hij zet<rt>puts</rt> koffie.</span>';
         const rich = span.children[1];
-        const selectWord = jest.spyOn(host.controller, 'selectWord');
         click(rich, rich.childNodes[2], 3); // inside "koffie"
-        expect(selectWord).toHaveBeenCalledWith(2); // although the plain copy came first
+        expect(context.define).toHaveBeenCalledWith('koffie', false);
         host.unbind();
     });
 
@@ -216,7 +237,7 @@ describe('LivingSubtitleHost', () => {
         card().listener!({ command: 'action', action: 'known' });
         await flush();
         expect(context.markKnown).toHaveBeenCalledWith('zet', ['zetten']);
-        expect(lastModel()).toMatchObject({ wordIndex: 1, known: { status: 'success' } });
+        expect(lastModel()).toMatchObject({ word: 'zet', known: { status: 'success' } });
         host.unbind();
     });
 

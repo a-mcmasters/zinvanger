@@ -2,6 +2,9 @@ import {
     livingSubtitleCueWords,
     livingSubtitleWords,
 } from '@project/common/living-subtitle/living-subtitle-controller';
+import type { LivingSubtitleWord } from '@project/common/living-subtitle/living-subtitle-controller';
+import { ASB_I_PLUS_ONE_ATTRIBUTE, ASB_TOKEN_START_ATTRIBUTE } from '@project/common/annotations/dom-annotations';
+import { removeSubtitleHtml } from '@project/common/util';
 
 export interface DomWord {
     readonly range: Range;
@@ -61,11 +64,30 @@ const caretPoint = (element: HTMLElement, x: number, y: number): { node: Node; o
     return node && offset !== undefined && element.contains(node) ? { node, offset } : undefined;
 };
 
-/** The index in livingSubtitleCueWords(cueText) of the word rendered under a point of the cue's element. */
-export const wordIndexAt = (element: HTMLElement, cueText: string, x: number, y: number) => {
+/** The underlined dictionary token or ordinary word under the click. */
+export const subtitleWordAt = (element: HTMLElement, cueText: string, target: Element, x: number, y: number) => {
+    const cue = target.closest(`[${ASB_I_PLUS_ONE_ATTRIBUTE}][${ASB_TOKEN_START_ATTRIBUTE}]`);
+    if (cue && element.contains(cue)) {
+        const start = Number(cue.getAttribute(ASB_TOKEN_START_ATTRIBUTE));
+        const text = removeSubtitleHtml(cue.innerHTML);
+        if (text && removeSubtitleHtml(cueText).slice(start, start + text.length) === text) {
+            return { start, end: start + text.length, text: text.normalize('NFC') };
+        }
+    }
+
     // Compare DOM positions, not text offsets: domWords skips ruby glosses (rt, rp) that a text offset would count.
     const caret = caretPoint(element, x, y);
-    return caret
-        ? domWords(element, cueText).find((w) => w.range.comparePoint(caret.node, caret.offset) === 0)?.modelIndex
-        : undefined;
+    if (!caret) return undefined;
+    const index = domWords(element, cueText).find(
+        (w) => w.range.comparePoint(caret.node, caret.offset) === 0
+    )?.modelIndex;
+    return index === undefined ? undefined : livingSubtitleCueWords(cueText)[index];
+};
+
+export const subtitleWordRanges = (element: HTMLElement, cueText: string, word: LivingSubtitleWord): Range[] => {
+    const words = livingSubtitleCueWords(cueText);
+    return domWords(element, cueText).flatMap(({ range, modelIndex }) => {
+        const match = modelIndex === undefined ? undefined : words[modelIndex];
+        return match && match.start < word.end && match.end > word.start ? [range] : [];
+    });
 };

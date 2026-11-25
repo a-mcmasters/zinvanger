@@ -97,3 +97,5 @@ To spot lines worth mining, open the Anki settings and choose:
 - **Word fields**: the fields that hold just the word, such as `Word`. Keep sentences, translations and audio out of them.
 
 With both set, a main-track line with exactly one new word, at least two known words and no unstudied Anki words gets a dotted amber underline on its new word. Playback continues. Words you marked **Known** and Anki cards you are learning or have learned count as known. Click the underlined word to open its word card, then choose **Known** or **Mine**. The underline goes away once the word's status updates. Clear either setting to turn the underline off. The underline needs Yomitan. It appears once Zinvanger has read the chosen decks and fields from Anki, and after that it uses the last read while Anki is closed. Changing either setting hides it until the next read finishes.
+
+When Yomitan groups several words into one underlined expression, click anywhere on the expression to open one card for the whole phrase.
