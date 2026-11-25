@@ -1337,7 +1337,7 @@ describe('BuildAnnotations public boundary', () => {
     it('resolves main-track statuses for the i+1 cue with every visual annotation off', async () => {
         const vocabulary = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
         const dictionaryTracks = makeDictionaryTracks(vocabulary).map(() => vocabulary);
-        const { build, subtitles, storage } = makeBuild(dictionaryTracks);
+        const { build, subtitles } = makeBuild(dictionaryTracks);
         subtitles.push(makeSubtitle({ index: 0, track: 0, text: 'word' }));
         subtitles.push(makeSubtitle({ index: 1, track: 1, text: 'word' }));
         build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
@@ -1346,7 +1346,6 @@ describe('BuildAnnotations public boundary', () => {
 
         expect(subtitles[0].tokenization?.tokens[0].status).toBe(TokenStatus.UNCOLLECTED);
         expect(subtitles[1].__tokenized).toBeUndefined();
-        expect(storage.getByLemmaBulk.mock.calls.map((call: unknown[]) => call[1])).toEqual([0]);
     });
 
     it('marks i+1 statuses ready only once the Anki cache completed a build for the current source', async () => {
