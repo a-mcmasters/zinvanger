@@ -124,6 +124,8 @@ import LivingSubtitleController, {
     livingSubtitleCueWords,
 } from '@project/common/living-subtitle/living-subtitle-controller';
 import type { LivingSubtitleState } from '@project/common/living-subtitle/living-subtitle-controller';
+import { saveKnownWord } from '@project/common/living-subtitle/known-word';
+import type { DictionaryProvider } from '@project/common/dictionary-db/dictionary-provider';
 import { domWords, wordIndexAt } from '@project/common/living-subtitle/dom-words';
 import LivingSubtitleCard from '@project/common/components/LivingSubtitleCard';
 import type { LivingSubtitleAction } from '@project/common/components/LivingSubtitleCard';
@@ -347,6 +349,7 @@ export interface SeekRequest {
 interface Props {
     settings: AsbplayerSettings;
     settingsProvider: SettingsProvider;
+    dictionaryProvider: DictionaryProvider;
     extension: ChromeExtension;
     supportsDictionaryPlayback: boolean;
     videoFile: string;
@@ -408,6 +411,7 @@ const saveLastControlType = async (controlType: ControlType): Promise<void> => {
 export default function VideoPlayer({
     settings,
     settingsProvider,
+    dictionaryProvider,
     extension,
     supportsDictionaryPlayback,
     videoFile,
@@ -2348,6 +2352,10 @@ export default function VideoPlayer({
             if (notMined) throw new Error(notMined);
             return 'submitted' as const;
         },
+        markKnown: async (word: string, lemmas: readonly string[]) => {
+            await saveKnownWord(dictionaryProvider, profile, word, lemmas);
+            playerChannel.tokensWereModified([word, ...lemmas]); // the app window owns the annotations
+        },
     };
     const wordCardActionsRef = useRef(wordCardActions);
     wordCardActionsRef.current = wordCardActions;
@@ -2360,6 +2368,7 @@ export default function VideoPlayer({
                 },
                 define: (word) => wordCardActionsRef.current.define(word),
                 mine: (state) => wordCardActionsRef.current.mine(state),
+                markKnown: (word, lemmas) => wordCardActionsRef.current.markKnown(word, lemmas),
                 render: setWordCard,
             }),
         [playerChannel]
@@ -2384,11 +2393,16 @@ export default function VideoPlayer({
     const handleWordCardAction = useCallback(
         (action: LivingSubtitleAction) => {
             if (action === 'mine') void wordCardController.mine();
+            else if (action === 'known') void wordCardController.markKnown();
             else if (action === 'retry-definition') wordCardController.retryDefinition();
             else wordCardController.closeWord();
         },
         [wordCardController]
     );
+
+    useEffect(() => {
+        if (wordCardController.hasTarget) wordCardController.clear(); // a pending Known belongs to the previous profile
+    }, [profile, wordCardController]);
 
     // Resuming playback, or the sentence leaving the screen, dismisses the card.
     useEffect(() => {
@@ -2534,6 +2548,7 @@ export default function VideoPlayer({
                 word={wordCard.word.text}
                 definition={wordCard.definition}
                 mining={wordCard.mining}
+                known={wordCard.known}
                 onAction={handleWordCardAction}
             />
         </div>

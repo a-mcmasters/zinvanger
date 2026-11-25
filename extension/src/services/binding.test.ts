@@ -1365,6 +1365,7 @@ describe('Binding playback mode integration', () => {
                     captured: true,
                     definition: { status: 'idle' },
                     mining: { status: 'idle' },
+                    known: { status: 'idle' },
                 })
                 .then((outcome) => (settled = outcome));
             const cardSaved = (subtitle: IndexedSubtitleModel) => {

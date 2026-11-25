@@ -1298,6 +1298,11 @@ export interface SaveTokenLocalFromVideoMessage extends Message {
     readonly applyStates: ApplyStrategy;
 }
 
+export interface TokensWereModifiedFromVideoMessage extends Message {
+    readonly command: 'tokensWereModified';
+    readonly tokens: string[];
+}
+
 export interface SaveTokenLocalToVideoMessage extends Message {
     readonly command: 'saveTokenLocal';
     readonly track: number;

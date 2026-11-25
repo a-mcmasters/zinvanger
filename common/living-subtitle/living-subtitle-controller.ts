@@ -1,6 +1,6 @@
 import type { IndexedSubtitleModel, SubtitleModel } from '@project/common';
 import { subtitleKey } from '@project/common/subtitle-reader/subtitle-stream';
-import { removeSubtitleHtml } from '@project/common/util';
+import { HAS_LETTER_REGEX, removeSubtitleHtml } from '@project/common/util';
 import type { Yomitan } from '@project/common/yomitan';
 
 export interface LivingSubtitleTarget {
@@ -34,8 +34,8 @@ export const livingSubtitleActionable = (cue: IndexedSubtitleModel) =>
 
 export type LivingSubtitleResult =
     | { status: 'idle' | 'pending' }
-    /** `lemma`: the dictionary form the meaning belongs to, when it differs from the word. */
-    | { status: 'success'; text: string; lemma?: string }
+    /** `lemma`: the dictionary form the meaning belongs to, when it differs from the word. `lemmas`: all its forms. */
+    | { status: 'success'; text: string; lemma?: string; lemmas?: readonly string[] }
     | { status: 'error'; message: string };
 
 export interface LivingSubtitleState {
@@ -45,20 +45,24 @@ export interface LivingSubtitleState {
     word?: LivingSubtitleWord;
     definition: LivingSubtitleResult;
     mining: LivingSubtitleResult;
+    known: LivingSubtitleResult;
 }
 
 export interface LivingSubtitleDefinition {
     readonly text: string;
     readonly lemma?: string;
+    readonly lemmas?: readonly string[];
 }
+
+const knownTimeoutMs = 10_000;
 
 /** A word's meaning from Yomitan, with no model tokens; rejects with a `livingSubtitle.error` key. */
 export const defineWithYomitan = async (yomitan: Yomitan, word: string): Promise<LivingSubtitleDefinition> => {
     try {
         const text = (await yomitan.gloss(word)) ?? '';
         // Read from the same Yomitan response as the gloss, so normally no second request.
-        const lemma = (await yomitan.lemmatize(word))?.[0];
-        return { text, lemma: distinctLemma(word, lemma) };
+        const lemmas = (await yomitan.lemmatize(word)) ?? [];
+        return { text, lemma: distinctLemma(word, lemmas[0]), lemmas };
     } catch {
         throw new Error('dictionaryUnavailable');
     }
@@ -73,6 +77,8 @@ interface Actions {
     define(word: string): Promise<LivingSubtitleDefinition>;
     /** Resolves when a card is saved or handed off to the UI responsible for reporting the result. */
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
+    /** Saves the word as known for the profile active at the call; rejects unless the save is confirmed. */
+    markKnown(word: string, lemmas: readonly string[]): Promise<void>;
     render(state: Readonly<LivingSubtitleState>): void;
 }
 
@@ -80,6 +86,7 @@ const initialState = (): LivingSubtitleState => ({
     captured: false,
     definition: { status: 'idle' },
     mining: { status: 'idle' },
+    known: { status: 'idle' },
 });
 
 const sameTarget = (a: LivingSubtitleTarget, b: LivingSubtitleTarget) =>
@@ -94,6 +101,7 @@ export default class LivingSubtitleController {
     private state = initialState();
     private generation = 0;
     private definitionRequest = 0;
+    private knownRequest = 0;
     private disposed = false;
 
     constructor(private readonly actions: Actions) {}
@@ -147,8 +155,10 @@ export default class LivingSubtitleController {
 
     closeWord() {
         ++this.definitionRequest;
+        ++this.knownRequest;
         this.state.word = undefined;
         this.state.definition = { status: 'idle' };
+        this.state.known = { status: 'idle' };
         this.emit();
     }
 
@@ -163,6 +173,10 @@ export default class LivingSubtitleController {
         const word = target && livingSubtitleCueWords(target.cue.text)[index];
         if (this.disposed || !target || !word) return;
         this.capture();
+        if (this.state.word?.start !== word.start) {
+            ++this.knownRequest;
+            this.state.known = { status: 'idle' };
+        }
         this.state.word = word;
         // "Mined" or a mining error belongs to the previous word.
         if (this.state.mining.status !== 'pending') this.state.mining = { status: 'idle' };
@@ -203,6 +217,31 @@ export default class LivingSubtitleController {
             if (generation !== this.generation) return;
             this.state.mining = { status: 'error', message: error instanceof Error ? error.message : String(error) };
         }
+        this.emit();
+    }
+
+    async markKnown() {
+        const { word, definition, known } = this.state;
+        if (this.disposed || !word || known.status === 'pending' || !HAS_LETTER_REGEX.test(word.text)) return;
+        const request = ++this.knownRequest;
+        const generation = this.generation;
+        this.state.known = { status: 'pending' };
+        this.emit();
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        let result: LivingSubtitleResult;
+        try {
+            await Promise.race([
+                this.actions.markKnown(word.text, definition.status === 'success' ? (definition.lemmas ?? []) : []),
+                new Promise((_, reject) => (timeout = setTimeout(() => reject(new Error('timeout')), knownTimeoutMs))),
+            ]);
+            result = { status: 'success', text: '' };
+        } catch (error) {
+            result = { status: 'error', message: error instanceof Error ? error.message : String(error) };
+        } finally {
+            clearTimeout(timeout);
+        }
+        if (generation !== this.generation || request !== this.knownRequest) return;
+        this.state.known = result;
         this.emit();
     }
 

@@ -7,7 +7,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { PostMineAction } from '@project/common';
 import type { IndexedSubtitleModel } from '@project/common';
-import { defaultSettings, SettingsProvider } from '@project/common/settings';
+import { ApplyStrategy, defaultSettings, getFullyKnownTokenStatus, SettingsProvider } from '@project/common/settings';
 import { MockSettingsStorage } from '@project/common/settings/mock-settings-storage';
 import { createTheme } from '@project/common/theme';
 import { Yomitan } from '@project/common/yomitan';
@@ -27,6 +27,7 @@ jest.mock('@project/common/app/services/player-channel', () => ({
     default: class {
         callbacks: { [name: string]: (...args: any[]) => void } = {};
         copy = jest.fn();
+        tokensWereModified = jest.fn();
         constructor() {
             channels.push(this);
             return new Proxy(this, {
@@ -53,6 +54,13 @@ const cue: IndexedSubtitleModel = {
     originalEnd: 5000,
     track: 0,
     index: 0,
+};
+
+const dictionaryProvider = {
+    saveRecordLocalBulk: jest.fn(async (_profile: string | undefined, inputs: { token: string }[]) => ({
+        savedTokens: inputs.map(({ token }) => [token]),
+        deletedTokens: [],
+    })),
 };
 
 const flush = () => act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
@@ -90,6 +98,8 @@ describe('VideoPlayer', () => {
                     <VideoPlayer
                         settings={settings}
                         settingsProvider={new SettingsProvider(new MockSettingsStorage())}
+                        dictionaryProvider={dictionaryProvider as any}
+                        profile="Dutch"
                         extension={{ supportsAppIntegration: false } as any}
                         supportsDictionaryPlayback={false}
                         videoFile="blob:video"
@@ -141,6 +151,25 @@ describe('VideoPlayer', () => {
         expect(minedSubtitle).toMatchObject({ text: cue.text, start: cue.start, end: cue.end });
         expect(surroundingSubtitles).toEqual([cue]);
         expect(cardTextFieldValues).toMatchObject({ word: 'zet', definition: 'meaning of zet' });
+    });
+
+    it('Known saves the clicked word to the active profile and asks the app to refresh its annotations', async () => {
+        const { channel, subtitle } = await renderPlayer();
+        await clickAt(subtitle, subtitle.firstChild!, 5);
+        const card = container.querySelector<HTMLElement>('[role="dialog"][aria-label="zet"]')!;
+        const known = [...card.querySelectorAll('button')].find((button) => button.textContent === 'Known')!;
+
+        await act(async () => known.click());
+        await flush();
+
+        expect(dictionaryProvider.saveRecordLocalBulk).toHaveBeenCalledWith(
+            'Dutch',
+            [{ token: 'zet', status: getFullyKnownTokenStatus(), lemmas: ['zetten'], states: [] }],
+            ApplyStrategy.ADD
+        );
+        expect(channel.tokensWereModified).toHaveBeenCalledWith(['zet', 'zetten']);
+        expect(card.textContent).toContain('✓ Marked known');
+        expect(card.textContent).toContain('Mine');
     });
 
     it('lets the app report the outcome of a direct export', async () => {

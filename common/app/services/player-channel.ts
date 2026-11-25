@@ -38,6 +38,7 @@ import type {
     ToggleSubtitleTrackInListFromVideoMessage,
     SubtitlesUpdatedToVideoMessage,
     SaveTokenLocalFromVideoMessage,
+    TokensWereModifiedFromVideoMessage,
     SaveTokenLocalToVideoMessage,
     IndexedSubtitleModel,
 } from '@project/common';
@@ -534,6 +535,11 @@ export default class PlayerChannel {
             states,
             applyStates,
         };
+        this.channel?.postMessage(message);
+    }
+
+    tokensWereModified(tokens: string[]) {
+        const message: TokensWereModifiedFromVideoMessage = { command: 'tokensWereModified', tokens };
         this.channel?.postMessage(message);
     }
 

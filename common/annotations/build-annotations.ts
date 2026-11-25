@@ -439,6 +439,7 @@ export class BuildAnnotations {
     }
 
     tokensWereModified(modifiedTokens: string[]): void {
+        if (this.trackStates.every((ts) => !dictionaryTrackEnabled(ts.dt))) return; // no annotations to refresh
         for (const token of modifiedTokens) this.tokensForRefresh.add(normalizeToken(token));
     }
 

@@ -900,6 +900,9 @@
         "mine": "Mine",
         "mining": "Mining…",
         "mined": "Mined",
+        "known": "Known",
+        "markingKnown": "Saving…",
+        "markedKnown": "✓ Marked known",
         "loading": "Looking up…",
         "retry": "Retry",
         "noResult": "No meaning found",
@@ -908,7 +911,8 @@
         "error": {
             "noDictionary": "Set a Yomitan URL for subtitle track 1 to look up words",
             "dictionaryUnavailable": "Yomitan is not reachable. Is the Yomitan API running?",
-            "mining": "Mining failed: {{message}}"
+            "mining": "Mining failed: {{message}}",
+            "known": "Not saved as known."
         }
     }
 }

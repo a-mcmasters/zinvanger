@@ -38,23 +38,29 @@ const deferred = () => {
 const setup = () => {
     const lookups: { word: string; result: ReturnType<typeof deferred> }[] = [];
     const mines: { state: LivingSubtitleState; result: ReturnType<typeof deferred> }[] = [];
+    const knowns: { word: string; lemmas: readonly string[]; result: ReturnType<typeof deferred> }[] = [];
     const actions = {
         pause: jest.fn(),
         define: jest.fn((word: string) => {
             const result = deferred();
             lookups.push({ word, result });
-            return result.promise.then((text) => ({ text }));
+            return result.promise.then((text) => ({ text, lemmas: text ? [`${word}-lemma`] : [] }));
         }),
         mine: jest.fn((state: LivingSubtitleState) => {
             const result = deferred();
             mines.push({ state, result });
             return result.promise.then((outcome) => (outcome === 'dialog' ? 'dialog' : 'saved'));
         }),
+        markKnown: jest.fn((word: string, lemmas: readonly string[]) => {
+            const result = deferred();
+            knowns.push({ word, lemmas, result });
+            return result.promise.then(() => undefined);
+        }),
         render: jest.fn(),
     };
     const controller = new LivingSubtitleController(actions);
     const state = (): LivingSubtitleState => actions.render.mock.lastCall![0];
-    return { controller, actions, lookups, mines, state };
+    return { controller, actions, lookups, mines, knowns, state };
 };
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -137,7 +143,7 @@ describe('LivingSubtitleController', () => {
         lookups[0].result.resolve('puts');
         await flush();
         expect(state().word?.text).toBe('koffie');
-        expect(state().definition).toEqual({ status: 'success', text: 'coffee' });
+        expect(state().definition).toEqual({ status: 'success', text: 'coffee', lemmas: ['koffie-lemma'] });
     });
 
     it('drops answers for a previous sentence', async () => {
@@ -225,5 +231,102 @@ describe('LivingSubtitleController', () => {
         await flush();
         controller.hover(target('Hij zet.'));
         expect(actions.render.mock.calls.length).toBe(renders);
+    });
+
+    describe('Known', () => {
+        const opened = async (text = 'Hij zet de koffie.', index = 1, meaning = 'puts') => {
+            const setup_ = setup();
+            setup_.controller.hover(target(text));
+            void setup_.controller.selectWord(index);
+            setup_.lookups.at(-1)!.result.resolve(meaning);
+            await flush();
+            return setup_;
+        };
+
+        it('saves the clicked word with the lookup lemmas once, and confirms', async () => {
+            const { controller, knowns, state } = await opened();
+            void controller.markKnown();
+            void controller.markKnown(); // a double click while saving
+            expect(knowns).toEqual([expect.objectContaining({ word: 'zet', lemmas: ['zet-lemma'] })]);
+            expect(state().known.status).toBe('pending');
+
+            knowns[0].result.resolve('');
+            await flush();
+            expect(state().known.status).toBe('success');
+            expect(state().word?.text).toBe('zet'); // the card stays open
+        });
+
+        it('saves the surface form alone when the lookup failed', async () => {
+            const { controller, lookups, knowns } = setup();
+            controller.hover(target('Hij zet.'));
+            void controller.selectWord(1);
+            lookups[0].result.reject(new Error('dictionaryUnavailable'));
+            await flush();
+            void controller.markKnown();
+            expect(knowns[0]).toMatchObject({ word: 'zet', lemmas: [] });
+        });
+
+        it('offers no Known for a word without letters', async () => {
+            const { controller, knowns } = await opened('Om 2024 uur.', 1, '');
+            void controller.markKnown();
+            expect(knowns).toHaveLength(0);
+        });
+
+        it('reports a rejected write, and a retry confirms once', async () => {
+            const { controller, knowns, state, actions } = await opened();
+            void controller.markKnown();
+            knowns[0].result.reject(new Error('quota'));
+            await flush();
+            expect(state().known).toEqual({ status: 'error', message: 'quota' });
+
+            void controller.markKnown();
+            knowns[1].result.resolve('');
+            await flush();
+            expect(state().known.status).toBe('success');
+            const confirmations = actions.render.mock.calls.filter(([s]) => s.known.status === 'success');
+            expect(confirmations).toHaveLength(1);
+        });
+
+        it('gives up on a write that never answers', async () => {
+            jest.useFakeTimers();
+            try {
+                const { controller, lookups, state } = setup();
+                controller.hover(target('Hij zet.'));
+                void controller.selectWord(1);
+                lookups[0].result.resolve('puts');
+                await Promise.resolve();
+                await Promise.resolve();
+                void controller.markKnown();
+                await jest.advanceTimersByTimeAsync(10_000);
+                expect(state().known).toEqual({ status: 'error', message: 'timeout' });
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('drops a confirmation after close, word change or clear', async () => {
+            for (const leave of [
+                (controller: LivingSubtitleController) => controller.closeWord(),
+                (controller: LivingSubtitleController) => void controller.selectWord(3),
+                (controller: LivingSubtitleController) => controller.clear(),
+            ]) {
+                const { controller, knowns, state } = await opened();
+                void controller.markKnown();
+                leave(controller);
+                knowns[0].result.resolve('');
+                await flush();
+                expect(state().known).toEqual({ status: 'idle' });
+            }
+        });
+
+        it('keeps the Known result across a definition retry', async () => {
+            const { controller, knowns, lookups, state } = await opened();
+            void controller.markKnown();
+            knowns[0].result.resolve('');
+            await flush();
+            controller.retryDefinition();
+            expect(lookups).toHaveLength(2);
+            expect(state().known.status).toBe('success');
+        });
     });
 });

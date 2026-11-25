@@ -126,6 +126,7 @@ import AnkiUiController from '@project/extension/src/controllers/anki-ui-control
 import LivingSubtitleHost from '@/controllers/living-subtitle-host';
 import { Yomitan } from '@project/common/yomitan';
 import { defineWithYomitan } from '@project/common/living-subtitle/living-subtitle-controller';
+import { saveKnownWord } from '@project/common/living-subtitle/known-word';
 import type {
     LivingSubtitleDefinition,
     LivingSubtitleMineOutcome,
@@ -1641,6 +1642,7 @@ export default class Binding {
         this.subtitleController.subtitleHtml = currentSettings.subtitleHtml;
 
         if (profileChanged) {
+            this.livingSubtitleHost?.controller.clear(); // a pending Known belongs to the previous profile
             this.subtitleController.subtitleAnnotations.profileChanged(currentSettings);
         } else {
             this.subtitleController.subtitleAnnotations.settingsUpdated(currentSettings, { force: false });
@@ -1867,6 +1869,10 @@ export default class Binding {
             },
             mine: (state) => this.mineLivingSubtitle(state),
             define: (word) => this._defineWithYomitan(word),
+            markKnown: async (word, lemmas) => {
+                await saveKnownWord(this.dictionary, this._lastProfile, word, lemmas);
+                this.subtitleController.subtitleAnnotations.tokensWereModified([word, ...lemmas]);
+            },
         });
     }
 

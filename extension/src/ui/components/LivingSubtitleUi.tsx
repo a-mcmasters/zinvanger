@@ -16,6 +16,7 @@ export interface LivingSubtitleViewModel {
     readonly wordIndex: number;
     readonly definition: LivingSubtitleResult;
     readonly mining: LivingSubtitleResult;
+    readonly known: LivingSubtitleResult;
     /** Widest the card may be (visible video width). */
     readonly maxWidth: number;
     /** Tallest the card may be (visible video height); content beyond it scrolls. */
@@ -90,6 +91,7 @@ export default function LivingSubtitleUi({ bridge }: Props) {
                     word={model.words[model.wordIndex]}
                     definition={model.definition}
                     mining={model.mining}
+                    known={model.known}
                     onAction={send}
                 />
             </Box>
