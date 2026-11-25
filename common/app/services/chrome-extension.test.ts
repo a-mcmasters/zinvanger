@@ -1,4 +1,24 @@
 import ChromeExtension from '@project/common/app/services/chrome-extension';
+import { AppExtensionDictionaryStorage } from '@project/common/app/services/app-extension-dictionary-storage';
+
+describe('i+1 extension compatibility', () => {
+    it.each([
+        ['1.25.9', false],
+        ['1.26.0', true],
+    ])('requests the cache source behind extension %s only when supported', async (version, supported) => {
+        const extension = new ChromeExtension(version);
+        try {
+            const request = jest.spyOn(extension, 'dictionaryGetAnkiCacheSource').mockResolvedValue('source');
+            const storage = new AppExtensionDictionaryStorage(extension);
+
+            expect(extension.supportsIPlusOne).toBe(supported);
+            await expect(storage.getAnkiCacheSource('Dutch', 0)).resolves.toBe(supported ? 'source' : undefined);
+            expect(request).toHaveBeenCalledTimes(supported ? 1 : 0);
+        } finally {
+            extension.unbind();
+        }
+    });
+});
 
 describe('ChromeExtension.supportsSidePanel', () => {
     let displayMode: string;
