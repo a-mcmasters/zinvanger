@@ -4,6 +4,7 @@ import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Tooltip from '@project/common/components/Tooltip';
 import IconButton from '@mui/material/IconButton';
+import CircularProgress from '@mui/material/CircularProgress';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
@@ -11,6 +12,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import type { AudioClip } from '@project/common/audio-clip';
 import { useTranslation } from 'react-i18next';
 import Badge from '@mui/material/Badge';
+import { asbInfo } from '@project/common/util/log';
 
 const useStyles = makeStyles(() => ({
     root: {
@@ -26,6 +28,8 @@ interface Props {
     timestampIntervalSelectionNotApplied: boolean;
     onPlayAudio: (e: React.MouseEvent<HTMLDivElement>) => void;
     onRerecord?: () => void;
+    recording?: boolean;
+    recordingFailed?: boolean;
 }
 
 const useAudioHelperText = (audioClip?: AudioClip, onRerecord?: () => void) => {
@@ -61,11 +65,16 @@ export default function AudioField({
     timestampIntervalSelectionNotApplied,
     onPlayAudio,
     onRerecord,
+    recording,
+    recordingFailed,
 }: Props) {
     const classes = useStyles();
     const { t } = useTranslation();
     const [playing, setPlaying] = useState<boolean>(false);
     let audioActionElement: React.JSX.Element | undefined = undefined;
+    const rerecordLabel = t(
+        timestampIntervalSelectionNotApplied ? 'ankiDialog.rerecordAndApplySelection' : 'ankiDialog.rerecord'
+    );
 
     useEffect(() => setPlaying(audioClip.playing), [audioClip]);
     useEffect(() => audioClip.onEvent('play', () => setPlaying(true)), [audioClip]);
@@ -76,10 +85,10 @@ export default function AudioField({
             <Tooltip title={t('action.downloadAudio')}>
                 <span>
                     <IconButton
-                        disabled={audioClip?.error !== undefined}
+                        disabled={recording || audioClip.error !== undefined}
                         onClick={(e) => {
                             e.stopPropagation();
-                            void audioClip.download();
+                            void audioClip.download().catch((error) => asbInfo('anki/ui', error));
                         }}
                         edge="end"
                     >
@@ -87,29 +96,25 @@ export default function AudioField({
                     </IconButton>
                 </span>
             </Tooltip>
-            <IconButton disabled={audioClip?.error !== undefined} onClick={() => {}} edge="end">
+            <IconButton disabled={recording || audioClip.error !== undefined} onClick={() => {}} edge="end">
                 {playing && <PauseIcon />}
                 {!playing && <PlayArrowIcon />}
             </IconButton>
             {onRerecord !== undefined && (
-                <Tooltip
-                    title={
-                        timestampIntervalSelectionNotApplied
-                            ? t('ankiDialog.rerecordAndApplySelection')
-                            : t('ankiDialog.rerecord')
-                    }
-                >
+                <Tooltip title={rerecordLabel}>
                     <span>
                         <Badge invisible={!timestampIntervalSelectionNotApplied} badgeContent="!" color="error">
                             <IconButton
-                                disabled={audioClip?.error !== undefined}
+                                aria-label={rerecordLabel}
+                                aria-busy={recording}
+                                disabled={recording || audioClip.error !== undefined}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     onRerecord?.();
                                 }}
                                 edge="end"
                             >
-                                <FiberManualRecordIcon />
+                                {recording ? <CircularProgress size={24} /> : <FiberManualRecordIcon />}
                             </IconButton>
                         </Badge>
                     </span>
@@ -121,14 +126,14 @@ export default function AudioField({
     const { audioHelperText, audioClipPlayable } = useAudioHelperText(audioClip, onRerecord);
 
     return (
-        <div className={classes.root} onClick={onPlayAudio}>
+        <div className={classes.root} onClick={recording ? undefined : onPlayAudio}>
             <TextField
                 variant="filled"
                 color="primary"
                 fullWidth
                 value={audioClip.name}
                 label={t('ankiDialog.audio')}
-                helperText={audioHelperText}
+                helperText={recordingFailed ? t('ankiDialog.audioCaptureFailed') : audioHelperText}
                 disabled={!audioClipPlayable}
                 slotProps={{
                     input: {

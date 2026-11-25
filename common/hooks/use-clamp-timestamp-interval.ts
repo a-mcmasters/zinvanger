@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { TranscodedAudioModel } from '@project/common';
+import type { FileModel, TranscodedAudioModel } from '@project/common';
 import type { AudioClip } from '@project/common/audio-clip';
 import { asbInfo } from '@project/common/util/log';
 
-/** Bound dialog timestamps to one immutable converted-audio snapshot. */
+/** Bound dialog timestamps to the native file or the captured converted-audio snapshot. */
 export const useClampTimestampInterval = ({
     open,
     audioClip,
@@ -11,23 +11,23 @@ export const useClampTimestampInterval = ({
 }: {
     open: boolean;
     audioClip: Pick<AudioClip, 'sourceDurationMs'> | undefined;
-    source: TranscodedAudioModel | undefined;
+    source: FileModel | TranscodedAudioModel | undefined;
 }) => {
-    const [duration, setDuration] = useState<{ source: TranscodedAudioModel; durationMs: number | undefined }>();
+    const [duration, setDuration] = useState<{ source: NonNullable<typeof source>; durationMs: number | undefined }>();
     useEffect(() => {
         if (!open || !audioClip || !source) return;
-        let cancelled = false;
+        const controller = new AbortController();
         void audioClip
-            .sourceDurationMs()
+            .sourceDurationMs(controller.signal)
             .then((durationMs) => {
-                if (!cancelled) {
+                if (!controller.signal.aborted) {
                     setDuration({ source, durationMs: durationMs !== undefined ? Math.floor(durationMs) : undefined });
                 }
             })
-            .catch((error) => asbInfo('anki/ui', error));
-        return () => {
-            cancelled = true;
-        };
+            .catch((error) => {
+                if (!controller.signal.aborted) asbInfo('anki/ui', error);
+            });
+        return () => controller.abort();
     }, [open, audioClip, source]);
     const end = duration?.source === source ? duration?.durationMs : undefined;
     return useCallback(

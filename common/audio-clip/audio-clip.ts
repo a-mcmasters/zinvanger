@@ -7,7 +7,11 @@ import { AudioErrorCode } from '@project/common';
 import { snapshotMiningAudio } from '@project/common/audio-transcode/mining-audio';
 import { createBlobUrl, isActiveBlobUrl } from '@project/common/blob-url';
 import { base64ToBlob, blobToBase64 } from '@project/common/base64';
-import { isFirefox } from '@project/common/browser-detection';
+import FileAudioClipper, {
+    AudioUnavailableError,
+    ClippingCancelledError,
+    fileAudioDurationMs,
+} from '@project/common/audio-clip/file-audio-clipper';
 
 const maxPrefixLength = 24;
 
@@ -22,26 +26,23 @@ const makeFileName = (prefix: string, start: number) => {
     return `${prefix.replaceAll(' ', '_').substring(0, Math.min(prefix.length, maxPrefixLength))}_${Math.floor(start)}`;
 };
 
-interface ExperimentalAudioElement extends HTMLAudioElement {
-    audioTracks: any;
-    captureStream?: () => MediaStream;
-    mozCaptureStream?: () => MediaStream;
-}
-
 export type AudioClipEvent = 'play' | 'pause' | 'error';
 type AudioClipEventCallbacks = { [name in AudioClipEvent]: (() => void)[] };
+interface StopOptions {
+    preserveCapture?: boolean;
+}
 
 interface AudioData {
     name: string;
     extension: string;
     start: number;
     play: () => Promise<void>;
-    stop: () => void;
+    stop: (options?: StopOptions) => void;
     blob: () => Promise<Blob>;
     base64: () => Promise<string>;
     slice: (start: number, end: number) => AudioData;
     isSliceable: () => boolean;
-    sourceDurationMs?: () => Promise<number | undefined>;
+    sourceDurationMs?: (signal?: AbortSignal) => Promise<number | undefined>;
     error?: AudioErrorCode;
     playing: boolean;
     onEvent: (name: AudioClipEvent, callback: () => void) => () => void;
@@ -203,10 +204,6 @@ class Base64AudioData implements AudioData {
     }
 }
 
-class ClippingCancelledError extends Error {}
-
-class AudioUnavailableError extends Error {}
-
 /** Empty audio is omitted by exporters; other media failures still reject. */
 const audioDataToBase64 = async (data: AudioData) => {
     try {
@@ -217,300 +214,6 @@ const audioDataToBase64 = async (data: AudioData) => {
     }
 };
 
-class FileAudioClipper {
-    private readonly _source: string | Blob;
-    private readonly _start: number;
-    private readonly _end: number;
-    private readonly _playbackRate: number;
-    private readonly _recorderMimeType: string;
-    private readonly _trackId?: string;
-    private _clippingAudioElement?: HTMLAudioElement;
-    private _clippingAudioContext?: AudioContext;
-    private _clippingAudibly?: boolean;
-    private _clippingAudioReject?: (error: Error) => void;
-    private _stopClippingTimeout?: ReturnType<typeof setTimeout>;
-    private _playingAudioElement?: HTMLAudioElement;
-    private _stopAudioTimeout?: ReturnType<typeof setTimeout>;
-    private _blob?: Blob;
-    private _blobPromise?: Promise<Blob>;
-    private _callbacks: AudioClipEventCallbacks;
-
-    constructor(
-        source: string | Blob,
-        start: number,
-        end: number,
-        playbackRate: number,
-        recorderMimeType: string,
-        callbacks: AudioClipEventCallbacks,
-        trackId?: string
-    ) {
-        this._source = source;
-        this._start = start;
-        this._end = end;
-        this._playbackRate = playbackRate;
-        this._recorderMimeType = recorderMimeType;
-        this._callbacks = callbacks;
-        this._trackId = trackId;
-    }
-
-    latestBlobPromise(): Promise<Blob> | undefined {
-        return this._blobPromise;
-    }
-
-    get isPlayingAudibly(): boolean {
-        return (
-            (this._clippingAudioElement !== undefined && this._clippingAudibly === true) ||
-            this._playingAudioElement !== undefined
-        );
-    }
-
-    get isRecordingSilently(): boolean {
-        return this._clippingAudioElement !== undefined && this._clippingAudibly === false;
-    }
-
-    get finishedRecording(): boolean {
-        return this._blob !== undefined;
-    }
-
-    async play() {
-        if (this._end <= this._start) throw new Error('Requested audio is outside the converted portion');
-        if (this._playingAudioElement) {
-            this._stopPlayingAudio();
-            invokeCallbacks('pause', this._callbacks);
-            return;
-        }
-
-        if (this._blob) {
-            const audio = await this._audioElement(URL.createObjectURL(this._blob));
-            audio.currentTime = 0;
-            await audio.play();
-            invokeCallbacks('play', this._callbacks);
-            this._playingAudioElement = audio;
-        } else {
-            const audio = await this._audioElement(
-                typeof this._source === 'string' ? this._source : URL.createObjectURL(this._source),
-                this._trackId
-            );
-            const ready = () => {
-                audio.oncanplay = null;
-                void audio.play();
-                invokeCallbacks('play', this._callbacks);
-            };
-            audio.oncanplay = ready;
-            this._playingAudioElement = audio;
-            if (!audio.seeking && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) ready();
-        }
-
-        this._stopAudioTimeout = setTimeout(
-            () => {
-                if (this._playingAudioElement !== undefined) {
-                    this._stopAudio(this._playingAudioElement);
-                    invokeCallbacks('pause', this._callbacks);
-                    this._playingAudioElement = undefined;
-                }
-
-                this._stopAudioTimeout = undefined;
-            },
-            (this._end - this._start) / this._playbackRate + 100
-        );
-    }
-
-    async clip(audible: boolean): Promise<Blob> {
-        if (this._end <= this._start) throw new Error('Requested audio is outside the converted portion');
-        this._stopClippingAudio();
-        this._clippingAudibly = audible;
-        this._blobPromise = new Promise((resolve, reject) => {
-            void (async () => {
-                const audio = await this._audioElement(
-                    typeof this._source === 'string' ? this._source : URL.createObjectURL(this._source),
-                    this._trackId
-                );
-                const ready = () => {
-                    audio.oncanplay = null;
-
-                    void (async () => {
-                        if (!audible) {
-                            // Direct audio to destination other than speakers
-                            const audioContext = new AudioContext();
-                            this._clippingAudioContext = audioContext;
-                            const destination = audioContext.createMediaStreamDestination();
-                            const source = audioContext.createMediaElementSource(audio);
-                            source.connect(destination);
-                        } else if (isFirefox) {
-                            // In Firefox, captureStream() mutes the media element audio to speakers unless connected to AudioContext destination
-                            const audioContext = new AudioContext();
-                            this._clippingAudioContext = audioContext;
-                            const source = audioContext.createMediaElementSource(audio);
-                            source.connect(audioContext.destination);
-                        }
-
-                        await audio.play();
-
-                        if (audible) {
-                            invokeCallbacks('play', this._callbacks);
-                        }
-
-                        const stream = this._captureStream(audio);
-                        const recorder = new MediaRecorder(stream, { mimeType: this._recorderMimeType });
-                        const chunks: BlobPart[] = [];
-
-                        recorder.ondataavailable = (e) => {
-                            chunks.push(e.data);
-                        };
-
-                        let cancelled = false;
-                        const stopRecorder = () => {
-                            if (recorder.state !== 'inactive') recorder.stop();
-                        };
-                        recorder.onstop = () => {
-                            if (cancelled) return;
-                            // A snapshot may reach EOF before our padded recording timer expires.
-                            // Natural recorder completion is just as valid as a timed stop.
-                            clearTimeout(this._stopClippingTimeout);
-                            audio.onended = null;
-                            this._stopAudio(audio);
-                            void this._clippingAudioContext?.close();
-                            this._clippingAudioContext = undefined;
-                            this._clippingAudioElement = undefined;
-                            this._stopClippingTimeout = undefined;
-                            this._clippingAudioReject = undefined;
-                            for (const track of stream.getAudioTracks()) track.stop();
-                            this._blob = new Blob(chunks, { type: this._recorderMimeType });
-                            resolve(this._blob);
-                        };
-
-                        recorder.start();
-
-                        this._clippingAudioReject = (error) => {
-                            cancelled = true;
-                            stopRecorder();
-                            reject(error);
-                        };
-                        this._clippingAudioElement = audio;
-                        audio.onended = stopRecorder;
-                        this._stopClippingTimeout = setTimeout(
-                            stopRecorder,
-                            (this._end - this._start) / this._playbackRate + 100
-                        );
-                    })().catch(reject);
-                };
-                audio.oncanplay = ready;
-                if (!audio.seeking && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) ready();
-            })().catch(reject);
-        });
-        return this._blobPromise;
-    }
-
-    stop() {
-        if (this._playingAudioElement) {
-            this._stopPlayingAudio();
-            invokeCallbacks('pause', this._callbacks);
-        }
-
-        if (this._clippingAudioElement) {
-            this._stopClippingAudio();
-            invokeCallbacks('pause', this._callbacks);
-        }
-    }
-
-    private _stopClippingAudio() {
-        if (!this._clippingAudioElement) {
-            return;
-        }
-
-        this._stopAudio(this._clippingAudioElement);
-        void this._clippingAudioContext?.close();
-        this._clippingAudioContext = undefined;
-        clearTimeout(this._stopClippingTimeout);
-        this._clippingAudioReject?.(new ClippingCancelledError());
-        this._clippingAudioElement = undefined;
-        this._stopClippingTimeout = undefined;
-        this._clippingAudioReject = undefined;
-        this._blobPromise = undefined;
-    }
-
-    private _stopPlayingAudio() {
-        if (!this._playingAudioElement) {
-            return;
-        }
-
-        this._stopAudio(this._playingAudioElement);
-        clearTimeout(this._stopAudioTimeout);
-        this._playingAudioElement = undefined;
-        this._stopAudioTimeout = undefined;
-    }
-
-    private _audioElement(blobUrl: string, trackId?: string): Promise<ExperimentalAudioElement> {
-        const audio = new Audio() as ExperimentalAudioElement;
-        audio.preload = 'auto';
-        audio.src = blobUrl;
-
-        return new Promise((resolve, reject) => {
-            const t0 = Date.now();
-            const interval = setInterval(() => {
-                if (
-                    (audio.seekable.length > 0 && audio.seekable.end(0) === audio.duration) ||
-                    Date.now() - t0 >= 5_000
-                ) {
-                    if (trackId && audio.audioTracks && audio.audioTracks.length > 0) {
-                        for (const t of audio.audioTracks) {
-                            t.enabled = trackId === t.id;
-                        }
-                    }
-                    audio.onerror = () => {
-                        reject(audio.error?.message ?? 'Could not load audio');
-                    };
-                    audio.currentTime = this._start / 1000;
-                    audio.playbackRate = this._playbackRate;
-                    clearInterval(interval);
-                    resolve(audio);
-                }
-            }, 100);
-        });
-    }
-
-    private _stopAudio(audio: HTMLAudioElement) {
-        audio.pause();
-        const src = audio.src;
-        audio.removeAttribute('src');
-        audio.load();
-
-        // A card owns its source URL; only revoke temporary playback URLs created by this clipper.
-        if (src !== this._source) {
-            URL.revokeObjectURL(src);
-        }
-    }
-
-    private _captureStream(audio: ExperimentalAudioElement) {
-        let stream: MediaStream | undefined;
-
-        if (typeof audio.captureStream === 'function') {
-            stream = audio.captureStream();
-        }
-
-        if (typeof audio.mozCaptureStream === 'function') {
-            stream = audio.mozCaptureStream();
-        }
-
-        if (stream === undefined) {
-            throw new Error('Unable to capture stream from audio');
-        }
-
-        const audioStream = new MediaStream();
-
-        for (const track of stream.getVideoTracks()) {
-            track.stop();
-        }
-
-        for (const track of stream.getAudioTracks()) {
-            if (track.enabled) {
-                audioStream.addTrack(track);
-            }
-        }
-
-        return audioStream;
-    }
-}
 class FileAudioData implements AudioData {
     private readonly _source: AudioSource;
     private readonly _name: string;
@@ -519,11 +222,10 @@ class FileAudioData implements AudioData {
     private readonly _playbackRate: number;
     private readonly _recordAudibly: boolean;
     private readonly _extension: string;
-    private readonly _recorderMimeType: string;
     private _callbacks: AudioClipEventCallbacks;
 
-    private _blobClipper: FileAudioClipper;
-    private _playClipper?: FileAudioClipper;
+    private readonly _clipper: FileAudioClipper;
+    private _captureConsumers = 0;
 
     constructor(
         source: AudioSource,
@@ -536,7 +238,6 @@ class FileAudioData implements AudioData {
         start = Math.max(0, start);
         end = Math.max(start, end);
         const { mimeType: recorderMimeType, extension: recorderExtension } = recorderConfiguration();
-        this._recorderMimeType = recorderMimeType;
         this._source = source;
         this._name = makeFileName(source.name, start);
         this._start = start;
@@ -545,13 +246,13 @@ class FileAudioData implements AudioData {
         this._recordAudibly = recordAudibly;
         this._callbacks = callbacks ?? { play: [], pause: [], error: [] };
         this._extension = recorderExtension;
-        this._blobClipper = new FileAudioClipper(
+        this._clipper = new FileAudioClipper(
             source.audio,
             start,
             end,
             playbackRate,
             recorderMimeType,
-            this._callbacks,
+            () => invokeCallbacks(this.playing ? 'play' : 'pause', this._callbacks),
             source.trackId
         );
     }
@@ -573,7 +274,7 @@ class FileAudioData implements AudioData {
     }
 
     get playing() {
-        return this._blobClipper.isPlayingAudibly || (this._playClipper?.isPlayingAudibly ?? false);
+        return this._clipper.previewing || this._clipper.recordingAudibly;
     }
 
     onEvent(event: AudioClipEvent, callback: () => void) {
@@ -584,54 +285,40 @@ class FileAudioData implements AudioData {
     }
 
     async play() {
-        if (this._end <= this._start) throw new Error('Requested audio is outside the converted portion');
-        if (this._blobClipper.isPlayingAudibly) {
-            this._blobClipper.stop();
-            invokeCallbacks('pause', this._callbacks);
-        } else if (this._playClipper?.isPlayingAudibly) {
-            this._playClipper.stop();
-            invokeCallbacks('pause', this._callbacks);
-        } else if (this._blobClipper.isRecordingSilently) {
-            this._playClipper =
-                this._playClipper ??
-                new FileAudioClipper(
-                    this._source.audio,
-                    this._start,
-                    this._end,
-                    this._playbackRate,
-                    this._recorderMimeType,
-                    this._callbacks,
-                    this._source.trackId
-                );
-            void this._playClipper.play();
-            invokeCallbacks('play', this._callbacks);
-        } else if (this._blobClipper.finishedRecording) {
-            void this._blobClipper.play();
-            invokeCallbacks('play', this._callbacks);
-            this._playClipper = undefined;
-        } else {
-            this._blobClipper
-                .clip(true)
-                .then(() => {
-                    invokeCallbacks('pause', this._callbacks);
-                })
-                .catch((e) => {
-                    if (!(e instanceof ClippingCancelledError)) {
-                        asbError('audio-clip', e);
-                    }
-                });
-            invokeCallbacks('play', this._callbacks);
+        if (this._end <= this._start) throw new AudioUnavailableError('Requested audio is outside the file');
+        if (this._clipper.previewing || this._clipper.recordingAudibly) {
+            this.stop({ preserveCapture: true });
+            return;
         }
+
+        // A silent capture can continue while the user listens through a separate element.
+        const playback =
+            this._clipper.recording || this._clipper.recorded ? this._clipper.preview() : this._clipper.record(true);
+        void playback.catch((error) => {
+            if (!(error instanceof ClippingCancelledError)) asbError('audio-clip', error);
+        });
     }
 
-    stop() {
-        this._blobClipper.stop();
-        this._playClipper?.stop();
-        invokeCallbacks('pause', this._callbacks);
+    stop({ preserveCapture }: StopOptions = {}) {
+        this._clipper.stopPreview();
+        if (preserveCapture && this._captureConsumers > 0) this._clipper.silenceRecording();
+        else this._clipper.stopRecording();
+        if (!this.playing) invokeCallbacks('pause', this._callbacks);
     }
 
     async blob() {
-        return this._blobClipper.latestBlobPromise() ?? this._blobClipper.clip(this._recordAudibly);
+        if (this._end <= this._start) throw new AudioUnavailableError('Requested audio is outside the file');
+        ++this._captureConsumers;
+        try {
+            return await this._clipper.record(this._recordAudibly);
+        } finally {
+            --this._captureConsumers;
+        }
+    }
+
+    async sourceDurationMs(signal?: AbortSignal) {
+        if (this.error === undefined) return fileAudioDurationMs(this._source.audio, signal);
+        return undefined;
     }
 
     slice(start: number, end: number) {
@@ -658,6 +345,7 @@ class TranscodedAudioData implements AudioData {
     private _dataPromise?: Promise<FileAudioData>;
     private _data?: FileAudioData;
     private _playRequest = 0;
+    private _captureGeneration = 0;
     private _preparationError?: AudioErrorCode;
 
     constructor(
@@ -703,13 +391,17 @@ class TranscodedAudioData implements AudioData {
         if (request === this._playRequest) await data.play();
     }
 
-    stop() {
+    stop(options?: StopOptions) {
         ++this._playRequest;
-        this._data?.stop();
+        if (!options?.preserveCapture) ++this._captureGeneration;
+        this._data?.stop(options);
     }
 
     async blob() {
-        return (await this._audioData()).blob();
+        const generation = this._captureGeneration;
+        const data = await this._audioData();
+        if (generation !== this._captureGeneration) throw new ClippingCancelledError();
+        return data.blob();
     }
 
     async base64() {
@@ -806,8 +498,8 @@ class Mp3AudioData implements AudioData {
         return this.data.onEvent(name, callback);
     }
 
-    stop() {
-        this.data.stop();
+    stop(options?: StopOptions) {
+        this.data.stop(options);
     }
 
     async blob() {
@@ -826,8 +518,8 @@ class Mp3AudioData implements AudioData {
         return this.data.isSliceable();
     }
 
-    async sourceDurationMs() {
-        return this.data.sourceDurationMs?.();
+    async sourceDurationMs(signal?: AbortSignal) {
+        return this.data.sourceDurationMs?.(signal);
     }
 
     get error() {
@@ -875,8 +567,8 @@ class EncodedAudioData implements AudioData {
         return this._data.onEvent(name, callback);
     }
 
-    stop() {
-        this._data.stop();
+    stop(options?: StopOptions) {
+        this._data.stop(options);
     }
 
     async blob() {
@@ -895,8 +587,8 @@ class EncodedAudioData implements AudioData {
         return this._data.isSliceable();
     }
 
-    async sourceDurationMs() {
-        return this._data.sourceDurationMs?.();
+    async sourceDurationMs(signal?: AbortSignal) {
+        return this._data.sourceDurationMs?.(signal);
     }
 
     get error() {
@@ -1026,8 +718,8 @@ export default class AudioClip {
         return this.data.onEvent(name, callback);
     }
 
-    stop() {
-        this.data.stop();
+    stop(options?: StopOptions) {
+        this.data.stop(options);
     }
 
     async base64() {
@@ -1067,8 +759,8 @@ export default class AudioClip {
         return this.data.isSliceable();
     }
 
-    async sourceDurationMs() {
-        return this.data.sourceDurationMs?.();
+    async sourceDurationMs(signal?: AbortSignal) {
+        return this.data.sourceDurationMs?.(signal);
     }
 
     get error() {
