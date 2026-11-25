@@ -91,3 +91,50 @@ it('maps a note type field to the picture on a newly exported card', async () =>
         })
     );
 });
+
+it('edits the known-word decks on the main track only, keeping its other settings', async () => {
+    const settingsProvider = new SettingsProvider(new MockSettingsStorage());
+    const initial = await settingsProvider.getAll();
+    const [main, ...others] = initial.dictionaryTracks;
+    await settingsProvider.set({
+        dictionaryTracks: [
+            { ...main, dictionaryAnkiDecks: ['Dutch'], dictionaryYomitanUrl: 'http://yomitan' },
+            ...others,
+        ],
+    });
+    const settings = await settingsProvider.getAll();
+    const onSettingChanged = jest.fn(async () => {});
+    const i18n = createInstance();
+    await i18n.init({ lng: 'en', resources: { en: { translation: en } } });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+        await act(async () =>
+            root.render(
+                <I18nextProvider i18n={i18n}>
+                    <ThemeProvider theme={createTheme('dark')}>
+                        <AnkiSettingsTab
+                            settings={settings}
+                            anki={new Anki(settings, { fetch: jest.fn(async () => ({ result: [], error: null })) })}
+                            onSettingChanged={onSettingChanged}
+                            tutorialStep={TutorialStep.done}
+                            onTutorialStepChanged={() => {}}
+                        />
+                    </ThemeProvider>
+                </I18nextProvider>
+            )
+        );
+        const removeDutch = container.querySelector('.MuiChip-deleteIcon')!;
+        await act(async () => removeDutch.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    } finally {
+        act(() => root.unmount());
+        container.remove();
+    }
+
+    expect(onSettingChanged).toHaveBeenCalledWith('dictionaryTracks', [
+        { ...settings.dictionaryTracks[0], dictionaryAnkiDecks: [] },
+        settings.dictionaryTracks[1],
+        settings.dictionaryTracks[2],
+    ]);
+});

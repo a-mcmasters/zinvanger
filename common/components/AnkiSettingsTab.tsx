@@ -18,11 +18,12 @@ import NoteTypeTutorialBubble from '@project/common/components/NoteTypeTutorialB
 import Button from '@mui/material/Button';
 import Link from '@mui/material/Link';
 import Tooltip from '@mui/material/Tooltip';
-import type { AsbplayerSettings } from '@project/common/settings';
+import type { AsbplayerSettings, DictionaryTrack } from '@project/common/settings';
 import type { CardModel } from '@project/common/src/model';
 import { TutorialStep, sentenceTranslationField } from '@project/common/components/settings-model';
 import { Anki, exportCard } from '@project/common/anki';
 import Stack from '@mui/material/Stack';
+import Autocomplete from '@mui/material/Autocomplete';
 
 const defaultDeckName = 'Sentences';
 const maskApiToken = (apiToken: string) => '•'.repeat(Array.from(apiToken).length);
@@ -108,6 +109,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
     const [ankiConnectApiKeyRequired, setAnkiConnectApiKeyRequired] = useState<boolean>(false);
     const [showAnkiConnectApiKey, setShowAnkiConnectApiKey] = useState<boolean>(() => !settings.ankiConnectApiKey);
     const [fieldNames, setFieldNames] = useState<string[]>();
+    const [allFieldNames, setAllFieldNames] = useState<string[]>();
 
     const {
         ankiConnectUrl,
@@ -122,6 +124,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
         customAnkiFields,
         audioPaddingStart,
         audioPaddingEnd,
+        dictionaryTracks,
     } = settings;
 
     const requestAnkiConnect = useCallback(async () => {
@@ -149,13 +152,17 @@ const AnkiSettingsTab: React.FC<Props> = ({
 
             setAnkiConnectApiKeyRequired(apiKeyRequired);
             setDeckNames(await anki.deckNames(ankiConnectUrl));
-            setModelNames(await anki.modelNames(ankiConnectUrl));
+            const models = await anki.modelNames(ankiConnectUrl);
+            setModelNames(models);
+            const fields = await Promise.all(models.map((model) => anki.modelFieldNames(model, ankiConnectUrl)));
+            setAllFieldNames([...new Set(fields.flat())].sort((a, b) => a.localeCompare(b)));
             setAnkiConnectUrlError(undefined);
         } catch (e) {
             setAnkiConnectApiKeyRequired(apiKeyRequired || Anki.requiresApiKey(e));
             asbError('anki/connect', e);
             setDeckNames(undefined);
             setModelNames(undefined);
+            setAllFieldNames(undefined);
             setAnkiConnectUrlError(errorMessage(e));
         }
     }, [anki, ankiConnectUrl, insideApp]);
@@ -259,6 +266,28 @@ const AnkiSettingsTab: React.FC<Props> = ({
 
         await exportCard(await testCard(), settings, isMobile ? 'default' : 'gui');
     }, [tutorialStep, settings, isMobile, testCard, onTutorialStepChanged]);
+
+    /** The i+1 vocabulary source lives on the main subtitle track; the other tracks keep their settings. */
+    const knownWordsSelect = (
+        key: 'dictionaryAnkiDecks' | 'dictionaryAnkiWordFields',
+        label: string,
+        helperText: string,
+        options: string[] | undefined
+    ) => (
+        <Autocomplete
+            multiple
+            disableCloseOnSelect
+            options={options ?? []}
+            value={dictionaryTracks[0][key]}
+            onChange={(_, value) =>
+                void onSettingChanged(
+                    'dictionaryTracks',
+                    dictionaryTracks.map((dt, track): DictionaryTrack => (track === 0 ? { ...dt, [key]: value } : dt))
+                )
+            }
+            renderInput={(params) => <SettingsTextField {...params} label={label} helperText={helperText} />}
+        />
+    );
 
     const ankiConnectApiKeyVisible = showAnkiConnectApiKey || !ankiConnectApiKey;
     const connected = deckNames !== undefined && !ankiConnectUrlError;
@@ -426,6 +455,18 @@ const AnkiSettingsTab: React.FC<Props> = ({
                 selections={fieldNames}
                 onValueChange={(value) => onSettingChanged('imageField', value)}
             />
+            {knownWordsSelect(
+                'dictionaryAnkiDecks',
+                t('settings.knownWordDecks'),
+                t('settings.knownWordDecksHelperText'),
+                deckNames
+            )}
+            {knownWordsSelect(
+                'dictionaryAnkiWordFields',
+                t('settings.knownWordFields'),
+                t('settings.knownWordFieldsHelperText'),
+                allFieldNames
+            )}
             <NumericSettingInput
                 label={t('settings.audioPaddingStart')}
                 fullWidth
