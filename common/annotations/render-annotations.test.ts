@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+    ankiVocabularySource,
+    defaultSettings,
     TokenFrequencyAnnotation,
     TokenReadingAnnotation,
     TokenStatus,
@@ -1055,5 +1057,103 @@ describe('rich text rendering', () => {
 
         expect(refreshed).not.toBe(cached);
         expect(refreshed?.richText).toContain('語</span>');
+    });
+});
+
+describe('i+1 cue', () => {
+    const iPlusOneTrack = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
+    const text = 'Ik kom straks terug';
+    const tokens = (statuses: (TokenStatus | null)[]) =>
+        (
+            [
+                [0, 2],
+                [3, 6],
+                [7, 13],
+                [14, 19],
+            ] as [number, number][]
+        ).map((pos, index) => makeToken({ pos, status: statuses[index] }));
+    const render = (
+        subtitle: Record<string, unknown>,
+        dt = iPlusOneTrack,
+        ankiConnectUrl = defaultSettings.ankiConnectUrl
+    ) => {
+        const richText = renderRichTextOntoSubtitles(
+            [makeSubtitle({ text, ...subtitle })],
+            'video',
+            makeDictionaryTracks(dt, iPlusOneTrack),
+            { adaptiveWordVisibilityEnabled: true, ankiConnectUrl }
+        ).get(0)?.richText;
+        const line = document.createElement('div');
+        line.innerHTML = richText ?? text;
+        return line;
+    };
+    const cues = (line: HTMLElement) => [...line.querySelectorAll<HTMLElement>('[data-asb-i-plus-one]')];
+    const known = TokenStatus.MATURE;
+    const iPlusOneSource = ankiVocabularySource(defaultSettings.ankiConnectUrl, iPlusOneTrack, 0);
+    const qualifying = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]), iPlusOneSource };
+
+    it('marks the new word of a main-track line without changing its text', () => {
+        const line = render({ tokenization: qualifying });
+        expect(cues(line).map((cue) => [cue.textContent, cue.dataset.asbTokenStart])).toEqual([['straks', '7']]);
+        expect(line.textContent).toBe(text);
+    });
+
+    it('marks nothing on a secondary track or without the Anki vocabulary source', () => {
+        expect(cues(render({ tokenization: qualifying, track: 1 }))).toEqual([]);
+        expect(
+            cues(render({ tokenization: qualifying }, makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'] })))
+        ).toEqual([]);
+    });
+
+    it('leaves a line plain until the Anki cache completed a build for the source', () => {
+        expect(cues(render({ tokenization: { tokens: qualifying.tokens } }))).toEqual([]);
+    });
+
+    it('leaves a line plain when Yomitan or a status lookup failed', () => {
+        expect(render({ tokenization: { tokens: [], error: true } }).innerHTML).toBe(text);
+        const line = render({
+            tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, null]), iPlusOneSource },
+        });
+        expect(line.innerHTML).not.toContain('line-through');
+        expect(cues(line)).toEqual([]);
+    });
+
+    it('drops a cue when the selected source or the Anki endpoint changes', () => {
+        const subtitle = { tokenization: qualifying };
+        expect(cues(render(subtitle))).toHaveLength(1);
+        expect(cues(render(subtitle, { ...iPlusOneTrack, dictionaryAnkiDecks: ['Other'] }))).toHaveLength(0);
+        expect(cues(render(subtitle, iPlusOneTrack, 'http://other:8765'))).toHaveLength(0);
+    });
+
+    it('drops a cue after legacy status annotations stop supplying sentence fields', () => {
+        const legacy = makeDictionaryTrack({
+            ...iPlusOneTrack,
+            dictionaryColorizeSubtitles: true,
+            dictionaryAnkiSentenceFields: ['Sentence'],
+        });
+        const subtitle = {
+            tokenization: {
+                ...qualifying,
+                iPlusOneSource: ankiVocabularySource(defaultSettings.ankiConnectUrl, legacy, 0),
+            },
+        };
+        expect(cues(render(subtitle, legacy))).toHaveLength(1);
+        expect(
+            cues(render(subtitle, makeDictionaryTrack({ ...legacy, dictionaryColorizeSubtitles: false })))
+        ).toHaveLength(0);
+    });
+
+    it('keeps an underline colorize style off the cue, so the cue shows', () => {
+        const dt = makeDictionaryTrack({
+            ...iPlusOneTrack,
+            dictionaryColorizeSubtitles: true,
+            dictionaryTokenStyling: TokenStyling.UNDERLINE,
+        });
+        const newWord = (line: HTMLElement) => line.querySelector<HTMLElement>('[data-asb-token-start="7"]')!;
+        expect(newWord(render({ tokenization: { tokens: qualifying.tokens } }, dt)).style.textDecoration).not.toBe('');
+
+        const cue = newWord(render({ tokenization: qualifying }, dt));
+        expect(cue.hasAttribute('data-asb-i-plus-one')).toBe(true);
+        expect(cue.style.textDecoration).toBe('');
     });
 });

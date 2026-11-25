@@ -1,6 +1,6 @@
 # Product spec: personal asbplayer fork
 
-Status: draft v2 (2026-11-21; v2 re-ranks the UI redesign to the top). This is a living document, and the roadmap is re-ranked after every slice.
+Status: draft v3 (2026-11-21; v2 re-ranks the UI redesign to the top; v3, 2026-11-25, keeps the dictionary, annotations and Yomitan for known words and i+1 lines). This is a living document, and the roadmap is re-ranked after every slice.
 
 ## 1. Vision
 
@@ -19,7 +19,7 @@ The fork is a Chrome extension for learning Dutch from streaming video. A line y
 1. **The Anki dialog is cluttered and mouse-driven.** It shows too many fields and controls (image, source, URL, three track fields, tags, a timestamp slider, three export buttons), picking the target word is awkward, and exporting needs the mouse.
 2. **Settings overload.** There are about 126 settings keys and 77 key binds across 9 tabs, and most serve features this user doesn't use.
 3. **NPO Start isn't supported on `main`.** The work exists on `feat/npo-start-subtitles`.
-4. **Codebase weight.** The web app, side panel, Firefox and mobile code, about 25 unused site integrations, the dictionary and annotation system, the external API and 13 locales all make every change slower and riskier.
+4. **Codebase weight.** The web app, side panel, Firefox and mobile code, about 25 unused site integrations, WaniKani, statistics and the dictionary settings tab, the external API and 13 locales all make every change slower and riskier.
 
 ## 4. Goals and success metrics
 
@@ -50,6 +50,7 @@ The fork is a Chrome extension for learning Dutch from streaming video. A line y
 
 ### Add
 
+- **Known words and i+1 lines:** a Known button on the word card ([#91](https://github.com/a-mcmasters/zinvanger/issues/91)), and a dotted underline on the one new word of a qualifying line. Known words come from local Known records and the Anki vocabulary decks. See the [S14 handoff](slices/S14-known-words-and-i-plus-one.md).
 - **Agent hand-off contract (S4):** mined cards are recognizable and complete enough for the definition agent to process them. One possibility is a `needs-definition` tag plus the word in the word field. The details depend on the open questions below.
 
 ### Remove (candidates; each one is its own slice, confirmed before deleting)
@@ -59,7 +60,7 @@ The fork is a Chrome extension for learning Dutch from streaming video. A line y
 - Side panel and its use of `common/app`.
 - The web app (`client/`, `ffmpeg/`, the Vite shell, `common/app` where the extension doesn't use it), and the docs site `docs/`.
 - WebSocket and external API (`external-api/`, `common/external-commands`, `scripts/web-socket-server`).
-- Dictionary, annotations, Yomitan, WaniKani and statistics (`common/dictionary-db`, `annotations`, `yomitan`, `wanikani`, `dictionary-statistics`, the statistics overlays).
+- WaniKani, statistics and the dictionary settings tab (`common/wanikani`, `dictionary-statistics`, the statistics overlays, `DictionarySettingsTab`). Keep `common/dictionary-db`, `annotations` and `yomitan`: the word card's meanings, the Known button and i+1 lines use them, and building our own dictionary support isn't worth it.
 - Localization other than English, and the Crowdin workflow.
 - Tutorials and first-run screens, recipes, settings profiles, bulk export, animated WebP, manual recording (the last one to be confirmed).
 - `plugins/anki` (the Python add-on).
@@ -93,6 +94,7 @@ The order puts quick wins on your daily workflow first, then pruning, which shri
 | # | Slice | Value | Size |
 |---|---|---|---|
 | S13 | **UI redesign** ([spec](slices/S13-ui-redesign.md)). Pick a design direction from three mocks, then new design tokens, one settings screen, in-video controls and menus. Runs ahead of S2. | Fixes the top pain | L (5 sub-slices) |
+| S14 | **Known words and i+1 subtitles** ([spec](slices/S14-known-words-and-i-plus-one.md)). Ship the word-card action first, then the Anki source and subtitle cue. | Click-to-mine workflow | M |
 | S0 | **Baseline and fork conventions.** Build, load unpacked, mine one card on YouTube and Netflix, record the metrics in section 4, add fork conventions to AGENTS.md. | Safety net, numbers to compare against | S |
 | S1 | **Land NPO Start.** Merge `feat/npo-start-subtitles` into `main` after a manual check on NPO Start. | Dutch content works | S |
 | S2 | **Lean Anki dialog.** The default view is sentence, word and audio. Tags, slider, source, URL, image and tracks go under "More". Actions are reduced to Export and Update last. | Fixes clutter | M |
@@ -101,7 +103,7 @@ The order puts quick wins on your daily workflow first, then pruning, which shri
 | S5 | **Agent hand-off contract** (blocked on open question 1). | Definitions flow | S–M |
 | S6 | **Chrome-only.** Remove the Firefox and Android targets, the mobile overlay and the Firefox recorder. | Pruning | M |
 | S7 | **Prune sites.** Keep the six sites, delete the rest along with their `PageSettings`, favicons and manifest entries. | Pruning, fewer settings | M |
-| S8 | **Remove the dictionary, annotations, Yomitan, WaniKani and statistics.** | Pruning; DictionarySettingsTab alone is 2.4k lines | L |
+| S8 | **Remove WaniKani, statistics and `DictionarySettingsTab`.** Keep the dictionary DB, the annotation build and Yomitan, which the word card, Known button and i+1 lines use. Run the i+1 measurement before statistics goes. | Pruning; DictionarySettingsTab alone is 2.4k lines | M |
 | S9 | **Remove the external API and WebSocket.** | Pruning | S |
 | S10 | **Remove the side panel** (and relocate mining history, see open question 2). | Pruning | M |
 | S11 | **Remove the web app, ffmpeg, docs, plugins, and non-English locales.** | Pruning | L |

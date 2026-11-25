@@ -92,7 +92,8 @@ const setup = () => {
         resolve: (target: any) => target,
         pause: jest.fn(),
         mine: jest.fn(async (): Promise<'saved' | 'dialog'> => 'saved'),
-        define: jest.fn(async (word: string) => ({ text: `meaning of ${word}`, lemma: 'zetten' })),
+        define: jest.fn(async (word: string) => ({ text: `meaning of ${word}`, lemma: 'zetten', lemmas: ['zetten'] })),
+        markKnown: jest.fn(async () => {}),
     };
     const host = new LivingSubtitleHost(context);
     host.bind({ language: 'en', themeType: 'dark' });
@@ -130,7 +131,7 @@ describe('LivingSubtitleHost', () => {
         click(span, span.firstChild!, 5); // inside "zet"
         await flush();
         expect(context.pause).toHaveBeenCalled();
-        expect(context.define).toHaveBeenCalledWith('zet');
+        expect(context.define).toHaveBeenCalledWith('zet', false);
         expect(lastModel()).toMatchObject({
             words: ['Hij', 'zet', 'koffie'],
             wordIndex: 1,
@@ -205,6 +206,17 @@ describe('LivingSubtitleHost', () => {
         click(span, span.firstChild!, 5);
         hide();
         expect((host as any).state.target).toBeUndefined();
+        host.unbind();
+    });
+
+    it('Known on the card saves the clicked word and shows the confirmation', async () => {
+        const { host, context, span, click, card, lastModel } = setup();
+        click(span, span.firstChild!, 5);
+        await flush();
+        card().listener!({ command: 'action', action: 'known' });
+        await flush();
+        expect(context.markKnown).toHaveBeenCalledWith('zet', ['zetten']);
+        expect(lastModel()).toMatchObject({ wordIndex: 1, known: { status: 'success' } });
         host.unbind();
     });
 

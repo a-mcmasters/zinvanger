@@ -41,6 +41,7 @@ import type {
     SubtitlesUpdatedFromVideoMessage,
     SubtitlesUpdatedToVideoMessage,
     SaveTokenLocalFromVideoMessage,
+    TokensWereModifiedFromVideoMessage,
     SaveTokenLocalToVideoMessage,
     IndexedSubtitleModel,
 } from '@project/common';
@@ -73,6 +74,7 @@ export default class VideoChannel {
     private offsetCallbacks: ((offset: number) => void)[];
     private playbackRateCallbacks: ((playbackRate: number, echo: boolean) => void)[];
     private popOutToggleCallbacks: (() => void)[];
+    private tokensWereModifiedCallbacks: ((tokens: string[]) => void)[];
     private copyCallbacks: ((
         subtitle: SubtitleModel,
         surroundingSubtitles: SubtitleModel[],
@@ -137,6 +139,7 @@ export default class VideoChannel {
         this.offsetCallbacks = [];
         this.playbackRateCallbacks = [];
         this.popOutToggleCallbacks = [];
+        this.tokensWereModifiedCallbacks = [];
         this.copyCallbacks = [];
         this.hideSubtitlePlayerToggleCallbacks = [];
         this.appBarToggleCallbacks = [];
@@ -263,6 +266,11 @@ export default class VideoChannel {
                     }
                     break;
                 }
+                case 'tokensWereModified':
+                    for (const callback of this.tokensWereModifiedCallbacks) {
+                        callback((event.data as TokensWereModifiedFromVideoMessage).tokens);
+                    }
+                    break;
                 case 'popOutToggle':
                     for (const callback of this.popOutToggleCallbacks) {
                         callback();
@@ -451,6 +459,11 @@ export default class VideoChannel {
     onPlaybackRate(callback: (playbackRate: number, echo: boolean) => void) {
         this.playbackRateCallbacks.push(callback);
         return () => this._remove(callback, this.playbackRateCallbacks);
+    }
+
+    onTokensWereModified(callback: (tokens: string[]) => void) {
+        this.tokensWereModifiedCallbacks.push(callback);
+        return () => this._remove(callback, this.tokensWereModifiedCallbacks);
     }
 
     onPopOutToggle(callback: () => void) {
@@ -930,6 +943,7 @@ export default class VideoChannel {
         this.offsetCallbacks = [];
         this.playbackRateCallbacks = [];
         this.popOutToggleCallbacks = [];
+        this.tokensWereModifiedCallbacks = [];
         this.copyCallbacks = [];
         this.hideSubtitlePlayerToggleCallbacks = [];
         this.appBarToggleCallbacks = [];

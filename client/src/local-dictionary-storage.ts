@@ -84,6 +84,10 @@ export class LocalDictionaryStorage implements DictionaryStorage {
         return this.dictionaryDB.getByLemmaBulk(profile, track, lemmas);
     }
 
+    getAnkiCacheSource(profile: string | undefined, track: number) {
+        return this.dictionaryDB.getAnkiCacheSource(profile, track);
+    }
+
     saveRecordLocalBulk(
         profile: string | undefined,
         localTokenInputs: readonly DictionaryLocalTokenInput[],

@@ -23,6 +23,10 @@ export class LocalSettingsStorage implements AppSettingsStorage {
         return this._get(keysAndDefaults, activeProfile);
     }
 
+    async getForProfile(keysAndDefaults: Partial<AsbplayerSettings>, profile: string | undefined) {
+        return this._get(keysAndDefaults, profile === undefined ? undefined : { name: profile });
+    }
+
     private _get(keysAndDefaults: Partial<AsbplayerSettings>, activeProfile?: Profile) {
         const settings: any = {};
         const actualKeysAndDefaults =

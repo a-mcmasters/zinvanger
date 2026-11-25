@@ -7,7 +7,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { PostMineAction } from '@project/common';
 import type { IndexedSubtitleModel } from '@project/common';
-import { defaultSettings, SettingsProvider } from '@project/common/settings';
+import { ApplyStrategy, defaultSettings, getFullyKnownTokenStatus, SettingsProvider } from '@project/common/settings';
 import { MockSettingsStorage } from '@project/common/settings/mock-settings-storage';
 import { createTheme } from '@project/common/theme';
 import { Yomitan } from '@project/common/yomitan';
@@ -27,6 +27,7 @@ jest.mock('@project/common/app/services/player-channel', () => ({
     default: class {
         callbacks: { [name: string]: (...args: any[]) => void } = {};
         copy = jest.fn();
+        tokensWereModified = jest.fn();
         constructor() {
             channels.push(this);
             return new Proxy(this, {
@@ -55,6 +56,13 @@ const cue: IndexedSubtitleModel = {
     index: 0,
 };
 
+const dictionaryProvider = {
+    saveRecordLocalBulk: jest.fn(async (_profile: string | undefined, inputs: { token: string }[]) => ({
+        savedTokens: inputs.map(({ token }) => [token]),
+        deletedTokens: [],
+    })),
+};
+
 const flush = () => act(async () => new Promise((resolve) => setTimeout(resolve, 50)));
 
 beforeAll(async () => {
@@ -67,8 +75,14 @@ beforeAll(async () => {
 describe('VideoPlayer', () => {
     let root: Root;
     let container: HTMLDivElement;
+    let settingsProvider: SettingsProvider;
 
-    beforeEach(() => {
+    beforeEach(async () => {
+        settingsProvider = new SettingsProvider(new MockSettingsStorage());
+        await settingsProvider.addProfile('Dutch');
+        await settingsProvider.addProfile('Other');
+        await settingsProvider.setActiveProfile('Dutch');
+        dictionaryProvider.saveRecordLocalBulk.mockClear();
         channels.length = 0;
         container = document.createElement('div');
         document.body.append(container);
@@ -89,7 +103,9 @@ describe('VideoPlayer', () => {
                 <ThemeProvider theme={createTheme('dark')}>
                     <VideoPlayer
                         settings={settings}
-                        settingsProvider={new SettingsProvider(new MockSettingsStorage())}
+                        settingsProvider={settingsProvider}
+                        dictionaryProvider={dictionaryProvider as any}
+                        profile="Dutch"
                         extension={{ supportsAppIntegration: false } as any}
                         supportsDictionaryPlayback={false}
                         videoFile="blob:video"
@@ -141,6 +157,53 @@ describe('VideoPlayer', () => {
         expect(minedSubtitle).toMatchObject({ text: cue.text, start: cue.start, end: cue.end });
         expect(surroundingSubtitles).toEqual([cue]);
         expect(cardTextFieldValues).toMatchObject({ word: 'zet', definition: 'meaning of zet' });
+    });
+
+    it('Known saves the clicked word to the active profile and asks the app to refresh its annotations', async () => {
+        const { channel, subtitle } = await renderPlayer();
+        await clickAt(subtitle, subtitle.firstChild!, 5);
+        const card = container.querySelector<HTMLElement>('[role="dialog"][aria-label="zet"]')!;
+        const known = [...card.querySelectorAll('button')].find((button) => button.textContent === 'Known')!;
+
+        await act(async () => known.click());
+        await flush();
+
+        expect(dictionaryProvider.saveRecordLocalBulk).toHaveBeenCalledWith(
+            'Dutch',
+            [{ token: 'zet', status: getFullyKnownTokenStatus(), lemmas: ['zetten'], states: [] }],
+            ApplyStrategy.ADD
+        );
+        expect(channel.tokensWereModified).toHaveBeenCalledWith(['zet', 'zetten']);
+        expect(card.textContent).toContain('✓ Marked known');
+        expect(card.textContent).toContain('Mine');
+    });
+
+    it('drops a pending Known confirmation after the profile changes in storage', async () => {
+        const { channel, subtitle } = await renderPlayer();
+        await clickAt(subtitle, subtitle.firstChild!, 5);
+        const card = container.querySelector<HTMLElement>('[role="dialog"][aria-label="zet"]')!;
+        const known = [...card.querySelectorAll('button')].find((button) => button.textContent === 'Known')!;
+        let complete!: (result: { savedTokens: string[][]; deletedTokens: never[] }) => void;
+        dictionaryProvider.saveRecordLocalBulk.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    complete = resolve;
+                })
+        );
+
+        await act(async () => known.click());
+        expect(dictionaryProvider.saveRecordLocalBulk).toHaveBeenCalledWith(
+            'Dutch',
+            expect.any(Array),
+            ApplyStrategy.ADD
+        );
+        await act(async () => {
+            await settingsProvider.setActiveProfile('Other');
+            complete({ savedTokens: [['zet']], deletedTokens: [] });
+        });
+
+        expect(container.contains(card)).toBe(false);
+        expect(channel.tokensWereModified).not.toHaveBeenCalled();
     });
 
     it('lets the app report the outcome of a direct export', async () => {

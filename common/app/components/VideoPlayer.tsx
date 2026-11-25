@@ -124,6 +124,8 @@ import LivingSubtitleController, {
     livingSubtitleCueWords,
 } from '@project/common/living-subtitle/living-subtitle-controller';
 import type { LivingSubtitleState } from '@project/common/living-subtitle/living-subtitle-controller';
+import { saveKnownWord } from '@project/common/living-subtitle/known-word';
+import type { DictionaryProvider } from '@project/common/dictionary-db/dictionary-provider';
 import { domWords, wordIndexAt } from '@project/common/living-subtitle/dom-words';
 import LivingSubtitleCard from '@project/common/components/LivingSubtitleCard';
 import type { LivingSubtitleAction } from '@project/common/components/LivingSubtitleCard';
@@ -221,6 +223,7 @@ const showingSubtitleHtml = (
     subtitleClasses: string,
     imageBasedSubtitleScaleFactor: number,
     dictionaryTracks: DictionaryTrack[],
+    ankiConnectUrl: string,
     adaptiveWordVisibilityEnabled: boolean
 ) => {
     if (subtitle.textImage) {
@@ -242,6 +245,7 @@ const showingSubtitleHtml = (
     const allSubtitleClasses = subtitleClasses ? `${subtitleClasses} asbplayer-subtitles` : 'asbplayer-subtitles';
     const rendered = renderRichTextOntoSubtitles([subtitle], 'video', dictionaryTracks, {
         adaptiveWordVisibilityEnabled,
+        ankiConnectUrl,
     })?.get(subtitle.index);
     return `<span class="${allSubtitleClasses}" style="${subtitleStyles}" data-track="${subtitle.track}" ${ASB_SUBTITLE_INDEX_ATTRIBUTE}="${subtitle.index}">${getAnnotationsHtml(
         subtitle.text,
@@ -347,6 +351,7 @@ export interface SeekRequest {
 interface Props {
     settings: AsbplayerSettings;
     settingsProvider: SettingsProvider;
+    dictionaryProvider: DictionaryProvider;
     extension: ChromeExtension;
     supportsDictionaryPlayback: boolean;
     videoFile: string;
@@ -408,6 +413,7 @@ const saveLastControlType = async (controlType: ControlType): Promise<void> => {
 export default function VideoPlayer({
     settings,
     settingsProvider,
+    dictionaryProvider,
     extension,
     supportsDictionaryPlayback,
     videoFile,
@@ -2273,11 +2279,13 @@ export default function VideoPlayer({
                 trackStyles[subtitle.track]?.classes ?? trackStyles[0]?.classes ?? '',
                 subtitleSettings.imageBasedSubtitleScaleFactor,
                 renderDictionaryTracks,
+                settings.ankiConnectUrl,
                 playbackSettings.subtitleVisibility === SubtitleVisibility.whenDue
             ),
         [
             trackStyles,
             renderDictionaryTracks,
+            settings.ankiConnectUrl,
             subtitleSettings.imageBasedSubtitleScaleFactor,
             playbackSettings.subtitleVisibility,
         ]
@@ -2330,11 +2338,11 @@ export default function VideoPlayer({
     const [wordCard, setWordCard] = useState<LivingSubtitleState>();
     const wordCardYomitanRef = useRef<{ url: string; yomitan: Yomitan }>(undefined);
     const wordCardActions = {
-        define: (word: string) => {
+        define: (word: string, retry: boolean) => {
             const dt = playbackSettings.dictionaryTracks[0];
             const url = dt?.dictionaryYomitanUrl?.trim();
             if (!dt || !url) return Promise.reject(new Error('noDictionary'));
-            if (wordCardYomitanRef.current?.url !== url) {
+            if (retry || wordCardYomitanRef.current?.url !== url) {
                 wordCardYomitanRef.current = { url, yomitan: new Yomitan(dt) }; // keeps its gloss cache
             }
             return defineWithYomitan(wordCardYomitanRef.current.yomitan, word);
@@ -2348,6 +2356,15 @@ export default function VideoPlayer({
             if (notMined) throw new Error(notMined);
             return 'submitted' as const;
         },
+        // The app window owns the annotations.
+        markKnown: (word: string, lemmas: readonly string[]) =>
+            saveKnownWord(
+                dictionaryProvider,
+                async () => (await settingsProvider.activeProfile())?.name,
+                word,
+                lemmas,
+                (tokens) => playerChannel.tokensWereModified(tokens)
+            ),
     };
     const wordCardActionsRef = useRef(wordCardActions);
     wordCardActionsRef.current = wordCardActions;
@@ -2358,8 +2375,9 @@ export default function VideoPlayer({
                     isPausedDueToHoverRef.current = false; // leaving the subtitle must not resume a captured sentence
                     playerChannel.pause();
                 },
-                define: (word) => wordCardActionsRef.current.define(word),
+                define: (word, retry) => wordCardActionsRef.current.define(word, retry),
                 mine: (state) => wordCardActionsRef.current.mine(state),
+                markKnown: (word, lemmas) => wordCardActionsRef.current.markKnown(word, lemmas),
                 render: setWordCard,
             }),
         [playerChannel]
@@ -2384,11 +2402,16 @@ export default function VideoPlayer({
     const handleWordCardAction = useCallback(
         (action: LivingSubtitleAction) => {
             if (action === 'mine') void wordCardController.mine();
+            else if (action === 'known') void wordCardController.markKnown();
             else if (action === 'retry-definition') wordCardController.retryDefinition();
             else wordCardController.closeWord();
         },
         [wordCardController]
     );
+
+    useEffect(() => {
+        if (wordCardController.hasTarget) wordCardController.clear(); // a pending Known belongs to the previous profile
+    }, [profile, wordCardController]);
 
     // Resuming playback, or the sentence leaving the screen, dismisses the card.
     useEffect(() => {
@@ -2534,6 +2557,7 @@ export default function VideoPlayer({
                 word={wordCard.word.text}
                 definition={wordCard.definition}
                 mining={wordCard.mining}
+                known={wordCard.known}
                 onAction={handleWordCardAction}
             />
         </div>

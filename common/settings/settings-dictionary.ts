@@ -511,6 +511,53 @@ export function dictionaryTrackEnabled(dt: DictionaryTrack): boolean {
     );
 }
 
+/** i+1 cues on the main track need its tokens and statuses, even with every visual annotation off. */
+export function iPlusOneActive(dt: DictionaryTrack, track: number): boolean {
+    return track === 0 && dt.dictionaryAnkiDecks.length > 0 && dt.dictionaryAnkiWordFields.length > 0;
+}
+
+/** The track is tokenized: for visual annotations or the main track's i+1 cue. */
+export function dictionaryTrackActive(dt: DictionaryTrack, track: number): boolean {
+    return dictionaryTrackEnabled(dt) || iPlusOneActive(dt, track);
+}
+
+/** The track's statuses are resolved: for visual annotations or the main track's i+1 cue. */
+export function dictionaryStatusCollectionActive(
+    dt: DictionaryTrack,
+    track: number,
+    options: { includeStates: boolean }
+): boolean {
+    return dictionaryStatusCollectionEnabled(dt, options) || iPlusOneActive(dt, track);
+}
+
+/**
+ * The track as the Anki cache reads it, or undefined when it collects no statuses. Sentence fields serve only the
+ * legacy annotations: a track active only for i+1 reads its word fields.
+ */
+export function ankiStatusTrack(dt: DictionaryTrack, track: number): DictionaryTrack | undefined {
+    if (dictionaryStatusCollectionEnabled(dt, { includeStates: false })) return dt;
+    if (iPlusOneActive(dt, track)) return { ...dt, dictionaryAnkiSentenceFields: [] };
+}
+
+/** Identifies the inputs that require clearing and rebuilding the Anki cache. */
+export function ankiVocabularySource(ankiConnectUrl: string, dt: DictionaryTrack, track: number): string | undefined {
+    const effective = ankiStatusTrack(dt, track);
+    if (!effective || (!effective.dictionaryAnkiWordFields.length && !effective.dictionaryAnkiSentenceFields.length)) {
+        return undefined;
+    }
+    // Keep these inputs aligned with the cache rebuild guidance in the dictionary settings tab.
+    return JSON.stringify({
+        ankiConnectUrl,
+        dictionaryYomitanUrl: effective.dictionaryYomitanUrl,
+        dictionaryYomitanParser: effective.dictionaryYomitanParser,
+        dictionaryYomitanScanLength: effective.dictionaryYomitanScanLength,
+        dictionaryAnkiDecks: effective.dictionaryAnkiDecks,
+        dictionaryAnkiWordFields: effective.dictionaryAnkiWordFields,
+        dictionaryAnkiSentenceFields: effective.dictionaryAnkiSentenceFields,
+        dictionaryAnkiMatureCutoff: effective.dictionaryAnkiMatureCutoff,
+    });
+}
+
 export function dictionaryStatusCollectionEnabled(dt: DictionaryTrack, options: { includeStates: boolean }): boolean {
     const { includeStates } = options;
     if (dt.dictionaryPlaybackConfig.fastForward.rateByComprehension.enabled) return true;

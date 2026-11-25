@@ -1034,6 +1034,16 @@ function PlayerComponent(
     }, [channel]);
 
     useEffect(
+        () =>
+            channel?.onTokensWereModified((tokens) => {
+                if (subtitleCollectionRef.current instanceof SubtitleAnnotations) {
+                    subtitleCollectionRef.current.tokensWereModified(tokens);
+                }
+            }),
+        [channel]
+    );
+
+    useEffect(
         () => channel?.onExit(() => videoFileUrl && onUnloadVideo(videoFileUrl)),
         [channel, onUnloadVideo, videoFileUrl]
     );

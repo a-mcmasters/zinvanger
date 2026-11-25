@@ -634,6 +634,11 @@
         "dictionaryTokenFrequencyAnnotationAlways": "Sempre",
         "dictionaryTokenFrequencyAnnotationUncollectedOnly": "Solo non raccolte",
         "dictionaryTokenFrequencyAnnotationNever": "Mai",
+        "knownWordDecks": "Known-word decks",
+        "knownWordDecksHelperText": "Notes in these decks and their subdecks count as words you know or are learning.",
+        "knownWordFields": "Word fields",
+        "knownWordFieldsHelperText": "Fields that hold just the word. With both set, subtitles underline the one new word of a line.",
+        "knownWordsNeedExtensionUpdate": "Update the extension to use known words.",
         "dictionaryAnkiDecks": "Deck Anki (opzionale)",
         "dictionaryAnkiSelectDecks": "Seleziona deck Anki da cercare...",
         "dictionaryAnkiWordFields": "Campi parola Anki",
@@ -900,6 +905,9 @@
         "mine": "Mine",
         "mining": "Mining…",
         "mined": "Mined",
+        "known": "Known",
+        "markingKnown": "Saving…",
+        "markedKnown": "✓ Marked known",
         "loading": "Looking up…",
         "retry": "Retry",
         "noResult": "No meaning found",
@@ -908,7 +916,8 @@
         "error": {
             "noDictionary": "Set a Yomitan URL for subtitle track 1 to look up words",
             "dictionaryUnavailable": "Yomitan is not reachable. Is the Yomitan API running?",
-            "mining": "Mining failed: {{message}}"
+            "mining": "Mining failed: {{message}}",
+            "known": "Not saved as known."
         }
     }
 }

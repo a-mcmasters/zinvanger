@@ -5,7 +5,7 @@ import { AnkiAnnotations } from '@project/common/annotations/anki-annotations';
 import { makeDictionaryTrack, makeSettings, makeStorage } from '@project/common/annotations/annotations-test-utils';
 import { DictionaryProvider } from '@project/common/dictionary-db';
 import type { DictionaryStatisticsAnkiSnapshot } from '@project/common/dictionary-statistics';
-import { SettingsProvider, TokenStatus } from '@project/common/settings';
+import { ankiVocabularySource, SettingsProvider, TokenStatus } from '@project/common/settings';
 import type { DictionaryTrack } from '@project/common/settings';
 import { MockSettingsStorage } from '@project/common/settings/mock-settings-storage';
 
@@ -65,7 +65,11 @@ const makeSource = ({
 } = {}) => {
     const storage = makeStorage();
     const settingsStorage = new MockSettingsStorage();
-    settingsStorage.setData(makeSettings());
+    const settings = makeSettings(dictionaryTracks);
+    settingsStorage.setData(settings);
+    storage.getAnkiCacheSource.mockImplementation(async (_profile, track) =>
+        ankiVocabularySource(settings.ankiConnectUrl, dictionaryTracks[track], track)
+    );
     const ankiConnect = makeAnkiConnect(handler);
     const snapshots: DictionaryStatisticsAnkiSnapshot[] = [];
     const tokensWereModified = jest.fn();
@@ -183,6 +187,64 @@ describe('AnkiAnnotations', () => {
         expect(storage.buildAnkiCache).toHaveBeenCalledTimes(2);
     });
 
+    it.each([DictionaryBuildAnkiCacheStateErrorCode.concurrentBuild, DictionaryBuildAnkiCacheStateErrorCode.noYomitan])(
+        'retries after %s with no recently modified cards until the requested source is built',
+        async (code) => {
+            let now = Date.now();
+            jest.spyOn(Date, 'now').mockImplementation(() => now);
+            const { source, storage } = makeSource();
+            const currentStamp = storage.getAnkiCacheSource.getMockImplementation()!;
+            storage.getAnkiCacheSource.mockResolvedValue('previous source');
+            storage.buildAnkiCache
+                .mockImplementationOnce(async () => {
+                    source.cacheStateChanged(errorState(code));
+                    return undefined;
+                })
+                .mockImplementationOnce(async () => {
+                    storage.getAnkiCacheSource.mockImplementation(currentStamp);
+                    return undefined;
+                });
+            const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+            for (let interval = 0; interval < 3; interval++) {
+                now += 10_000;
+                source.refreshIfDue();
+                await flush();
+            }
+
+            expect(storage.buildAnkiCache).toHaveBeenCalledTimes(2);
+        }
+    );
+
+    it('ignores a completion after reset and builds again even with no recently modified cards', async () => {
+        const { source, storage } = makeSource();
+        const currentStamp = storage.getAnkiCacheSource.getMockImplementation()!;
+        storage.getAnkiCacheSource.mockResolvedValue(undefined);
+        let started!: () => void;
+        const building = new Promise<void>((resolve) => (started = resolve));
+        let finish!: (value: undefined) => void;
+        storage.buildAnkiCache.mockImplementationOnce(
+            () =>
+                new Promise<undefined>((resolve) => {
+                    finish = resolve;
+                    started();
+                })
+        );
+
+        const refresh = source.refresh();
+        await building;
+        source.reset();
+        await source.refresh(); // The new generation can build while the old request is still in flight.
+        storage.getAnkiCacheSource.mockImplementation(currentStamp);
+        finish(undefined);
+        await refresh;
+
+        expect(storage.getAnkiCacheSource).toHaveBeenCalledTimes(1);
+        await source.refresh();
+        await source.refresh();
+        expect(storage.buildAnkiCache).toHaveBeenCalledTimes(3);
+    });
+
     describe('recently modified card polling', () => {
         it('queries merged fields across enabled tracks, restricted to their decks', async () => {
             const { source, requests } = makeSource({
@@ -206,6 +268,24 @@ describe('AnkiAnnotations', () => {
             expect(requests.find(isRecentCardsQuery)?.params?.query).toBe(
                 RECENT_QUERY_PREFIX +
                     '(("deck:Mining" OR "deck:Other") ("Word:_*" OR "Shared:_*" OR "Sentence:_*" OR "Expression:_*"))'
+            );
+        });
+
+        it('reads only the word fields of a main track active just for i+1', async () => {
+            const { source, requests } = makeSource({
+                dictionaryTracks: [
+                    makeDictionaryTrack({
+                        dictionaryAnkiWordFields: ['Word'],
+                        dictionaryAnkiSentenceFields: ['Sentence'],
+                        dictionaryAnkiDecks: ['Dutch'],
+                    }),
+                ],
+            });
+
+            await source.refresh();
+
+            expect(requests.find(isRecentCardsQuery)?.params?.query).toBe(
+                RECENT_QUERY_PREFIX + '(("deck:Dutch") ("Word:_*"))'
             );
         });
 

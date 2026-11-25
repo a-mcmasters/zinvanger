@@ -1087,6 +1087,12 @@ export interface DictionaryGetByLemmaBulkMessage extends MessageWithId {
     readonly lemmas: string[];
 }
 
+export interface DictionaryGetAnkiCacheSourceMessage extends MessageWithId {
+    readonly command: 'dictionary-get-anki-cache-source';
+    readonly profile: string | undefined;
+    readonly track: number;
+}
+
 export interface DictionarySaveRecordLocalBulkMessage extends MessageWithId {
     readonly command: 'dictionary-save-record-local-bulk';
     readonly profile: string | undefined;
@@ -1296,6 +1302,11 @@ export interface SaveTokenLocalFromVideoMessage extends Message {
     readonly status: TokenStatus | null;
     readonly states: TokenState[];
     readonly applyStates: ApplyStrategy;
+}
+
+export interface TokensWereModifiedFromVideoMessage extends Message {
+    readonly command: 'tokensWereModified';
+    readonly tokens: string[];
 }
 
 export interface SaveTokenLocalToVideoMessage extends Message {

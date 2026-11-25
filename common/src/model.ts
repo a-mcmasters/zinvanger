@@ -32,6 +32,7 @@ export interface Token {
     pos: [number, number]; // Start/end relative position inside parent text
     states: TokenState[];
     status?: TokenStatus | null; // null means "error"
+    statusFromAnkiSentence?: boolean; // Sentence-only matches are uncollected for i+1.
     readings: TokenReading[];
     frequency?: number | null; // null means no frequency data
     gloss?: string | null; // null means no gloss data
@@ -44,6 +45,8 @@ export interface Token {
 export interface Tokenization {
     tokens: Token[];
     error?: boolean;
+    /** The completed Anki cache source used to resolve the main track's i+1 statuses. */
+    iPlusOneSource?: string;
 }
 
 /**

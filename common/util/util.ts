@@ -1151,7 +1151,7 @@ export function areTokenizationsEqual(a: Tokenization | undefined, b: Tokenizati
     if (a === b) return true;
     if (!a || !b) return false;
 
-    if (a.error !== b.error) return false;
+    if (a.error !== b.error || a.iPlusOneSource !== b.iPlusOneSource) return false;
     return arrayEquals(a.tokens, b.tokens, areTokensEqual);
 }
 
@@ -1177,6 +1177,7 @@ const tokenStatusInfoComparators: FieldComparators<TokenStatusInfo> = {
 };
 
 const tokenComparators: FieldComparators<Token> = {
+    statusFromAnkiSentence: (a, b) => a === b,
     pos: (a, b) => arrayEquals(a, b),
     states: (a, b) => arrayEquals(a, b),
     status: (a, b) => a === b,

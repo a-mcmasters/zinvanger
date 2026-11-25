@@ -6,6 +6,7 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { Anki, exportCard } from '@project/common/anki';
 import AnkiSettingsTab from '@project/common/components/AnkiSettingsTab';
+import ChromeExtension from '@project/common/app/services/chrome-extension';
 import { TutorialStep } from '@project/common/components/settings-model';
 import en from '@project/common/locales/en.json';
 import { SettingsProvider } from '@project/common/settings';
@@ -90,4 +91,142 @@ it('maps a note type field to the picture on a newly exported card', async () =>
             },
         })
     );
+});
+
+it('edits the known-word decks on the main track only, keeping its other settings', async () => {
+    const settingsProvider = new SettingsProvider(new MockSettingsStorage());
+    const initial = await settingsProvider.getAll();
+    const [main, ...others] = initial.dictionaryTracks;
+    await settingsProvider.set({
+        dictionaryTracks: [
+            { ...main, dictionaryAnkiDecks: ['Dutch'], dictionaryYomitanUrl: 'http://yomitan' },
+            ...others,
+        ],
+    });
+    const settings = await settingsProvider.getAll();
+    const onSettingChanged = jest.fn(async () => {});
+    const i18n = createInstance();
+    await i18n.init({ lng: 'en', resources: { en: { translation: en } } });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+        await act(async () =>
+            root.render(
+                <I18nextProvider i18n={i18n}>
+                    <ThemeProvider theme={createTheme('dark')}>
+                        <AnkiSettingsTab
+                            settings={settings}
+                            anki={new Anki(settings, { fetch: jest.fn(async () => ({ result: [], error: null })) })}
+                            onSettingChanged={onSettingChanged}
+                            tutorialStep={TutorialStep.done}
+                            onTutorialStepChanged={() => {}}
+                        />
+                    </ThemeProvider>
+                </I18nextProvider>
+            )
+        );
+        const removeDutch = container.querySelector('.MuiChip-deleteIcon')!;
+        await act(async () => removeDutch.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    } finally {
+        act(() => root.unmount());
+        container.remove();
+    }
+
+    expect(onSettingChanged).toHaveBeenCalledWith('dictionaryTracks', [
+        { ...settings.dictionaryTracks[0], dictionaryAnkiDecks: [] },
+        settings.dictionaryTracks[1],
+        settings.dictionaryTracks[2],
+    ]);
+});
+
+it('keeps Anki connected when fetching the word-field choices fails', async () => {
+    jest.useFakeTimers();
+    const settings = await new SettingsProvider(new MockSettingsStorage()).getAll();
+    const fetcher = {
+        fetch: jest.fn(async (_url: string, { action }: { action: string }) =>
+            action === 'modelFieldNames'
+                ? { result: null, error: 'note type unavailable' }
+                : { result: { version: 6, deckNames: ['Dutch'], modelNames: ['Basic'] }[action] ?? null, error: null }
+        ),
+    };
+    const i18n = createInstance();
+    await i18n.init({ lng: 'en', resources: { en: { translation: en } } });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+        await act(async () =>
+            root.render(
+                <I18nextProvider i18n={i18n}>
+                    <ThemeProvider theme={createTheme('dark')}>
+                        <AnkiSettingsTab
+                            settings={settings}
+                            anki={new Anki(settings, fetcher)}
+                            onSettingChanged={jest.fn(async () => {})}
+                            tutorialStep={TutorialStep.done}
+                            onTutorialStepChanged={() => {}}
+                        />
+                    </ThemeProvider>
+                </I18nextProvider>
+            )
+        );
+        await act(async () => {
+            await jest.advanceTimersByTimeAsync(1000);
+        });
+
+        expect(fetcher.fetch).toHaveBeenCalledWith(
+            settings.ankiConnectUrl,
+            expect.objectContaining({ action: 'modelFieldNames' })
+        );
+        expect(container.textContent).not.toContain('note type unavailable');
+    } finally {
+        act(() => root.unmount());
+        container.remove();
+        jest.useRealTimers();
+    }
+});
+
+it.each([
+    ['1.25.9', false],
+    ['1.26.0', true],
+])('gates both known-word source controls behind extension %s', async (version, supported) => {
+    const extension = new ChromeExtension(version);
+    const settings = await new SettingsProvider(new MockSettingsStorage()).getAll();
+    const i18n = createInstance();
+    await i18n.init({ lng: 'en', resources: { en: { translation: en } } });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    try {
+        await act(async () =>
+            root.render(
+                <I18nextProvider i18n={i18n}>
+                    <ThemeProvider theme={createTheme('dark')}>
+                        <AnkiSettingsTab
+                            settings={settings}
+                            anki={new Anki(settings, { fetch: jest.fn(async () => ({ result: [], error: null })) })}
+                            onSettingChanged={jest.fn(async () => {})}
+                            tutorialStep={TutorialStep.done}
+                            onTutorialStepChanged={() => {}}
+                            knownWordsSupported={extension.supportsIPlusOne}
+                        />
+                    </ThemeProvider>
+                </I18nextProvider>
+            )
+        );
+
+        for (const labelText of [en.settings.knownWordDecks, en.settings.knownWordFields]) {
+            const label = [...container.querySelectorAll('label')].find((label) => label.textContent === labelText);
+            expect(label).toBeDefined();
+            const input = label?.parentElement?.querySelector<HTMLInputElement>('input[role="combobox"]');
+            expect(input?.disabled).toBe(!supported);
+        }
+        if (!supported) expect(container.textContent).toContain(en.settings.knownWordsNeedExtensionUpdate);
+    } finally {
+        act(() => root.unmount());
+        container.remove();
+        extension.unbind();
+    }
 });

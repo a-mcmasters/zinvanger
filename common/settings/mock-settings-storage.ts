@@ -8,21 +8,23 @@ export class MockSettingsStorage implements SettingsStorage {
     private _data: any = {};
 
     async get(keysAndDefaults: Partial<AsbplayerSettings>) {
+        return this.getForProfile(keysAndDefaults, this._activeProfile);
+    }
+
+    async getForProfile(keysAndDefaults: Partial<AsbplayerSettings>, profile: string | undefined) {
         const settings: any = {};
 
         const actualKeysAndDefaults =
-            this._activeProfile === undefined
-                ? keysAndDefaults
-                : prefixedSettings(keysAndDefaults, this._activeProfile);
+            profile === undefined ? keysAndDefaults : prefixedSettings(keysAndDefaults, profile);
 
         for (const [key, defaultValue] of Object.entries(actualKeysAndDefaults)) {
             // Simulate retrieval from actual storage - object references should change
             settings[key] = JSON.parse(JSON.stringify(this._data[key] ?? defaultValue));
         }
 
-        return this._activeProfile === undefined
+        return profile === undefined
             ? (settings as Partial<AsbplayerSettings>)
-            : unprefixedSettings(settings as Partial<AsbplayerSettingsProfile<string>>, this._activeProfile);
+            : unprefixedSettings(settings as Partial<AsbplayerSettingsProfile<string>>, profile);
     }
 
     async set(settings: Partial<AsbplayerSettings>) {

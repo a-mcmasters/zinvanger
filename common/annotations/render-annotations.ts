@@ -8,8 +8,11 @@ import {
     getEnabledAnnotations,
     getEnabledAnnotationsForHover,
     defaultSettings,
+    iPlusOneActive,
+    ankiVocabularySource,
     shouldUseAnnotation,
 } from '@project/common/settings';
+import { iPlusOneCandidate } from '@project/common/annotations/i-plus-one';
 import type { PitchAccentContext } from '@project/common/util';
 import { asbTrace } from '@project/common/util/log';
 import {
@@ -40,6 +43,7 @@ import {
     ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS,
     ASB_TOKEN_HIGHLIGHT_CLASS,
     ASB_TOKEN_START_ATTRIBUTE,
+    ASB_I_PLUS_ONE_ATTRIBUTE,
 } from '@project/common/annotations';
 
 // Subtitles with rich text are ~5KB per subtitle and so is not worth using a render window.
@@ -82,17 +86,20 @@ interface CachedRenderedRichText extends RenderedRichText {
     tokenization?: Tokenization;
     tokenAnnotationTarget: TokenAnnotationConfigTarget;
     dictionaryTracks?: DictionaryTrack[];
+    ankiConnectUrl: string;
 }
 
 const cachedRichTextIsCurrent = (
     cached: CachedRenderedRichText,
     subtitle: RichTextRenderable,
     tokenAnnotationTarget: TokenAnnotationConfigTarget,
-    dictionaryTracks: DictionaryTrack[] | undefined
+    dictionaryTracks: DictionaryTrack[] | undefined,
+    ankiConnectUrl: string
 ) =>
     cached.text === subtitle.text &&
     areTokenizationsEqual(cached.tokenization, subtitle.tokenization) &&
     cached.tokenAnnotationTarget === tokenAnnotationTarget &&
+    cached.ankiConnectUrl === ankiConnectUrl &&
     cached.dictionaryTracks?.every((dt, i) => areDictionaryTracksEqual(dt, dictionaryTracks?.[i]));
 
 interface IndexRange {
@@ -118,7 +125,7 @@ export const renderRichTextOntoSubtitles = (
     subtitles: readonly RichTextRenderable[],
     tokenAnnotationTarget: TokenAnnotationConfigTarget,
     dictionaryTracks: DictionaryTrack[] | undefined,
-    options: { readonly adaptiveWordVisibilityEnabled: boolean }
+    options: { readonly adaptiveWordVisibilityEnabled: boolean; readonly ankiConnectUrl?: string }
 ): Map<number, RenderedRichText> => {
     const rendered = new Map<number, RenderedRichText>();
     if (dictionaryTracks?.length !== defaultSettings.dictionaryTracks.length) {
@@ -130,7 +137,12 @@ export const renderRichTextOntoSubtitles = (
         return rendered;
     }
 
-    const trackAnnotations = dictionaryTracks.map((dt) => getAnnotationsForRender(dt, tokenAnnotationTarget));
+    const trackAnnotations = dictionaryTracks.map((dt, track) => ({
+        ...getAnnotationsForRender(dt, tokenAnnotationTarget),
+        iPlusOneSource: iPlusOneActive(dt, track)
+            ? ankiVocabularySource(options.ankiConnectUrl ?? defaultSettings.ankiConnectUrl, dt, track)
+            : undefined,
+    }));
     const allowAsciiReading = false; // Allowing is only for preview purposes for status names to show reading
 
     for (const subtitle of subtitles) {
@@ -147,17 +159,27 @@ export const renderRichTextOntoSubtitles = (
             const visibility = subtitleWordVisibility(subtitle, playbackConfig);
             if (!visibility.hideWholeSubtitle) hiddenTokens = visibility.hiddenTokens;
         }
-        const richText = computeRichText(subtitle.text, subtitle.tokenization, {
+        const { tokenization } = subtitle;
+        const iPlusOne = iPlusOneActive(ta.dt, subtitle.track);
+        const newWord =
+            ta.iPlusOneSource !== undefined && tokenization.iPlusOneSource === ta.iPlusOneSource && !tokenization.error
+                ? tokenization.tokens[iPlusOneCandidate(subtitle.text, tokenization.tokens) ?? -1]
+                : undefined;
+        const richText = computeRichText(subtitle.text, tokenization, {
             hiddenTokens,
+            iPlusOne,
+            newWord,
             dt: ta.dt,
             enabledAnnotations: ta.richTextEnabledAnnotations,
             allowAsciiReading,
             glossSize: ta.glossSize,
         });
         const richTextOnHover = ta.isRichTextOnHoverEnabled
-            ? computeRichText(subtitle.text, subtitle.tokenization, {
+            ? computeRichText(subtitle.text, tokenization, {
                   dt: ta.dt,
                   hiddenTokens,
+                  iPlusOne,
+                  newWord,
                   enabledAnnotations: ta.richTextOnHoverEnabledAnnotations,
                   allowAsciiReading,
                   glossSize: ta.glossSize,
@@ -176,7 +198,8 @@ export const renderRichTextWindow = (
     prev: RichTextWindow,
     windowSubtitles: RichTextRenderable[],
     tokenAnnotationTarget: TokenAnnotationConfigTarget,
-    dictionaryTracks: DictionaryTrack[] | undefined
+    dictionaryTracks: DictionaryTrack[] | undefined,
+    ankiConnectUrl = defaultSettings.ankiConnectUrl
 ): RichTextWindow => {
     if (!windowSubtitles.length) return emptyRichTextWindow();
     const windowSubtitleIndexes = windowSubtitles.map((s) => s.index);
@@ -187,7 +210,10 @@ export const renderRichTextWindow = (
     for (const subtitle of windowSubtitles) {
         if (prev.range && subtitle.index >= prev.range.min && subtitle.index <= prev.range.max) {
             const reused = prev.buffer.get(subtitle.index);
-            if (reused && cachedRichTextIsCurrent(reused, subtitle, tokenAnnotationTarget, dictionaryTracks)) {
+            if (
+                reused &&
+                cachedRichTextIsCurrent(reused, subtitle, tokenAnnotationTarget, dictionaryTracks, ankiConnectUrl)
+            ) {
                 buffer.set(subtitle.index, reused);
                 continue;
             }
@@ -197,6 +223,7 @@ export const renderRichTextWindow = (
     if (toRender.length) {
         const rendered = renderRichTextOntoSubtitles(toRender, tokenAnnotationTarget, dictionaryTracks, {
             adaptiveWordVisibilityEnabled: true,
+            ankiConnectUrl,
         });
         for (const subtitle of toRender) {
             const value = rendered.get(subtitle.index);
@@ -206,6 +233,7 @@ export const renderRichTextWindow = (
                 tokenization: subtitle.tokenization,
                 tokenAnnotationTarget,
                 dictionaryTracks,
+                ankiConnectUrl,
             });
         }
     }
@@ -217,13 +245,17 @@ export const renderRichTextForSubtitle = (
     window: RichTextWindow,
     subtitle: RichTextRenderable,
     tokenAnnotationTarget: TokenAnnotationConfigTarget,
-    dictionaryTracks: DictionaryTrack[] | undefined
+    dictionaryTracks: DictionaryTrack[] | undefined,
+    ankiConnectUrl = defaultSettings.ankiConnectUrl
 ): RenderedRichText | undefined => {
     const cached = window.buffer.get(subtitle.index);
-    if (cached && cachedRichTextIsCurrent(cached, subtitle, tokenAnnotationTarget, dictionaryTracks)) return cached;
+    if (cached && cachedRichTextIsCurrent(cached, subtitle, tokenAnnotationTarget, dictionaryTracks, ankiConnectUrl)) {
+        return cached;
+    }
 
     const rendered = renderRichTextOntoSubtitles([subtitle], tokenAnnotationTarget, dictionaryTracks, {
         adaptiveWordVisibilityEnabled: true,
+        ankiConnectUrl,
     }).get(subtitle.index);
     window.buffer.set(subtitle.index, {
         ...rendered,
@@ -231,6 +263,7 @@ export const renderRichTextForSubtitle = (
         tokenization: subtitle.tokenization,
         tokenAnnotationTarget,
         dictionaryTracks,
+        ankiConnectUrl,
     });
     return rendered;
 };
@@ -241,10 +274,16 @@ interface TokenStyleState {
     allowAsciiReading: boolean;
     glossSize: number;
     hiddenTokens?: ReadonlySet<Token>;
+    /** The track computes i+1 cues: failures stay undecorated unless visual annotations are on. */
+    iPlusOne?: boolean;
+    /** The i+1 line's one new word, which carries the cue. */
+    newWord?: Token;
 }
 
+const showFailures = (ss: TokenStyleState) => !ss.iPlusOne || dictionaryTrackEnabled(ss.dt);
+
 export const computeRichText = (fullText: string, tokenization: Tokenization, ss: TokenStyleState) => {
-    if (tokenization.error) return `<span ${ERROR_STYLE}>${fullText}</span>`;
+    if (tokenization.error && showFailures(ss)) return `<span ${ERROR_STYLE}>${fullText}</span>`;
     if (!tokenization.tokens.length) return;
 
     const parts: string[] = [];
@@ -270,10 +309,13 @@ const LOGIC_ERROR_STYLE = `style="text-decoration: line-through red 3px double;"
 interface TokenWrapperOptions {
     readonly style?: string;
     readonly hidden: boolean;
+    readonly iPlusOne: boolean;
 }
 
+const iPlusOneAttribute = (options: TokenWrapperOptions) => (options.iPlusOne ? ` ${ASB_I_PLUS_ONE_ATTRIBUTE}` : '');
+
 const addressableTokenWrapper = (tokenText: string, token: Token, options: TokenWrapperOptions) => {
-    return `<span ${options.hidden ? `class="${ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS}" ` : ''}${ASB_TOKEN_START_ATTRIBUTE}="${token.pos[0]}"${options.style ? ` ${options.style}` : ''}>${tokenText}</span>`;
+    return `<span ${options.hidden ? `class="${ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS}" ` : ''}${ASB_TOKEN_START_ATTRIBUTE}="${token.pos[0]}"${iPlusOneAttribute(options)}${options.style ? ` ${options.style}` : ''}>${tokenText}</span>`;
 };
 
 const collectibleTokenWrapper = (
@@ -284,7 +326,7 @@ const collectibleTokenWrapper = (
 ) => {
     const highlightClass =
         ss.enabledAnnotations.color && ss.dt.dictionaryHighlightOnHover ? ` ${ASB_TOKEN_HIGHLIGHT_CLASS}` : '';
-    return `<span class="${ASB_TOKEN_CLASS}${highlightClass}${options.hidden ? ` ${ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS}` : ''}" ${ASB_TOKEN_START_ATTRIBUTE}="${token.pos[0]}"${
+    return `<span class="${ASB_TOKEN_CLASS}${highlightClass}${options.hidden ? ` ${ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS}` : ''}" ${ASB_TOKEN_START_ATTRIBUTE}="${token.pos[0]}"${iPlusOneAttribute(options)}${
         options.style ? ` ${options.style}` : ''
     }>${tokenText}</span>`;
 };
@@ -293,7 +335,10 @@ const hasExternalReadings = (token: InternalToken) =>
     token.readings.length > 0 && (!token.__internal || token.__usingExternalReadings === true);
 
 const applyTokenStyle = (fullText: string, token: Token, prevPitch: PitchAccentContext, ss: TokenStyleState) => {
-    const hidden = ss.hiddenTokens?.has(token) ?? false;
+    const options: TokenWrapperOptions = {
+        hidden: ss.hiddenTokens?.has(token) ?? false,
+        iPlusOne: token === ss.newWord,
+    };
     const rawTokenText = fullText.substring(token.pos[0], token.pos[1]);
     if (!HAS_LETTER_REGEX.test(rawTokenText)) {
         if (hasExternalReadings(token)) return applyReadingAnnotation(rawTokenText, token, prevPitch, ss);
@@ -307,20 +352,22 @@ const applyTokenStyle = (fullText: string, token: Token, prevPitch: PitchAccentC
         ss,
         rawTokenText
     );
-    if (token.status === null) return addressableTokenWrapper(tokenText, token, { style: ERROR_STYLE, hidden });
-    if (token.status === undefined && dictionaryTrackEnabled(ss.dt)) {
-        return addressableTokenWrapper(tokenText, token, { style: LOGIC_ERROR_STYLE, hidden }); // External tokens may flash this on initial load
+    if (token.status === null && showFailures(ss)) {
+        return addressableTokenWrapper(tokenText, token, { ...options, style: ERROR_STYLE });
     }
-    if (!ss.enabledAnnotations.color) return addressableTokenWrapper(tokenText, token, { hidden });
+    if (token.status === undefined && dictionaryTrackEnabled(ss.dt)) {
+        return addressableTokenWrapper(tokenText, token, { ...options, style: LOGIC_ERROR_STYLE }); // External tokens may flash this on initial load
+    }
+    if (!ss.enabledAnnotations.color) return addressableTokenWrapper(tokenText, token, options);
 
     const config = ss.dt.dictionaryTokenStatusConfig[token.status!];
-    if (!config.display) return collectibleTokenWrapper(tokenText, token, ss, { hidden });
+    if (!config.display) return collectibleTokenWrapper(tokenText, token, ss, options);
     if (
         token.pitchAccent != null &&
         ss.enabledAnnotations.pitchAccent &&
         tokenText.includes(`class="${ASB_PITCH_ACCENT_CLASS}"`)
     ) {
-        return collectibleTokenWrapper(tokenText, token, ss, { hidden }); // Only colorize the pitch accent when pitch accent is being shown
+        return collectibleTokenWrapper(tokenText, token, ss, options); // Only colorize the pitch accent when pitch accent is being shown
     }
 
     const c = `${config.color}${config.alpha}`;
@@ -328,24 +375,28 @@ const applyTokenStyle = (fullText: string, token: Token, prevPitch: PitchAccentC
     switch (ss.dt.dictionaryTokenStyling) {
         case TokenStyling.TEXT:
             return collectibleTokenWrapper(tokenText, token, ss, {
+                ...options,
                 style: `style="-webkit-text-fill-color: ${c};"`,
-                hidden,
             });
         case TokenStyling.BACKGROUND:
-            return collectibleTokenWrapper(tokenText, token, ss, { style: `style="background-color: ${c};"`, hidden });
+            return collectibleTokenWrapper(tokenText, token, ss, {
+                ...options,
+                style: `style="background-color: ${c};"`,
+            });
         case TokenStyling.UNDERLINE:
         case TokenStyling.OVERLINE:
+            if (options.iPlusOne) return collectibleTokenWrapper(tokenText, token, ss, options); // the cue's underline wins
             return collectibleTokenWrapper(tokenText, token, ss, {
+                ...options,
                 style: `style="text-decoration: ${ss.dt.dictionaryTokenStyling} ${c} ${t}px;"`,
-                hidden,
             });
         case TokenStyling.OUTLINE:
             return collectibleTokenWrapper(tokenText, token, ss, {
+                ...options,
                 style: `style="-webkit-text-stroke: ${t}px ${c};"`,
-                hidden,
             });
         default:
-            return collectibleTokenWrapper(tokenText, token, ss, { style: LOGIC_ERROR_STYLE, hidden });
+            return collectibleTokenWrapper(tokenText, token, ss, { ...options, style: LOGIC_ERROR_STYLE });
     }
 };
 

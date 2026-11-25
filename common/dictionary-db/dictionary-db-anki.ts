@@ -13,13 +13,15 @@ import type {
 import { DictionaryBuildAnkiCacheStateErrorCode, DictionaryBuildAnkiCacheStateType } from '@project/common';
 import type { AsbplayerSettings, DictionaryTrack } from '@project/common/settings';
 import {
-    dictionaryStatusCollectionEnabled,
+    ankiStatusTrack,
+    ankiVocabularySource,
     DictionaryTokenSource,
     isAnkiSource,
     TokenStatus,
 } from '@project/common/settings';
 import { Yomitan } from '@project/common/yomitan';
 import { v4 as uuidv4 } from 'uuid';
+import { completeAnkiCacheBuild } from '@project/common/dictionary-db/dictionary-db-anki-meta';
 import type {
     _DictionaryDatabase,
     DictionaryAnkiCardKey,
@@ -38,21 +40,6 @@ import {
     _getFromSourceBulk,
     _saveRecordBulk,
 } from '@project/common/dictionary-db';
-
-/**
- * If adding/removing fields here, add/remove the UI helperText in the settings tab
- */
-interface AnkiCacheSettingsDependencies {
-    version?: number; // Bump to force a cache rebuild when needed
-    ankiConnectUrl: string;
-    dictionaryYomitanUrl: string;
-    dictionaryYomitanParser: string;
-    dictionaryYomitanScanLength: number;
-    dictionaryAnkiDecks: string[];
-    dictionaryAnkiWordFields: string[];
-    dictionaryAnkiSentenceFields: string[];
-    dictionaryAnkiMatureCutoff: number;
-}
 
 type CardsForDB = Map<
     number,
@@ -108,7 +95,7 @@ export async function buildAnkiCachePipeline(
         const trackStates: AnkiTrackStatesForDB = new Map();
         const settingsToUpdate: { key: DictionaryMetaKey; settings: string }[] = [];
         const tracksToClear: number[] = [];
-        for (const [track, dt] of settings.dictionaryTracks.entries()) {
+        for (const [track, trackSettings] of settings.dictionaryTracks.entries()) {
             const key: DictionaryMetaKey = [profile, track];
             let prevSettings: string | null = null;
             const existingBuild = await db.transaction('rw', db.meta, async () => {
@@ -137,8 +124,10 @@ export async function buildAnkiCachePipeline(
             }
             activeTracks.push(key);
 
-            if (!dictionaryStatusCollectionEnabled(dt, { includeStates: false })) continue; // Keep cache but don't update it TODO: Clear tracks that have been disabled for a while from db?
-            if (!dt.dictionaryAnkiWordFields.length && !dt.dictionaryAnkiSentenceFields.length) {
+            const dt = ankiStatusTrack(trackSettings, track);
+            if (!dt) continue; // Keep cache but don't update it TODO: Clear tracks that have been disabled for a while from db?
+            const currSettingsStr = ankiVocabularySource(settings.ankiConnectUrl, trackSettings, track);
+            if (currSettingsStr === undefined) {
                 tracksToClear.push(track); // Explicitly clear tracks with no Anki fields
                 continue;
             }
@@ -160,17 +149,6 @@ export async function buildAnkiCachePipeline(
             }
             trackStates.set(track, { dt, yomitan });
 
-            const currSettings: AnkiCacheSettingsDependencies = {
-                ankiConnectUrl: settings.ankiConnectUrl,
-                dictionaryYomitanUrl: dt.dictionaryYomitanUrl,
-                dictionaryYomitanParser: dt.dictionaryYomitanParser,
-                dictionaryYomitanScanLength: dt.dictionaryYomitanScanLength,
-                dictionaryAnkiDecks: dt.dictionaryAnkiDecks,
-                dictionaryAnkiWordFields: dt.dictionaryAnkiWordFields,
-                dictionaryAnkiSentenceFields: dt.dictionaryAnkiSentenceFields,
-                dictionaryAnkiMatureCutoff: dt.dictionaryAnkiMatureCutoff,
-            };
-            const currSettingsStr = JSON.stringify(currSettings);
             if (currSettingsStr === prevSettings) continue;
             settingsToUpdate.push({ key, settings: currSettingsStr });
             tracksToClear.push(track); // Clear track if settings have changed
@@ -184,13 +162,16 @@ export async function buildAnkiCachePipeline(
                 await _buildIdHealthCheck(db, buildId, 'anki', activeTracks);
                 await _deleteCardBulk(db, profile, orphanedTrackCardIds, modifiedTokens);
                 await _gatherModifiedTokens(db, profile, modifiedTokens);
-                for (const { key, settings } of settingsToUpdate) {
+                for (const track of tracksToClear) {
+                    const key: DictionaryMetaKey = [profile, track];
                     const trackMeta = await db.meta.get(key);
                     if (!trackMeta) continue;
+                    const settings = settingsToUpdate.find((update) => update.key[1] === track)?.settings;
                     await db.meta.update(key, {
                         ankiMeta: {
                             ...trackMeta.ankiMeta,
-                            settings,
+                            settings: settings ?? trackMeta.ankiMeta.settings,
+                            builtSource: null, // The cleared cache holds no completed source until it is rebuilt
                         },
                     });
                 }
@@ -737,6 +718,7 @@ export async function _processTracks(
             progress,
             statusUpdates
         );
+        await completeAnkiCacheBuild(db, profile, buildId, activeTracks, trackStates.keys());
     } catch (e) {
         error = e;
         asbError('dictionary/anki', e);

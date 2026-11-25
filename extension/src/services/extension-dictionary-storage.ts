@@ -17,6 +17,7 @@ import type {
     DictionaryExportRecordLocalBulkMessage,
     DictionaryGetBulkMessage,
     DictionaryGetByLemmaBulkMessage,
+    DictionaryGetAnkiCacheSourceMessage,
     DictionaryImportRecordLocalBulkMessage,
     DictionaryRequestStatisticsGenerationMessage,
     DictionaryRequestStatisticsSnapshotMessage,
@@ -136,6 +137,14 @@ export class ExtensionDictionaryStorage implements DictionaryStorage {
                 lemmas,
                 messageId: uuidv4(),
             },
+        };
+        return browser.runtime.sendMessage(message);
+    }
+
+    getAnkiCacheSource(profile: string | undefined, track: number): Promise<string | undefined> {
+        const message: DictionaryDBCommand<DictionaryGetAnkiCacheSourceMessage> = {
+            sender: 'asbplayer-dictionary',
+            message: { command: 'dictionary-get-anki-cache-source', profile, track, messageId: uuidv4() },
         };
         return browser.runtime.sendMessage(message);
     }

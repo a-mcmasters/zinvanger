@@ -62,6 +62,8 @@ interface Props {
     extensionSupportsSubtitleTrackSelectorInWebApp: boolean;
     extensionSupportsSubtitleListCustomization: boolean;
     extensionSupportsUpdateLastWithSameSubtitleText: boolean;
+    /** False when the web app's dictionary lives in an extension too old for the known-word source. */
+    extensionSupportsIPlusOne?: boolean;
     insideApp?: boolean;
     appVersionRepoPath?: string;
     dictionaryProvider: DictionaryProvider;
@@ -147,6 +149,7 @@ export default function SettingsForm({
     settings,
     extensionInstalled,
     extensionVersion,
+    extensionSupportsIPlusOne,
     insideApp,
     scrollToId,
     chromeKeyBinds,
@@ -219,6 +222,7 @@ export default function SettingsForm({
                         onTutorialStepChanged={setTutorialStep}
                         anki={anki}
                         testCard={testCard}
+                        knownWordsSupported={extensionSupportsIPlusOne}
                     />
                     {ankiSettingsExtra}
                     {extensionInstalled && (

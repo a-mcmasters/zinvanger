@@ -18,11 +18,12 @@ import NoteTypeTutorialBubble from '@project/common/components/NoteTypeTutorialB
 import Button from '@mui/material/Button';
 import Link from '@mui/material/Link';
 import Tooltip from '@mui/material/Tooltip';
-import type { AsbplayerSettings } from '@project/common/settings';
+import type { AsbplayerSettings, DictionaryTrack } from '@project/common/settings';
 import type { CardModel } from '@project/common/src/model';
 import { TutorialStep, sentenceTranslationField } from '@project/common/components/settings-model';
 import { Anki, exportCard } from '@project/common/anki';
 import Stack from '@mui/material/Stack';
+import Autocomplete from '@mui/material/Autocomplete';
 
 const defaultDeckName = 'Sentences';
 const maskApiToken = (apiToken: string) => '•'.repeat(Array.from(apiToken).length);
@@ -82,6 +83,8 @@ interface Props {
     onTutorialStepChanged: (step: TutorialStep) => void;
     anki: Anki;
     testCard?: () => Promise<CardModel>;
+    /** False when the known-word source would be ignored: the web app's dictionary lives in an older extension. */
+    knownWordsSupported?: boolean;
 }
 
 /** Padding below 0 would cut into the subtitle; blank or invalid input keeps the last value. */
@@ -99,6 +102,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
     onTutorialStepChanged,
     anki,
     testCard,
+    knownWordsSupported = true,
 }) => {
     const { t } = useTranslation();
 
@@ -108,6 +112,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
     const [ankiConnectApiKeyRequired, setAnkiConnectApiKeyRequired] = useState<boolean>(false);
     const [showAnkiConnectApiKey, setShowAnkiConnectApiKey] = useState<boolean>(() => !settings.ankiConnectApiKey);
     const [fieldNames, setFieldNames] = useState<string[]>();
+    const [allFieldNames, setAllFieldNames] = useState<string[]>();
 
     const {
         ankiConnectUrl,
@@ -122,6 +127,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
         customAnkiFields,
         audioPaddingStart,
         audioPaddingEnd,
+        dictionaryTracks,
     } = settings;
 
     const requestAnkiConnect = useCallback(async () => {
@@ -176,6 +182,20 @@ const AnkiSettingsTab: React.FC<Props> = ({
             clearTimeout(timeout);
         };
     }, [anki, ankiConnectUrl, ankiConnectApiKey, requestAnkiConnect]);
+
+    // Its own request, so a failing note type empties only the word-field choices, not the connection.
+    useEffect(() => {
+        setAllFieldNames(undefined);
+        if (!modelNames) return;
+        let canceled = false;
+        void anki.allFieldNames(ankiConnectUrl).then(
+            (names) => !canceled && setAllFieldNames(names),
+            (e) => asbError('anki/connect', e)
+        );
+        return () => {
+            canceled = true;
+        };
+    }, [anki, ankiConnectUrl, modelNames]);
 
     useEffect(() => {
         if (!noteType || ankiConnectUrlError) {
@@ -259,6 +279,35 @@ const AnkiSettingsTab: React.FC<Props> = ({
 
         await exportCard(await testCard(), settings, isMobile ? 'default' : 'gui');
     }, [tutorialStep, settings, isMobile, testCard, onTutorialStepChanged]);
+
+    /** The i+1 vocabulary source lives on the main subtitle track; the other tracks keep their settings. */
+    const knownWordsSelect = (
+        key: 'dictionaryAnkiDecks' | 'dictionaryAnkiWordFields',
+        label: string,
+        helperText: string,
+        options: string[] | undefined
+    ) => (
+        <Autocomplete
+            multiple
+            disableCloseOnSelect
+            disabled={!knownWordsSupported}
+            options={options ?? []}
+            value={dictionaryTracks[0][key]}
+            onChange={(_, value) =>
+                void onSettingChanged(
+                    'dictionaryTracks',
+                    dictionaryTracks.map((dt, track): DictionaryTrack => (track === 0 ? { ...dt, [key]: value } : dt))
+                )
+            }
+            renderInput={(params) => (
+                <SettingsTextField
+                    {...params}
+                    label={label}
+                    helperText={knownWordsSupported ? helperText : t('settings.knownWordsNeedExtensionUpdate')}
+                />
+            )}
+        />
+    );
 
     const ankiConnectApiKeyVisible = showAnkiConnectApiKey || !ankiConnectApiKey;
     const connected = deckNames !== undefined && !ankiConnectUrlError;
@@ -426,6 +475,18 @@ const AnkiSettingsTab: React.FC<Props> = ({
                 selections={fieldNames}
                 onValueChange={(value) => onSettingChanged('imageField', value)}
             />
+            {knownWordsSelect(
+                'dictionaryAnkiDecks',
+                t('settings.knownWordDecks'),
+                t('settings.knownWordDecksHelperText'),
+                deckNames
+            )}
+            {knownWordsSelect(
+                'dictionaryAnkiWordFields',
+                t('settings.knownWordFields'),
+                t('settings.knownWordFieldsHelperText'),
+                allFieldNames
+            )}
             <NumericSettingInput
                 label={t('settings.audioPaddingStart')}
                 fullWidth

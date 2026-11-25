@@ -398,6 +398,12 @@ div.asbplayer-fullscreen-subtitles > span {
     visibility: hidden;
 }
 
+/* The one new word of an i+1 line. */
+:is(.asbplayer-subtitles, .asbplayer-fullscreen-subtitles) [data-asb-i-plus-one] {
+    text-decoration: underline dotted #f0cc82 2px;
+    text-underline-offset: 5px;
+}
+
 .asb-playback-paused .asbplayer-subtitles .asb-token-adaptive-hidden,
 .asb-playback-paused .asbplayer-fullscreen-subtitles .asb-token-adaptive-hidden,
 .asb-subtitle-token-selected .asb-token-adaptive-hidden {

@@ -2,10 +2,10 @@ import 'core-js/stable/structured-clone';
 import 'fake-indexeddb/auto';
 import { Dexie } from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { DictionaryBuildAnkiCacheStateErrorCode, DictionaryBuildAnkiCacheStateType } from '@project/common';
+import { DictionaryBuildAnkiCacheStateErrorCode, DictionaryBuildAnkiCacheStateType, PlayMode } from '@project/common';
 import type { DictionaryBuildAnkiCacheState } from '@project/common';
 import type { AsbplayerSettings } from '@project/common/settings';
-import { DictionaryTokenSource, TokenStatus } from '@project/common/settings';
+import { ankiVocabularySource, DictionaryTokenSource, SettingsProvider, TokenStatus } from '@project/common/settings';
 
 const mockAnkiInstances: any[] = [];
 const mockAnkiOverrides: any[] = [];
@@ -72,6 +72,7 @@ jest.mock('@project/common/yomitan/yomitan', () => ({
     }),
 }));
 
+import { MockSettingsStorage } from '@project/common/settings/mock-settings-storage';
 import { DictionaryDB } from '@project/common/dictionary-db/dictionary-db';
 import {
     makeAnkiCardRecord,
@@ -105,6 +106,7 @@ describe('DictionaryDB Anki cache', () => {
         settings = makeSettings([makeDictionaryTrack()]);
         dictionaryDB = new DictionaryDB({
             getAll: jest.fn(async () => settings),
+            getAllForProfile: jest.fn(async () => settings),
             getSingle: jest.fn(async (key: keyof AsbplayerSettings) => settings[key]),
         } as any);
     });
@@ -237,6 +239,136 @@ describe('DictionaryDB Anki cache', () => {
             'alpha',
             'sentence',
         ]);
+    });
+
+    it('caches only the word fields for a main track active just for i+1', async () => {
+        useSettings([
+            makeDictionaryTrack({
+                dictionaryAnkiDecks: ['Japanese'],
+                dictionaryAnkiWordFields: ['Word'],
+                dictionaryAnkiSentenceFields: ['Sentence'],
+            }),
+        ]);
+        stageAnkiNotes([
+            makeNoteInfo({ noteId: 10, cards: [1], fields: { Word: { value: 'alpha', order: 0 } } }),
+            makeNoteInfo({ noteId: 20, cards: [2], fields: { Sentence: { value: 'sentence', order: 0 } } }),
+        ]);
+
+        await buildUntilComplete();
+
+        expect(mockAnkiInstances[0].findNotes).toHaveBeenCalledWith('("deck:Japanese") ("Word:_*")');
+        const records = await dictionaryDB.getRecords(profile, track);
+        expect(records.tokenRecords).toEqual([
+            expect.objectContaining({ token: 'alpha', source: DictionaryTokenSource.ANKI_WORD }),
+        ]);
+    });
+
+    it('reports the i+1 source of the last completed build until the source changes', async () => {
+        const vocabulary = makeDictionaryTrack({
+            dictionaryAnkiDecks: ['Japanese'],
+            dictionaryAnkiWordFields: ['Word'],
+        });
+        useSettings([vocabulary]);
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBeUndefined();
+
+        stageAnkiNotes([makeNoteInfo()]);
+        await buildUntilComplete();
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBe(
+            ankiVocabularySource(settings.ankiConnectUrl, vocabulary, track)
+        );
+
+        mockAnkiOverrides.push({ requestPermission: jest.fn(async () => ({ permission: 'denied' })) });
+        await buildUntilComplete(); // Anki offline: the loaded cache still serves its source
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBe(
+            ankiVocabularySource(settings.ankiConnectUrl, vocabulary, track)
+        );
+
+        useSettings([{ ...vocabulary, dictionaryAnkiWordFields: ['Expression'] }]);
+        mockYomitanOverrides.push({ tokenize: jest.fn(() => new Promise(() => undefined)) }); // the rebuild hangs
+        mockAnkiOverrides.push({
+            findNotes: jest.fn(async () => [10]),
+            notesInfo: jest.fn(async () => [makeNoteInfo()]),
+        });
+        void dictionaryDB.buildAnkiCache(profile, () => undefined);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBeUndefined();
+        expect(await dictionaryDB.getAnkiCacheSource(otherProfile, track)).toBeUndefined();
+    });
+
+    it('builds for the requested profile using that profile’s settings while another profile is active', async () => {
+        privateDb(dictionaryDB).close();
+        const settingsStorage = new MockSettingsStorage();
+        const provider = new SettingsProvider(settingsStorage);
+        await provider.addProfile(profile);
+        await provider.addProfile(otherProfile);
+        await provider.setActiveProfile(profile);
+        const vocabulary = makeDictionaryTrack({
+            dictionaryAnkiDecks: ['Japanese'],
+            dictionaryAnkiWordFields: ['Word'],
+            dictionaryAnkiSentenceFields: ['Sentence'],
+        });
+        await provider.set({
+            ...makeSettings([vocabulary]),
+            activeRecipeId: 0,
+            recipes: [
+                {
+                    name: 'Study',
+                    playbackModes: [PlayMode.normal],
+                    settings: {
+                        dictionaryTracks: [
+                            { dictionaryPlaybackConfig: { selectOnPause: { onStatuses: [{ enabled: true }] } } },
+                        ],
+                    },
+                },
+            ],
+        });
+        await provider.setActiveProfile(otherProfile);
+        await provider.set(
+            makeSettings([makeDictionaryTrack({ dictionaryAnkiDecks: ['Other'], dictionaryAnkiWordFields: ['Other'] })])
+        );
+        dictionaryDB = new DictionaryDB(provider);
+        stageAnkiNotes([makeNoteInfo()]);
+
+        await buildUntilComplete();
+
+        expect(mockAnkiInstances[0].findNotes).toHaveBeenCalledWith('("deck:Japanese") ("Word:_*" OR "Sentence:_*")');
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBe(
+            ankiVocabularySource(
+                settings.ankiConnectUrl,
+                makeDictionaryTrack({ ...vocabulary, dictionaryColorizeSubtitles: true }),
+                track
+            )
+        );
+        expect(await dictionaryDB.getAnkiCacheSource(otherProfile, track)).toBeUndefined();
+    });
+
+    it('does not stamp completion if another build took ownership after the final token batch', async () => {
+        useSettings([makeDictionaryTrack({ dictionaryAnkiDecks: ['Japanese'], dictionaryAnkiWordFields: ['Word'] })]);
+        stageAnkiNotes([makeNoteInfo()]);
+        const db = privateDb(dictionaryDB);
+        let takeOwnership: Promise<number> | undefined;
+        const statusUpdates = await buildUntilComplete(
+            jest.fn((state: DictionaryBuildAnkiCacheState) => {
+                if (
+                    state.type === DictionaryBuildAnkiCacheStateType.progress &&
+                    state.body &&
+                    'forAnkiSync' in state.body &&
+                    !state.body.forAnkiSync
+                ) {
+                    takeOwnership = db.meta.update([profile, track], { 'ankiMeta.buildId': 'new-owner' });
+                }
+            })
+        );
+
+        await expect(takeOwnership).resolves.toBe(1);
+        expect((await db.meta.get([profile, track]))?.ankiMeta.buildId).toBe('new-owner');
+        expect(await dictionaryDB.getAnkiCacheSource(profile, track)).toBeUndefined();
+        expect(statusUpdates).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                type: DictionaryBuildAnkiCacheStateType.error,
+                body: expect.objectContaining({ code: DictionaryBuildAnkiCacheStateErrorCode.failedToBuild }),
+            })
+        );
     });
 
     it('replaces changed card tokens while retaining references from unchanged cards', async () => {

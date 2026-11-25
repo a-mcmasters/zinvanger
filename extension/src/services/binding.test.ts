@@ -16,7 +16,14 @@ import type {
     OffsetToVideoMessage,
     DictionaryRequestStatisticsMineSentencesMessage,
 } from '@project/common';
-import { defaultSettings, SubtitleListPreference, TokenStatus } from '@project/common/settings';
+import {
+    activeProfileKey,
+    defaultSettings,
+    DictionaryTokenSource,
+    profilesKey,
+    SubtitleListPreference,
+    TokenStatus,
+} from '@project/common/settings';
 import type { DictionaryTrack } from '@project/common/settings';
 import Binding from '@project/extension/src/services/binding';
 import type { BindingOptions } from '@project/extension/src/services/binding';
@@ -25,6 +32,9 @@ import { MockStorageArea } from '@project/extension/src/services/mock-storage-ar
 import UiFrame, { uiFrameForHtml } from '@project/extension/src/services/ui-frame';
 import { subtitleReference } from '@project/common/subtitle-reader/subtitle-stream';
 import type { InternalToken } from '@project/common/annotations/render-annotations';
+import { DictionaryProvider } from '@project/common/dictionary-db';
+import type { DictionarySaveRecordLocalResult } from '@project/common/dictionary-db';
+import { Yomitan } from '@project/common/yomitan';
 import { MediaSources } from '@project/common/app/services/media-sources';
 import SubtitleReader from '@project/common/subtitle-reader/subtitle-reader';
 
@@ -1336,6 +1346,36 @@ describe('Binding playback mode integration', () => {
         }
     });
 
+    it('discards a Known confirmation when the active profile switches before settings refresh', async () => {
+        await storage.set({ [activeProfileKey]: 'Dutch', [profilesKey]: [{ name: 'Dutch' }, { name: 'Other' }] });
+        jest.spyOn(Yomitan.prototype, 'gloss').mockResolvedValue('walked');
+        jest.spyOn(Yomitan.prototype, 'lemmatize').mockResolvedValue(['lopen']);
+        const video = createVideo();
+        video.pause = jest.fn();
+        const binding = new Binding(video, bindingOptions(false, false));
+        const controller = binding.livingSubtitleHost!.controller;
+        const refresh = jest.spyOn(binding.subtitleController.subtitleAnnotations, 'tokensWereModified');
+        let confirm!: (result: DictionarySaveRecordLocalResult) => void;
+        const save = jest.spyOn(DictionaryProvider.prototype, 'saveRecordLocalBulk').mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    confirm = resolve;
+                })
+        );
+        controller.hover({ cue: makeSubtitle({ text: 'liep' }), video: video.src, surrounding: [] });
+        await controller.selectWord(0);
+
+        const marking = controller.markKnown();
+        await flushPlaybackTiming();
+        expect(save).toHaveBeenCalledWith('Dutch', [expect.objectContaining({ token: 'liep' })], expect.anything());
+        await storage.set({ [activeProfileKey]: 'Other' });
+        confirm({ savedTokens: [['liep', DictionaryTokenSource.LOCAL, -1, 'Dutch']], deletedTokens: [] });
+        await marking;
+
+        expect(controller.hasTarget).toBe(false);
+        expect(refresh).not.toHaveBeenCalled();
+    });
+
     it('settles a living-subtitle mine only on the card for its own sentence', async () => {
         await storage.set({ streamingRecordMedia: false, streamingTakeScreenshot: false });
         const binding = new Binding(createVideo(), bindingOptions(false, false));
@@ -1365,6 +1405,7 @@ describe('Binding playback mode integration', () => {
                     captured: true,
                     definition: { status: 'idle' },
                     mining: { status: 'idle' },
+                    known: { status: 'idle' },
                 })
                 .then((outcome) => (settled = outcome));
             const cardSaved = (subtitle: IndexedSubtitleModel) => {

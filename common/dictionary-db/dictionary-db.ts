@@ -18,6 +18,7 @@ import {
     isWaniKaniSource,
     TokenStatus,
 } from '@project/common/settings';
+import { effectiveSettings } from '@project/common/settings/settings-recipes';
 import type { WaniKaniAssignment, WaniKaniSpacedRepetitionSystem, WaniKaniSubject } from '@project/common/wanikani';
 import type { Yomitan } from '@project/common/yomitan';
 import Dexie from 'dexie';
@@ -46,6 +47,8 @@ export interface AnkiMeta {
     lastBuildExpiresAt: number;
     buildId: string | null;
     settings: string | null;
+    /** The vocabulary source (`ankiVocabularySource`) of the last build that completed since a clear. */
+    builtSource?: string | null;
 }
 
 export interface WaniKaniDataUpdatedAt {
@@ -289,7 +292,7 @@ export class DictionaryDB {
         inputProfile: string | undefined,
         statusUpdates: (state: DictionaryBuildAnkiCacheState) => void
     ): Promise<void> {
-        const settings = await this.settingsProvider.getAll();
+        const settings = effectiveSettings(await this.settingsProvider.getAllForProfile(inputProfile));
         return buildAnkiCachePipeline(this.db, this._getProfile(inputProfile), settings, statusUpdates);
     }
 
@@ -299,6 +302,11 @@ export class DictionaryDB {
     ): Promise<void> {
         const settings = await this.settingsProvider.getAll();
         return buildWaniKaniCachePipeline(this.db, this._getProfile(inputProfile), settings, statusUpdates);
+    }
+
+    /** The i+1 vocabulary source the track's Anki cache last completed a build for, if any. */
+    async getAnkiCacheSource(inputProfile: string | undefined, track: number): Promise<string | undefined> {
+        return (await this.db.meta.get([this._getProfile(inputProfile), track]))?.ankiMeta.builtSource ?? undefined;
     }
 
     private _getProfile(inputProfile: string | undefined): string {
@@ -793,7 +801,7 @@ export class DictionaryDB {
                     );
                     continue;
                 }
-                const existingRecord = tokenRecordMap.get(localTokenInput.token); // Ignore existing lemmas as they should be re-calculated
+                const existingRecord = tokenRecordMap.get(localTokenInput.token);
                 let status = localTokenInput.status;
                 let states = localTokenInput.states;
                 if (existingRecord) {
@@ -803,13 +811,17 @@ export class DictionaryDB {
                     status = TokenStatus.UNCOLLECTED;
                 }
                 states = Array.from(new Set(states)).sort((lhs, rhs) => lhs - rhs);
-                const lemmas = localTokenInput.lemmas.filter((lemma) => HAS_LETTER_REGEX.test(lemma));
+                let lemmas = localTokenInput.lemmas.filter((lemma) => HAS_LETTER_REGEX.test(lemma));
                 if (!lemmas.length) {
-                    asbError(
-                        'dictionary',
-                        `Cannot save local token with no lemmas: ${JSON.stringify(localTokenInput)}`
-                    );
-                    continue;
+                    if (localTokenInput.status !== getFullyKnownTokenStatus()) {
+                        asbError(
+                            'dictionary',
+                            `Cannot save local token without lemmas: ${JSON.stringify(localTokenInput)}`
+                        );
+                        continue;
+                    }
+                    // Known can be saved during a lookup outage.
+                    lemmas = existingRecord?.lemmas.length ? [...existingRecord.lemmas] : [localTokenInput.token];
                 }
                 if (status === TokenStatus.UNCOLLECTED && !states.length) {
                     if (existingRecord) {

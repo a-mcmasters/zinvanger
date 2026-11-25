@@ -178,6 +178,7 @@ interface RenderVideoProps {
     searchParams: URLSearchParams;
     supportsDictionaryPlayback: boolean;
     settingsProvider: SettingsProvider;
+    dictionaryProvider: DictionaryProvider;
     settings: AsbplayerSettings;
     extension: ChromeExtension;
     miningContext: MiningContext;
@@ -1949,6 +1950,7 @@ function App({
                                 supportsDictionaryPlayback={supportsDictionaryPlayback}
                                 searchParams={searchParams}
                                 settingsProvider={settingsProvider}
+                                dictionaryProvider={dictionaryProvider}
                                 settings={settings}
                                 extension={extension}
                                 miningContext={miningContext}

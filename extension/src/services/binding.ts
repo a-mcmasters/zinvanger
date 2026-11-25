@@ -126,6 +126,7 @@ import AnkiUiController from '@project/extension/src/controllers/anki-ui-control
 import LivingSubtitleHost from '@/controllers/living-subtitle-host';
 import { Yomitan } from '@project/common/yomitan';
 import { defineWithYomitan } from '@project/common/living-subtitle/living-subtitle-controller';
+import { saveKnownWord } from '@project/common/living-subtitle/known-word';
 import type {
     LivingSubtitleDefinition,
     LivingSubtitleMineOutcome,
@@ -1597,6 +1598,7 @@ export default class Binding {
         const activeProfile = (await this.settings.activeProfile())?.name;
         const profileChanged = this._lastProfile !== activeProfile;
         this._lastProfile = activeProfile;
+        if (profileChanged) this.livingSubtitleHost?.controller.clear(); // a pending Known belongs to the previous profile
         this.playbackEngine.profileChanged(activeProfile);
         const underlyingSettings = await this.settings.getAll();
         const currentSettings = effectiveSettings(underlyingSettings);
@@ -1628,6 +1630,7 @@ export default class Binding {
         this.subtitleController.surroundingSubtitlesTimeRadius = currentSettings.surroundingSubtitlesTimeRadius;
         this.subtitleController.autoCopyCurrentSubtitle = currentSettings.autoCopyCurrentSubtitle;
         this.subtitleController.dictionaryTrackSettings = currentSettings.dictionaryTracks;
+        this.subtitleController.ankiConnectUrl = currentSettings.ankiConnectUrl;
         this.subtitleController.setAdaptiveWordVisibilityEnabled(
             currentSettings.subtitleVisibility === SubtitleVisibility.whenDue
         );
@@ -1641,9 +1644,9 @@ export default class Binding {
         this.subtitleController.subtitleHtml = currentSettings.subtitleHtml;
 
         if (profileChanged) {
-            this.subtitleController.subtitleAnnotations.profileChanged(currentSettings);
+            this.subtitleController.subtitleAnnotations.profileChanged(underlyingSettings);
         } else {
-            this.subtitleController.subtitleAnnotations.settingsUpdated(currentSettings, { force: false });
+            this.subtitleController.subtitleAnnotations.settingsUpdated(underlyingSettings, { force: false });
         }
         this.subtitleController.setSubtitleSettings(currentSettings);
 
@@ -1866,7 +1869,16 @@ export default class Binding {
                 this.pause();
             },
             mine: (state) => this.mineLivingSubtitle(state),
-            define: (word) => this._defineWithYomitan(word),
+            define: (word, retry) => this._defineWithYomitan(word, retry),
+            // Read the profile at the click: _lastProfile lags a switch until _refreshSettings catches up.
+            markKnown: (word, lemmas) =>
+                saveKnownWord(
+                    this.dictionary,
+                    async () => (await this.settings.activeProfile())?.name,
+                    word,
+                    lemmas,
+                    (tokens) => this.subtitleController.subtitleAnnotations.tokensWereModified(tokens)
+                ),
         });
     }
 
@@ -1884,11 +1896,11 @@ export default class Binding {
     }
 
     /** The meaning of a main-track word from the Yomitan dictionaries set for subtitle track 1; no model tokens. */
-    private async _defineWithYomitan(word: string): Promise<LivingSubtitleDefinition> {
+    private async _defineWithYomitan(word: string, retry: boolean): Promise<LivingSubtitleDefinition> {
         const dt = (await this.settings.getSingle('dictionaryTracks'))[0];
         const url = dt?.dictionaryYomitanUrl?.trim();
         if (!dt || !url) throw new Error('noDictionary');
-        if (this._livingSubtitleYomitan?.url !== url) {
+        if (retry || this._livingSubtitleYomitan?.url !== url) {
             const fetcher = new VideoFetcher(() => this._registeredVideoSrc);
             this._livingSubtitleYomitan = { url, yomitan: new Yomitan(dt, fetcher) }; // keeps its gloss cache
         }

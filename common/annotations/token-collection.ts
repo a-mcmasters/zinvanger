@@ -87,6 +87,10 @@ export class TokenCollectionBase<T = TokenStatusResult | TokenStatusResult[]> {
         return this.collection.get(normalizedKey);
     }
 
+    clear(): void {
+        this.collection.clear();
+    }
+
     delete(normalizedKey: string): boolean {
         return this.collection.delete(normalizedKey);
     }
@@ -192,6 +196,11 @@ export class TokenCollection extends TokenCollectionBase<TokenStatusResult> {
             if (statusResult && sourceMatches(statusResult.source)) statusResults.push(statusResult);
         }
         return statusResults;
+    }
+
+    resolveForLocalWord(normalizedToken: string): TokenStatusResult | undefined {
+        const result = this.collection.get(normalizedToken);
+        return result?.source === DictionaryTokenSource.LOCAL ? result : undefined;
     }
 
     resolveForWord(normalizedTokens: readonly string[]): TokenStatusResult[] {
@@ -323,6 +332,12 @@ export async function resolveTokenStatus(
             track: ts.track,
         });
         return null;
+    }
+
+    // A word marked Known during a lookup outage may be indexed only by its surface form.
+    if (ts.tokenCollectionAny.wordEnabled) {
+        const localSurface = ts.tokenCollectionExact.resolveForLocalWord(normalizedToken);
+        if (localSurface) return TokenCollectionBase.resolveTokenStatusResults([localSurface]);
     }
 
     let tokenStatusResult: ResolvedTokenStatusResult | null;

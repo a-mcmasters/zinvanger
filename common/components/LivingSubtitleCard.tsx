@@ -5,21 +5,26 @@ import IconButton from '@mui/material/IconButton';
 import { alpha, useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
-import type { LivingSubtitleResult } from '@project/common/living-subtitle/living-subtitle-controller';
+import type {
+    LivingSubtitleDefinitionResult,
+    LivingSubtitleResult,
+} from '@project/common/living-subtitle/living-subtitle-controller';
 
-export type LivingSubtitleAction = 'mine' | 'close-word' | 'escape' | 'retry-definition';
+export type LivingSubtitleAction = 'mine' | 'known' | 'close-word' | 'escape' | 'retry-definition';
 
 interface Props {
     readonly word: string;
-    readonly definition: LivingSubtitleResult;
+    readonly definition: LivingSubtitleDefinitionResult;
     readonly mining: LivingSubtitleResult;
+    /** Absent when the word cannot be marked known. */
+    readonly known?: LivingSubtitleResult;
     readonly onAction: (action: LivingSubtitleAction) => void;
 }
 
 const glass = (mode: 'light' | 'dark') => (mode === 'dark' ? 'rgba(28, 24, 38, 0.94)' : 'rgba(252, 249, 255, 0.96)');
 
-/** The word card: a clicked word's dictionary meaning and Mine, with the word as the card's target. Text only. */
-export default function LivingSubtitleCard({ word, definition, mining, onAction }: Props) {
+/** The word card: a clicked word's dictionary meaning, Known and Mine, with the word as the card's target. Text only. */
+export default function LivingSubtitleCard({ word, definition, mining, known, onAction }: Props) {
     const { t } = useTranslation();
     const theme = useTheme();
     return (
@@ -91,7 +96,27 @@ export default function LivingSubtitleCard({ word, definition, mining, onAction 
                     </Typography>
                 )}
             </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                {known && (
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        sx={{ borderRadius: 99, px: 2 }}
+                        // wait for the meaning: its forms are what the save stores
+                        disabled={
+                            known.status === 'pending' || known.status === 'success' || definition.status === 'pending'
+                        }
+                        onClick={() => onAction('known')}
+                    >
+                        {t(
+                            known.status === 'pending'
+                                ? 'livingSubtitle.markingKnown'
+                                : known.status === 'success'
+                                  ? 'livingSubtitle.markedKnown'
+                                  : 'livingSubtitle.known'
+                        )}
+                    </Button>
+                )}
                 <Button
                     variant="contained"
                     size="small"
@@ -110,6 +135,14 @@ export default function LivingSubtitleCard({ word, definition, mining, onAction 
                 </Button>
             </Box>
             <Box role="status" aria-live="polite">
+                {known?.status === 'error' && (
+                    <Typography variant="body2" color="error" sx={{ mt: 1 }}>
+                        {t('livingSubtitle.error.known')}{' '}
+                        <Button size="small" onClick={() => onAction('known')}>
+                            {t('livingSubtitle.retry')}
+                        </Button>
+                    </Typography>
+                )}
                 {mining.status === 'error' && (
                     <Typography variant="body2" color="error" sx={{ mt: 1 }}>
                         {t('livingSubtitle.error.mining', { message: mining.message })}

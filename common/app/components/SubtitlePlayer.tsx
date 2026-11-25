@@ -224,6 +224,7 @@ interface SubtitleRowContext {
     timestampDisplay: SubtitleListTimestampDisplay;
     disabledSubtitleTracks: { [track: number]: boolean };
     dictionaryTracks: DictionaryTrack[];
+    ankiConnectUrl: string;
     richTextWindowRef: React.RefObject<RichTextWindow>;
     selectedSubtitleIndexes?: boolean[];
     highlightedJumpToSubtitleIndex?: number;
@@ -524,7 +525,8 @@ const renderSubtitleRow = (index: number, subtitle: DisplaySubtitleModel, contex
             context.richTextWindowRef.current,
             subtitle,
             'subtitlePlayer',
-            context.dictionaryTracks
+            context.dictionaryTracks,
+            context.ankiConnectUrl
         )}
         onCopySubtitle={context.onCopySubtitle}
         onMouseOver={context.onMouseOver}
@@ -772,10 +774,11 @@ export default function SubtitlePlayer({
                 richTextWindowRef.current,
                 windowSubtitles,
                 'subtitlePlayer',
-                playbackSettings.dictionaryTracks
+                playbackSettings.dictionaryTracks,
+                settings.ankiConnectUrl
             );
         },
-        [playbackSettings.dictionaryTracks, handleVisibleRangeChanged]
+        [playbackSettings.dictionaryTracks, settings.ankiConnectUrl, handleVisibleRangeChanged]
     );
 
     useEffect(() => {
@@ -787,10 +790,11 @@ export default function SubtitlePlayer({
                 richTextWindowRef.current,
                 windowSubtitles,
                 'subtitlePlayer',
-                playbackSettings.dictionaryTracks
+                playbackSettings.dictionaryTracks,
+                settings.ankiConnectUrl
             );
         }
-    }, [subtitles, playbackSettings.dictionaryTracks]);
+    }, [subtitles, playbackSettings.dictionaryTracks, settings.ankiConnectUrl]);
 
     const subtitleCollectionRef = useRef<SubtitleAnnotations | SubtitleCollection<DisplaySubtitleModel>>(
         subtitleCollection
@@ -1492,6 +1496,7 @@ export default function SubtitlePlayer({
             timestampDisplay: subtitleListCustomization.timestampDisplay,
             disabledSubtitleTracks,
             dictionaryTracks: playbackSettings.dictionaryTracks,
+            ankiConnectUrl: settings.ankiConnectUrl,
             richTextWindowRef,
             selectedSubtitleIndexes,
             highlightedJumpToSubtitleIndex,
@@ -1510,6 +1515,7 @@ export default function SubtitlePlayer({
             subtitleListCustomization.timestampDisplay,
             disabledSubtitleTracks,
             playbackSettings.dictionaryTracks,
+            settings.ankiConnectUrl,
             selectedSubtitleIndexes,
             highlightedJumpToSubtitleIndex,
             currentSubtitleIndexes,

@@ -84,6 +84,15 @@ export class AppExtensionDictionaryStorage implements DictionaryStorage {
         return this._extension.dictionaryGetByLemmaBulk(profile, track, lemmas);
     }
 
+    get supportsAnkiCacheSource() {
+        return this._extension.supportsIPlusOne;
+    }
+
+    async getAnkiCacheSource(profile: string | undefined, track: number) {
+        if (!this.supportsAnkiCacheSource) return undefined;
+        return this._extension.dictionaryGetAnkiCacheSource(profile, track);
+    }
+
     saveRecordLocalBulk(
         profile: string | undefined,
         localTokenInputs: readonly DictionaryLocalTokenInput[],

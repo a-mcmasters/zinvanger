@@ -30,7 +30,8 @@ export interface LivingSubtitleHostContext {
     pause(): void;
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     /** The word's dictionary meaning ('' when the dictionary has none); rejects with a `livingSubtitle.error` key. */
-    define(word: string): Promise<LivingSubtitleDefinition>;
+    define(word: string, retry: boolean): Promise<LivingSubtitleDefinition>;
+    markKnown(word: string, lemmas: readonly string[]): Promise<void | 'stale'>;
 }
 
 const gap = 4;
@@ -63,8 +64,9 @@ export default class LivingSubtitleHost {
         this.context = context;
         this.controller = new LivingSubtitleController({
             pause: () => context.pause(),
-            define: (word) => context.define(word),
+            define: (word, retry) => context.define(word, retry),
             mine: (state) => context.mine(state),
+            markKnown: (word, lemmas) => context.markKnown(word, lemmas),
             render: (state) => {
                 this.state = state;
                 this.scheduleUpdate();
@@ -166,6 +168,9 @@ export default class LivingSubtitleHost {
         switch (action) {
             case 'mine':
                 void this.mine();
+                break;
+            case 'known':
+                void this.controller.markKnown();
                 break;
             case 'close-word':
             case 'escape':
@@ -301,6 +306,7 @@ export default class LivingSubtitleHost {
             wordIndex,
             definition: state.definition,
             mining: state.mining,
+            known: state.known,
             maxWidth: Math.max(0, visibleRight - visibleLeft),
             maxHeight: Math.max(0, visibleBottom - visibleTop),
         };

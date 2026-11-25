@@ -3,7 +3,13 @@ import 'fake-indexeddb/auto';
 import { Dexie } from 'dexie';
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { AsbplayerSettings } from '@project/common/settings';
-import { ApplyStrategy, DictionaryTokenSource, TokenState, TokenStatus } from '@project/common/settings';
+import {
+    ApplyStrategy,
+    DictionaryTokenSource,
+    getFullyKnownTokenStatus,
+    TokenState,
+    TokenStatus,
+} from '@project/common/settings';
 import type { DictionaryLocalTokenInput } from '@project/common/dictionary-db/dictionary-db';
 import { DictionaryDB, LOCAL_TOKEN_TRACK } from '@project/common/dictionary-db/dictionary-db';
 import {
@@ -458,14 +464,56 @@ describe('DictionaryDB', () => {
                 profile,
                 [
                     { token: '123', status: TokenStatus.UNKNOWN, lemmas: ['alpha'], states: [] },
-                    { token: 'alpha', status: TokenStatus.UNKNOWN, lemmas: ['123'], states: [] },
                     { token: 'beta', status: TokenStatus.UNCOLLECTED, lemmas: ['beta'], states: [] },
                 ],
                 ApplyStrategy.ADD
             )
         ).resolves.toEqual({ savedTokens: [], deletedTokens: [] });
-        expect(consoleError).toHaveBeenCalledTimes(3);
+        expect(consoleError).toHaveBeenCalledTimes(2);
         await expect(allTokenRecords()).resolves.toEqual([]);
+    });
+
+    it('keeps an existing record’s lemmas for a save without lemmas, and uses the token for a new one', async () => {
+        const known = getFullyKnownTokenStatus();
+        await dictionaryDB.saveRecordLocalBulk(
+            profile,
+            [{ token: 'liep', status: TokenStatus.UNKNOWN, lemmas: ['lopen'], states: [] }],
+            ApplyStrategy.ADD
+        );
+
+        await dictionaryDB.saveRecordLocalBulk(
+            profile,
+            [
+                { token: 'liep', status: known, lemmas: [], states: [] },
+                { token: 'straks', status: known, lemmas: ['123'], states: [] },
+            ],
+            ApplyStrategy.ADD
+        );
+
+        await expect(allTokenRecords()).resolves.toEqual([
+            expect.objectContaining({ token: 'liep', status: known, lemmas: ['lopen'] }),
+            expect.objectContaining({ token: 'straks', status: known, lemmas: ['straks'] }),
+        ]);
+    });
+
+    it('preserves a local record when a clipboard row requests uncollected without any lemmas', async () => {
+        jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        await dictionaryDB.saveRecordLocalBulk(
+            profile,
+            [{ token: 'liep', status: TokenStatus.LEARNING, lemmas: ['lopen'], states: [] }],
+            ApplyStrategy.ADD
+        );
+
+        await expect(
+            dictionaryDB.saveRecordLocalBulk(
+                profile,
+                [{ token: 'liep', status: TokenStatus.UNCOLLECTED, lemmas: [], states: [] }],
+                ApplyStrategy.REPLACE
+            )
+        ).resolves.toEqual({ savedTokens: [], deletedTokens: [] });
+        await expect(allTokenRecords()).resolves.toEqual([
+            expect.objectContaining({ token: 'liep', status: TokenStatus.LEARNING, lemmas: ['lopen'] }),
+        ]);
     });
 
     it('keeps persisted local records trackless with no card IDs and sorted states', async () => {

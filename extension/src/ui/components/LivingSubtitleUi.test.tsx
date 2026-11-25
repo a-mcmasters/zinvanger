@@ -34,6 +34,7 @@ it('reports its first size even when the hidden frame receives no ResizeObserver
         wordIndex: 1,
         definition: { status: 'idle' },
         mining: { status: 'idle' },
+        known: { status: 'idle' },
         maxWidth: 640,
         maxHeight: 360,
     };
