@@ -1,6 +1,6 @@
 # S14: Known words and i+1 subtitles
 
-Status: Specced and ready for implementation
+Status: In progress (code done, manual check pending)
 
 Issue [#91](https://github.com/a-mcmasters/zinvanger/issues/91) tracks the Known action. This slice is the handoff for that action and the i+1 cue. See the [approved interactive mockup](S14-i-plus-one-mockup.html) and the [current word-card behavior](S13-u3-living-subtitle.md#verification-log).
 
@@ -53,12 +53,14 @@ The owner's desktop Anki sync succeeded with no changes. The phone's latest revi
 - [ ] With default annotation settings and Anki closed, clicking a Dutch word and choosing Known saves it to the active profile. A lookup outage still permits a surface-form save. Mine remains available.
 - [ ] A rejected or timed-out write offers Retry. Double-clicks and stale results after close, word change or profile change do not apply a confirmation to the wrong card. A successful retry shows one confirmation. Saving with annotations off does not start a refresh loop.
 - [ ] The feature reads existing notes from the selected decks and subdecks using the selected word fields. Changing the vocabulary source updates the cue and leaves the mining destination intact.
-- [ ] A line with two distinct known words and one distinct Uncollected word underlines its first occurrence. Test repeated words, zero or two new words, an Unknown word, a partial result, and unavailable Yomitan. No cue appears on secondary tracks.
+- [x] A line with two distinct known words and one distinct Uncollected word underlines its first occurrence. Test repeated words, zero or two new words, an Unknown word, a partial result, and unavailable Yomitan. No cue appears on secondary tracks.
 - [ ] Clicking the cue opens the existing word card. Known clears the cue after the write is confirmed and the status refreshed. Mine still uses the captured word, subtitle and original audio through the configured export flow.
 - [ ] Cover the shared controller and candidate rule in tests, plus the extension and web app save paths. Run `pnpm run verify` and manually check the Chrome overlay on YouTube and Netflix, plus the web app's local-file player.
 
 ## Verification log
 
 - One-episode check: use a Dutch subtitle file from an episode the learner would watch and the configured Anki vocabulary source. Record the qualifying share and inspect a sample for false cues from names, repeated words and Dutch forms. Use the result to inform tuning before S8 removes statistics. This is an evaluation, not a preset coverage target.
-- `pnpm run verify`: pending implementation.
+- `pnpm run verify`: passed on 2026-11-25 (common 2570, client 26, extension 558, scripts 51 and ffmpeg 203 tests; typecheck, both compiles, ESLint and Prettier clean). On Windows, `loc-keys-match` and `page-file-references-are-correct` misread the CRLF output of native `jq`, so both checks ran CRLF-safe with the same logic.
+- Tests prove the Retry, double-click, stale-result and single-confirmation parts of the second criterion. The profile-change wiring and the refresh gate for annotations that are off have no observable unit test, so the box stays open for the manual check.
+- Known decision: before the Anki cache's first load for a profile, local Known words alone can qualify a line. Nothing exposes the cache's build state to the renderer yet (`shortcut:` note in `render-annotations.ts`).
 - Manual acceptance: pending implementation.

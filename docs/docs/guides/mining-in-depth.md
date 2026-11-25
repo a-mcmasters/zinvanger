@@ -86,3 +86,14 @@ The disadvantage of this flow is that skipping the dialog means skipping the opp
 ### One click {#one-click}
 
 See the [one-click mining](./one-click-mining.md) guide.
+
+## Known words and i+1 lines {#known-words-and-i-plus-one-lines}
+
+Click a word in the main subtitle to pause and open its word card. **Known** saves the word as known for the active profile, without Anki or annotations. The card shows **Marked known** once the save is confirmed, and **Retry** if it fails. **Mine** stays available.
+
+To spot lines worth mining, open the Anki settings and choose:
+
+- **Known-word decks**: the decks, including their subdecks, that hold your vocabulary notes.
+- **Word fields**: the fields that hold just the word, such as `Word`. Keep sentences, translations and audio out of them.
+
+With both set, a main-track line with exactly one new word, at least two known words and no unstudied Anki words gets a dotted amber underline on its new word. Playback continues. Words you marked **Known** and Anki cards you are learning or have learned count as known. Click the underlined word to open its word card, then choose **Known** or **Mine**. The underline goes away once the word's status updates. Clear either setting to turn the underline off. The underline needs Yomitan, and it uses the last Anki sync while Anki is closed.
