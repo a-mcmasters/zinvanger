@@ -2,8 +2,6 @@ import type { Token } from '@project/common';
 import { isTokenStatusKnown, TokenState, TokenStatus } from '@project/common/settings';
 import { HAS_LETTER_REGEX, normalizeToken } from '@project/common/util';
 
-export const ASB_I_PLUS_ONE_ATTRIBUTE = 'data-asb-i-plus-one';
-
 /**
  * The index of the line's one new word: the first occurrence of its only distinct Uncollected word, when the line has
  * at least two distinct known words, no Unknown word and every word resolved. Words without letters and ignored words

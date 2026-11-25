@@ -12,6 +12,8 @@ export const ASB_TOKEN_AUTO_PAUSE_SELECTED_CLASS = 'asb-token-auto-pause-selecte
 export const ASB_SUBTITLE_TOKEN_SELECTED_CLASS = 'asb-subtitle-token-selected';
 export const ASB_SUBTITLE_INDEX_ATTRIBUTE = 'data-asb-subtitle-index';
 export const ASB_TOKEN_START_ATTRIBUTE = 'data-asb-token-start';
+/** Marks the one new word of an i+1 line. */
+export const ASB_I_PLUS_ONE_ATTRIBUTE = 'data-asb-i-plus-one';
 export const ASB_READING_CLASS = 'asb-reading';
 export const ASB_FREQUENCY_CLASS = 'asb-frequency';
 export const ASB_GLOSS_CLASS = 'asb-gloss';

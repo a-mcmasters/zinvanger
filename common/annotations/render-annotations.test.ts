@@ -1070,40 +1070,58 @@ describe('i+1 cue', () => {
                 [14, 19],
             ] as [number, number][]
         ).map((pos, index) => makeToken({ pos, status: statuses[index] }));
-    const render = (subtitle: Record<string, unknown>, dt = iPlusOneTrack) =>
-        renderRichTextOntoSubtitles([makeSubtitle({ text, ...subtitle })], 'video', makeDictionaryTracks(dt), {
-            adaptiveWordVisibilityEnabled: true,
-        }).get(0)?.richText;
+    const render = (subtitle: Record<string, unknown>, dt = iPlusOneTrack) => {
+        const richText = renderRichTextOntoSubtitles(
+            [makeSubtitle({ text, ...subtitle })],
+            'video',
+            makeDictionaryTracks(dt),
+            { adaptiveWordVisibilityEnabled: true }
+        ).get(0)?.richText;
+        const line = document.createElement('div');
+        line.innerHTML = richText ?? text;
+        return line;
+    };
+    const cues = (line: HTMLElement) => [...line.querySelectorAll<HTMLElement>('[data-asb-i-plus-one]')];
     const known = TokenStatus.MATURE;
+    const qualifying = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]), iPlusOneReady: true };
 
     it('marks the new word of a main-track line without changing its text', () => {
-        const richText = render({
-            tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]), iPlusOneReady: true },
-        })!;
-        expect(richText).toContain('<span data-asb-i-plus-one data-asb-token-start="7">straks</span>');
-        expect(richText.match(/data-asb-i-plus-one/g)).toHaveLength(1);
-        expect(richText.replace(/<[^>]+>/g, '')).toBe(text);
+        const line = render({ tokenization: qualifying });
+        expect(cues(line).map((cue) => [cue.textContent, cue.dataset.asbTokenStart])).toEqual([['straks', '7']]);
+        expect(line.textContent).toBe(text);
     });
 
     it('marks nothing on a secondary track or without the Anki vocabulary source', () => {
-        const tokenization = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]), iPlusOneReady: true };
-        expect(render({ tokenization, track: 1 })).not.toContain('data-asb-i-plus-one');
-        expect(render({ tokenization }, makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'] }))).not.toContain(
-            'data-asb-i-plus-one'
-        );
+        expect(cues(render({ tokenization: qualifying, track: 1 }))).toEqual([]);
+        expect(
+            cues(render({ tokenization: qualifying }, makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'] })))
+        ).toEqual([]);
     });
 
     it('leaves a line plain until the Anki cache completed a build for the source', () => {
-        const tokenization = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]) };
-        expect(render({ tokenization })).not.toContain('data-asb-i-plus-one');
+        expect(cues(render({ tokenization: { tokens: qualifying.tokens } }))).toEqual([]);
     });
 
     it('leaves a line plain when Yomitan or a status lookup failed', () => {
-        expect(render({ tokenization: { tokens: [], error: true } })).toBeUndefined();
-        const richText = render({
+        expect(render({ tokenization: { tokens: [], error: true } }).innerHTML).toBe(text);
+        const line = render({
             tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, null]), iPlusOneReady: true },
         });
-        expect(richText).not.toContain('line-through');
-        expect(richText).not.toContain('data-asb-i-plus-one');
+        expect(line.innerHTML).not.toContain('line-through');
+        expect(cues(line)).toEqual([]);
+    });
+
+    it('keeps an underline colorize style off the cue, so the cue shows', () => {
+        const dt = makeDictionaryTrack({
+            ...iPlusOneTrack,
+            dictionaryColorizeSubtitles: true,
+            dictionaryTokenStyling: TokenStyling.UNDERLINE,
+        });
+        const newWord = (line: HTMLElement) => line.querySelector<HTMLElement>('[data-asb-token-start="7"]')!;
+        expect(newWord(render({ tokenization: { tokens: qualifying.tokens } }, dt)).style.textDecoration).not.toBe('');
+
+        const cue = newWord(render({ tokenization: qualifying }, dt));
+        expect(cue.hasAttribute('data-asb-i-plus-one')).toBe(true);
+        expect(cue.style.textDecoration).toBe('');
     });
 });

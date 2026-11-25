@@ -11,7 +11,7 @@ import {
     iPlusOneActive,
     shouldUseAnnotation,
 } from '@project/common/settings';
-import { ASB_I_PLUS_ONE_ATTRIBUTE, iPlusOneCandidate } from '@project/common/annotations/i-plus-one';
+import { iPlusOneCandidate } from '@project/common/annotations/i-plus-one';
 import type { PitchAccentContext } from '@project/common/util';
 import { asbTrace } from '@project/common/util/log';
 import {
@@ -42,6 +42,7 @@ import {
     ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS,
     ASB_TOKEN_HIGHLIGHT_CLASS,
     ASB_TOKEN_START_ATTRIBUTE,
+    ASB_I_PLUS_ONE_ATTRIBUTE,
 } from '@project/common/annotations';
 
 // Subtitles with rich text are ~5KB per subtitle and so is not worth using a render window.
@@ -149,20 +150,27 @@ export const renderRichTextOntoSubtitles = (
             const visibility = subtitleWordVisibility(subtitle, playbackConfig);
             if (!visibility.hideWholeSubtitle) hiddenTokens = visibility.hiddenTokens;
         }
+        const { tokenization } = subtitle;
         const iPlusOne = iPlusOneActive(ta.dt, subtitle.track);
-        const richText = computeRichText(subtitle.text, subtitle.tokenization, {
+        const newWord =
+            iPlusOne && tokenization.iPlusOneReady && !tokenization.error
+                ? tokenization.tokens[iPlusOneCandidate(subtitle.text, tokenization.tokens) ?? -1]
+                : undefined;
+        const richText = computeRichText(subtitle.text, tokenization, {
             hiddenTokens,
             iPlusOne,
+            newWord,
             dt: ta.dt,
             enabledAnnotations: ta.richTextEnabledAnnotations,
             allowAsciiReading,
             glossSize: ta.glossSize,
         });
         const richTextOnHover = ta.isRichTextOnHoverEnabled
-            ? computeRichText(subtitle.text, subtitle.tokenization, {
+            ? computeRichText(subtitle.text, tokenization, {
                   dt: ta.dt,
                   hiddenTokens,
                   iPlusOne,
+                  newWord,
                   enabledAnnotations: ta.richTextOnHoverEnabledAnnotations,
                   allowAsciiReading,
                   glossSize: ta.glossSize,
@@ -246,18 +254,17 @@ interface TokenStyleState {
     allowAsciiReading: boolean;
     glossSize: number;
     hiddenTokens?: ReadonlySet<Token>;
-    /** Underline the line's one new word; failures stay undecorated unless visual annotations are on. */
+    /** The track computes i+1 cues: failures stay undecorated unless visual annotations are on. */
     iPlusOne?: boolean;
+    /** The i+1 line's one new word, which carries the cue. */
+    newWord?: Token;
 }
 
+const showFailures = (ss: TokenStyleState) => !ss.iPlusOne || dictionaryTrackEnabled(ss.dt);
+
 export const computeRichText = (fullText: string, tokenization: Tokenization, ss: TokenStyleState) => {
-    const showFailures = !ss.iPlusOne || dictionaryTrackEnabled(ss.dt);
-    if (tokenization.error && showFailures) return `<span ${ERROR_STYLE}>${fullText}</span>`;
+    if (tokenization.error && showFailures(ss)) return `<span ${ERROR_STYLE}>${fullText}</span>`;
     if (!tokenization.tokens.length) return;
-    const newWord =
-        ss.iPlusOne && tokenization.iPlusOneReady && !tokenization.error
-            ? tokenization.tokens[iPlusOneCandidate(fullText, tokenization.tokens) ?? -1]
-            : undefined;
 
     const parts: string[] = [];
     const prevPitch: PitchAccentContext = {}; // Context from the previous token to correctly determine pitch for attached particle
@@ -269,8 +276,7 @@ export const computeRichText = (fullText: string, tokenization: Tokenization, ss
                 clearPitchAccentContext(prevPitch);
                 parts.push(fullText.substring(left, right));
             } else {
-                const html = applyTokenStyle(fullText, token, prevPitch, ss, showFailures);
-                parts.push(token === newWord ? html.replace(/^<span /, `<span ${ASB_I_PLUS_ONE_ATTRIBUTE} `) : html);
+                parts.push(applyTokenStyle(fullText, token, prevPitch, ss));
             }
         }
     );
@@ -283,10 +289,13 @@ const LOGIC_ERROR_STYLE = `style="text-decoration: line-through red 3px double;"
 interface TokenWrapperOptions {
     readonly style?: string;
     readonly hidden: boolean;
+    readonly iPlusOne: boolean;
 }
 
+const iPlusOneAttribute = (options: TokenWrapperOptions) => (options.iPlusOne ? ` ${ASB_I_PLUS_ONE_ATTRIBUTE}` : '');
+
 const addressableTokenWrapper = (tokenText: string, token: Token, options: TokenWrapperOptions) => {
-    return `<span ${options.hidden ? `class="${ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS}" ` : ''}${ASB_TOKEN_START_ATTRIBUTE}="${token.pos[0]}"${options.style ? ` ${options.style}` : ''}>${tokenText}</span>`;
+    return `<span ${options.hidden ? `class="${ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS}" ` : ''}${ASB_TOKEN_START_ATTRIBUTE}="${token.pos[0]}"${iPlusOneAttribute(options)}${options.style ? ` ${options.style}` : ''}>${tokenText}</span>`;
 };
 
 const collectibleTokenWrapper = (
@@ -297,7 +306,7 @@ const collectibleTokenWrapper = (
 ) => {
     const highlightClass =
         ss.enabledAnnotations.color && ss.dt.dictionaryHighlightOnHover ? ` ${ASB_TOKEN_HIGHLIGHT_CLASS}` : '';
-    return `<span class="${ASB_TOKEN_CLASS}${highlightClass}${options.hidden ? ` ${ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS}` : ''}" ${ASB_TOKEN_START_ATTRIBUTE}="${token.pos[0]}"${
+    return `<span class="${ASB_TOKEN_CLASS}${highlightClass}${options.hidden ? ` ${ASB_TOKEN_ADAPTIVE_HIDDEN_CLASS}` : ''}" ${ASB_TOKEN_START_ATTRIBUTE}="${token.pos[0]}"${iPlusOneAttribute(options)}${
         options.style ? ` ${options.style}` : ''
     }>${tokenText}</span>`;
 };
@@ -305,14 +314,11 @@ const collectibleTokenWrapper = (
 const hasExternalReadings = (token: InternalToken) =>
     token.readings.length > 0 && (!token.__internal || token.__usingExternalReadings === true);
 
-const applyTokenStyle = (
-    fullText: string,
-    token: Token,
-    prevPitch: PitchAccentContext,
-    ss: TokenStyleState,
-    showFailures: boolean
-) => {
-    const hidden = ss.hiddenTokens?.has(token) ?? false;
+const applyTokenStyle = (fullText: string, token: Token, prevPitch: PitchAccentContext, ss: TokenStyleState) => {
+    const options: TokenWrapperOptions = {
+        hidden: ss.hiddenTokens?.has(token) ?? false,
+        iPlusOne: token === ss.newWord,
+    };
     const rawTokenText = fullText.substring(token.pos[0], token.pos[1]);
     if (!HAS_LETTER_REGEX.test(rawTokenText)) {
         if (hasExternalReadings(token)) return applyReadingAnnotation(rawTokenText, token, prevPitch, ss);
@@ -326,22 +332,22 @@ const applyTokenStyle = (
         ss,
         rawTokenText
     );
-    if (token.status === null && showFailures) {
-        return addressableTokenWrapper(tokenText, token, { style: ERROR_STYLE, hidden });
+    if (token.status === null && showFailures(ss)) {
+        return addressableTokenWrapper(tokenText, token, { ...options, style: ERROR_STYLE });
     }
     if (token.status === undefined && dictionaryTrackEnabled(ss.dt)) {
-        return addressableTokenWrapper(tokenText, token, { style: LOGIC_ERROR_STYLE, hidden }); // External tokens may flash this on initial load
+        return addressableTokenWrapper(tokenText, token, { ...options, style: LOGIC_ERROR_STYLE }); // External tokens may flash this on initial load
     }
-    if (!ss.enabledAnnotations.color) return addressableTokenWrapper(tokenText, token, { hidden });
+    if (!ss.enabledAnnotations.color) return addressableTokenWrapper(tokenText, token, options);
 
     const config = ss.dt.dictionaryTokenStatusConfig[token.status!];
-    if (!config.display) return collectibleTokenWrapper(tokenText, token, ss, { hidden });
+    if (!config.display) return collectibleTokenWrapper(tokenText, token, ss, options);
     if (
         token.pitchAccent != null &&
         ss.enabledAnnotations.pitchAccent &&
         tokenText.includes(`class="${ASB_PITCH_ACCENT_CLASS}"`)
     ) {
-        return collectibleTokenWrapper(tokenText, token, ss, { hidden }); // Only colorize the pitch accent when pitch accent is being shown
+        return collectibleTokenWrapper(tokenText, token, ss, options); // Only colorize the pitch accent when pitch accent is being shown
     }
 
     const c = `${config.color}${config.alpha}`;
@@ -349,24 +355,28 @@ const applyTokenStyle = (
     switch (ss.dt.dictionaryTokenStyling) {
         case TokenStyling.TEXT:
             return collectibleTokenWrapper(tokenText, token, ss, {
+                ...options,
                 style: `style="-webkit-text-fill-color: ${c};"`,
-                hidden,
             });
         case TokenStyling.BACKGROUND:
-            return collectibleTokenWrapper(tokenText, token, ss, { style: `style="background-color: ${c};"`, hidden });
+            return collectibleTokenWrapper(tokenText, token, ss, {
+                ...options,
+                style: `style="background-color: ${c};"`,
+            });
         case TokenStyling.UNDERLINE:
         case TokenStyling.OVERLINE:
+            if (options.iPlusOne) return collectibleTokenWrapper(tokenText, token, ss, options); // the cue's underline wins
             return collectibleTokenWrapper(tokenText, token, ss, {
+                ...options,
                 style: `style="text-decoration: ${ss.dt.dictionaryTokenStyling} ${c} ${t}px;"`,
-                hidden,
             });
         case TokenStyling.OUTLINE:
             return collectibleTokenWrapper(tokenText, token, ss, {
+                ...options,
                 style: `style="-webkit-text-stroke: ${t}px ${c};"`,
-                hidden,
             });
         default:
-            return collectibleTokenWrapper(tokenText, token, ss, { style: LOGIC_ERROR_STYLE, hidden });
+            return collectibleTokenWrapper(tokenText, token, ss, { ...options, style: LOGIC_ERROR_STYLE });
     }
 };
 
