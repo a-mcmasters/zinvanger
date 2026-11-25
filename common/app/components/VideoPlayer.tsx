@@ -121,12 +121,11 @@ import useLastScrollableControlType from '@project/common/hooks/use-last-scrolla
 import LivingSubtitleController, {
     defineWithYomitan,
     livingSubtitleActionable,
-    livingSubtitleCueWords,
 } from '@project/common/living-subtitle/living-subtitle-controller';
 import type { LivingSubtitleState } from '@project/common/living-subtitle/living-subtitle-controller';
 import { saveKnownWord } from '@project/common/living-subtitle/known-word';
 import type { DictionaryProvider } from '@project/common/dictionary-db/dictionary-provider';
-import { domWords, wordIndexAt } from '@project/common/living-subtitle/dom-words';
+import { subtitleWordAt, subtitleWordRanges } from '@project/common/living-subtitle/dom-words';
 import LivingSubtitleCard from '@project/common/components/LivingSubtitleCard';
 import type { LivingSubtitleAction } from '@project/common/components/LivingSubtitleCard';
 import { Yomitan } from '@project/common/yomitan';
@@ -2386,15 +2385,17 @@ export default function VideoPlayer({
     const handleSubtitleClick = useCallback(
         (e: React.MouseEvent) => {
             if (e.button !== 0 || !window.getSelection()?.isCollapsed) return; // keep subtitle text selection working
-            const element = (e.target as Element).closest<HTMLElement>(`[${ASB_SUBTITLE_INDEX_ATTRIBUTE}]`);
+            const target = e.target;
+            if (!(target instanceof Element)) return;
+            const element = target.closest<HTMLElement>(`[${ASB_SUBTITLE_INDEX_ATTRIBUTE}]`);
             const index = Number(element?.getAttribute(ASB_SUBTITLE_INDEX_ATTRIBUTE));
             const cue = showSubtitlesRef.current.find((subtitle) => subtitle.index === index);
             if (!element || !cue || !livingSubtitleActionable(cue)) return;
-            const wordIndex = wordIndexAt(element, cue.text, e.clientX, e.clientY);
-            if (wordIndex === undefined) return;
+            const word = subtitleWordAt(element, cue.text, target, e.clientX, e.clientY);
+            if (!word) return;
             if (wordCard?.target && subtitleKey(wordCard.target.cue) !== subtitleKey(cue)) wordCardController.clear();
             wordCardController.hover({ video: videoFile, cue, surrounding: [cue] });
-            void wordCardController.selectWord(wordIndex);
+            void wordCardController.selectWord(word);
         },
         [wordCard?.target, wordCardController, videoFile]
     );
@@ -2448,9 +2449,8 @@ export default function VideoPlayer({
             `[${ASB_SUBTITLE_INDEX_ATTRIBUTE}="${wordCardCue?.index}"]`
         );
         if (!wordCardCue || !wordCardWord || !element || !globalThis.CSS?.highlights) return;
-        const index = livingSubtitleCueWords(wordCardCue.text).findIndex((w) => w.start === wordCardWord.start);
-        const ranges = domWords(element, wordCardCue.text).filter((w) => w.modelIndex === index);
-        CSS.highlights.set('asbplayer-living-subtitle-word', new Highlight(...ranges.map((w) => w.range)));
+        const ranges = subtitleWordRanges(element, wordCardCue.text, wordCardWord);
+        CSS.highlights.set('asbplayer-living-subtitle-word', new Highlight(...ranges));
         return () => void CSS.highlights.delete('asbplayer-living-subtitle-word');
     }, [wordCardCue, wordCardWord]);
 

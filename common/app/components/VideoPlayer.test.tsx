@@ -159,6 +159,20 @@ describe('VideoPlayer', () => {
         expect(cardTextFieldValues).toMatchObject({ word: 'zet', definition: 'meaning of zet' });
     });
 
+    it('clicking the second word of an i+1 phrase opens and mines the whole phrase', async () => {
+        const { channel, subtitle } = await renderPlayer([{ ...cue, text: 'En ik ga voor een...' }]);
+        subtitle.innerHTML = 'En ik <span data-asb-i-plus-one data-asb-token-start="6">ga voor</span> een...';
+        const phrase = subtitle.querySelector<HTMLElement>('[data-asb-i-plus-one]')!;
+        await clickAt(phrase, phrase.firstChild!, 5);
+
+        const card = container.querySelector<HTMLElement>('[role="dialog"][aria-label="ga voor"]');
+        expect(card?.textContent).toContain('meaning of ga voor');
+        const mine = [...card!.querySelectorAll('button')].find((button) => button.textContent === 'Mine')!;
+        await act(async () => mine.click());
+        await flush();
+        expect(channel.copy.mock.calls[0][2]).toMatchObject({ word: 'ga voor', definition: 'meaning of ga voor' });
+    });
+
     it('Known saves the clicked word to the active profile and asks the app to refresh its annotations', async () => {
         const { channel, subtitle } = await renderPlayer();
         await clickAt(subtitle, subtitle.firstChild!, 5);

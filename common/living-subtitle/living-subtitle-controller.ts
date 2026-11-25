@@ -168,17 +168,16 @@ export default class LivingSubtitleController {
     }
 
     retryDefinition() {
-        const words = this.state.target ? livingSubtitleCueWords(this.state.target.cue.text) : [];
-        const index = words.findIndex((w) => w.start === this.state.word?.start);
-        if (index >= 0) void this.selectWord(index, true);
+        if (this.state.word) void this.selectWord(this.state.word, true);
     }
 
-    async selectWord(index: number, retry = false) {
+    async selectWord(selection: number | LivingSubtitleWord, retry = false) {
         const target = this.state.target;
-        const word = target && livingSubtitleCueWords(target.cue.text)[index];
+        const word =
+            typeof selection === 'number' ? target && livingSubtitleCueWords(target.cue.text)[selection] : selection;
         if (this.disposed || !target || !word) return;
         this.capture();
-        if (this.state.word?.start !== word.start) {
+        if (this.state.word?.start !== word.start || this.state.word.end !== word.end) {
             ++this.knownRequest;
             this.state.known = HAS_LETTER_REGEX.test(word.text) ? { status: 'idle' } : undefined;
         }

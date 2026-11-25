@@ -2,9 +2,8 @@ import type { IndexedSubtitleModel } from '@project/common';
 import { ASB_SUBTITLE_INDEX_ATTRIBUTE } from '@project/common/annotations/dom-annotations';
 import LivingSubtitleController, {
     livingSubtitleActionable,
-    livingSubtitleCueWords,
 } from '@project/common/living-subtitle/living-subtitle-controller';
-import { domWords, wordIndexAt } from '@project/common/living-subtitle/dom-words';
+import { subtitleWordAt, subtitleWordRanges } from '@project/common/living-subtitle/dom-words';
 import type {
     LivingSubtitleDefinition,
     LivingSubtitleMineOutcome,
@@ -145,7 +144,7 @@ export default class LivingSubtitleHost {
         const cue = element
             ? this.context.cueAt(Number(element.getAttribute(ASB_SUBTITLE_INDEX_ATTRIBUTE)))
             : undefined;
-        return cue && element && livingSubtitleActionable(cue) ? { cue, element } : undefined;
+        return cue && element && livingSubtitleActionable(cue) ? { cue, element, target } : undefined;
     }
 
     private click(event: MouseEvent) {
@@ -153,15 +152,15 @@ export default class LivingSubtitleHost {
         if (!window.getSelection()?.isCollapsed) return; // keep subtitle text selection working
         const hit = this.eventCue(event);
         if (!hit) return;
-        const wordIndex = wordIndexAt(hit.element, hit.cue.text, event.clientX, event.clientY);
-        if (wordIndex === undefined) return;
+        const word = subtitleWordAt(hit.element, hit.cue.text, hit.target, event.clientX, event.clientY);
+        if (!word) return;
         event.stopPropagation(); // the word belongs to this interaction, not to the player or annotations
         event.preventDefault();
         if (this.state?.target && this.context.resolve(this.state.target)?.cue.index !== hit.cue.index) {
             this.controller.clear();
         }
         this.controller.hover(this.context.targetFor(hit.cue));
-        void this.controller.selectWord(wordIndex);
+        void this.controller.selectWord(word);
     }
 
     private action(action: LivingSubtitleAction) {
@@ -276,23 +275,14 @@ export default class LivingSubtitleHost {
         const state = this.state;
         const element = state?.target ? this.cueElement(state.target.cue) : undefined;
         this.clearHighlights();
-        if (!state?.target || !element) {
+        if (!state?.target || !state.word || !element) {
             this.hideFrame();
             return;
         }
 
         const cue = state.target.cue;
-        const words = livingSubtitleCueWords(cue.text);
-        const dom = domWords(element, cue.text);
-        /** The word's ranges in every copy of the sentence: the highlight then shows in whichever copy is visible. */
-        const rangesFor = (index?: number) =>
-            index === undefined ? [] : dom.filter((w) => w.modelIndex === index).map((w) => w.range);
-        const wordIndex = state.word ? words.findIndex((w) => w.start === state.word!.start) : undefined;
-        this.highlight('asbplayer-living-subtitle-word', rangesFor(wordIndex));
-        if (wordIndex === undefined) {
-            this.hideFrame();
-            return;
-        }
+        const ranges = subtitleWordRanges(element, cue.text, state.word);
+        this.highlight('asbplayer-living-subtitle-word', ranges);
 
         const video = this.context.video.getBoundingClientRect();
         // The part of the video on screen: the card stays inside it, and at high zoom it shrinks to fit.
@@ -302,8 +292,7 @@ export default class LivingSubtitleHost {
         const visibleBottom = Math.min(video.bottom, window.innerHeight) - gap;
         const model: LivingSubtitleViewModel = {
             themeType: this.themeType,
-            words: words.map((w) => w.text),
-            wordIndex,
+            word: state.word.text,
             definition: state.definition,
             mining: state.mining,
             known: state.known,
@@ -328,10 +317,7 @@ export default class LivingSubtitleHost {
             .flatMap((container) => [...container.querySelectorAll(`[${ASB_SUBTITLE_INDEX_ATTRIBUTE}]`)])
             .map((subtitle) => subtitle.getBoundingClientRect())
             .filter((rect) => rect.width > 0 && rect.height > 0);
-        const anchor =
-            rangesFor(wordIndex)
-                .map((range) => range.getBoundingClientRect())
-                .find((rect) => rect.width > 0) ?? line; // the visible copy's word
+        const anchor = ranges.map((range) => range.getBoundingClientRect()).find((rect) => rect.width > 0) ?? line; // the visible copy's word
         const left = clamp(anchor.left + anchor.width / 2 - size.width / 2, visibleLeft, visibleRight - size.width);
         /** Moves the card up or down from `top` until it overlaps no subtitle in its column. */
         const clearOf = (start: number, direction: 1 | -1) => {

@@ -30,8 +30,7 @@ it('reports its first size even when the hidden frame receives no ResizeObserver
     const root = createRoot(container);
     const state: LivingSubtitleViewModel = {
         themeType: 'dark',
-        words: ['Ik', 'kom', 'zo', 'terug'],
-        wordIndex: 1,
+        word: 'kom',
         definition: { status: 'idle' },
         mining: { status: 'idle' },
         known: { status: 'idle' },
