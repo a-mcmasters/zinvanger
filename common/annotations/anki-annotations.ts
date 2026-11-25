@@ -3,7 +3,7 @@ import type { DictionaryBuildAnkiCacheState, DictionaryBuildAnkiCacheStateError,
 import { DictionaryBuildAnkiCacheStateErrorCode, DictionaryBuildAnkiCacheStateType } from '@project/common';
 import { Anki } from '@project/common/anki';
 import type { AsbplayerSettings, DictionaryTrack, SettingsProvider } from '@project/common/settings';
-import { dictionaryStatusCollectionEnabled } from '@project/common/settings';
+import { dictionaryStatusCollectionEnabled, iPlusOneActive } from '@project/common/settings';
 import type { DictionaryProvider } from '@project/common/dictionary-db';
 import type {
     DictionaryStatisticsAnkiDueCardsSnapshot,
@@ -138,7 +138,12 @@ export class AnkiAnnotations {
             }
             const allFieldsSet = new Set<string>();
             for (const ts of this.options.getTracks()) {
-                if (!dictionaryStatusCollectionEnabled(ts.dt, { includeStates: false })) continue;
+                if (
+                    !dictionaryStatusCollectionEnabled(ts.dt, { includeStates: false }) &&
+                    !iPlusOneActive(ts.dt, ts.track)
+                ) {
+                    continue;
+                }
                 for (const field of ts.dt.dictionaryAnkiWordFields.concat(ts.dt.dictionaryAnkiSentenceFields)) {
                     allFieldsSet.add(field);
                 }
@@ -146,7 +151,12 @@ export class AnkiAnnotations {
             const fields = Array.from(allFieldsSet);
             const allDecksSet = new Set<string>();
             for (const ts of this.options.getTracks()) {
-                if (!dictionaryStatusCollectionEnabled(ts.dt, { includeStates: false })) continue;
+                if (
+                    !dictionaryStatusCollectionEnabled(ts.dt, { includeStates: false }) &&
+                    !iPlusOneActive(ts.dt, ts.track)
+                ) {
+                    continue;
+                }
                 if (!ts.dt.dictionaryAnkiDecks.length) {
                     allDecksSet.clear(); // Query all decks
                     break;

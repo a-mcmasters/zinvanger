@@ -1251,6 +1251,21 @@ describe('BuildAnnotations public boundary', () => {
         expect(updated).toHaveBeenCalledWith([expect.objectContaining({ index: 0 })], dictionaryTracks);
     });
 
+    it('resolves main-track statuses for the i+1 cue with every visual annotation off', async () => {
+        const vocabulary = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
+        const dictionaryTracks = makeDictionaryTracks(vocabulary).map(() => vocabulary);
+        const { build, subtitles, storage } = makeBuild(dictionaryTracks);
+        subtitles.push(makeSubtitle({ index: 0, track: 0, text: 'word' }));
+        subtitles.push(makeSubtitle({ index: 1, track: 1, text: 'word' }));
+        build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
+
+        await settleBuild(build.buildInitial());
+
+        expect(subtitles[0].tokenization?.tokens[0].status).toBe(TokenStatus.UNCOLLECTED);
+        expect(subtitles[1].__tokenized).toBeUndefined();
+        expect(storage.getByLemmaBulk.mock.calls.map((call: unknown[]) => call[1])).toEqual([0]);
+    });
+
     it('merges generated tokens around externally supplied readings', async () => {
         const fetcher: Fetcher = {
             fetch: jest.fn(async (url: string, request: { text?: string | string[] }) => {

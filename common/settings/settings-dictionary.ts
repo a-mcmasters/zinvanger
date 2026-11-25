@@ -511,6 +511,11 @@ export function dictionaryTrackEnabled(dt: DictionaryTrack): boolean {
     );
 }
 
+/** i+1 cues on the main track need its tokens and statuses, even with every visual annotation off. */
+export function iPlusOneActive(dt: DictionaryTrack, track: number): boolean {
+    return track === 0 && dt.dictionaryAnkiDecks.length > 0 && dt.dictionaryAnkiWordFields.length > 0;
+}
+
 export function dictionaryStatusCollectionEnabled(dt: DictionaryTrack, options: { includeStates: boolean }): boolean {
     const { includeStates } = options;
     if (dt.dictionaryPlaybackConfig.fastForward.rateByComprehension.enabled) return true;
