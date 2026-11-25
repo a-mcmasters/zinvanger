@@ -9,6 +9,7 @@ import {
     getEnabledAnnotationsForHover,
     defaultSettings,
     iPlusOneActive,
+    ankiVocabularySource,
     shouldUseAnnotation,
 } from '@project/common/settings';
 import { iPlusOneCandidate } from '@project/common/annotations/i-plus-one';
@@ -85,17 +86,20 @@ interface CachedRenderedRichText extends RenderedRichText {
     tokenization?: Tokenization;
     tokenAnnotationTarget: TokenAnnotationConfigTarget;
     dictionaryTracks?: DictionaryTrack[];
+    ankiConnectUrl: string;
 }
 
 const cachedRichTextIsCurrent = (
     cached: CachedRenderedRichText,
     subtitle: RichTextRenderable,
     tokenAnnotationTarget: TokenAnnotationConfigTarget,
-    dictionaryTracks: DictionaryTrack[] | undefined
+    dictionaryTracks: DictionaryTrack[] | undefined,
+    ankiConnectUrl: string
 ) =>
     cached.text === subtitle.text &&
     areTokenizationsEqual(cached.tokenization, subtitle.tokenization) &&
     cached.tokenAnnotationTarget === tokenAnnotationTarget &&
+    cached.ankiConnectUrl === ankiConnectUrl &&
     cached.dictionaryTracks?.every((dt, i) => areDictionaryTracksEqual(dt, dictionaryTracks?.[i]));
 
 interface IndexRange {
@@ -121,7 +125,7 @@ export const renderRichTextOntoSubtitles = (
     subtitles: readonly RichTextRenderable[],
     tokenAnnotationTarget: TokenAnnotationConfigTarget,
     dictionaryTracks: DictionaryTrack[] | undefined,
-    options: { readonly adaptiveWordVisibilityEnabled: boolean }
+    options: { readonly adaptiveWordVisibilityEnabled: boolean; readonly ankiConnectUrl?: string }
 ): Map<number, RenderedRichText> => {
     const rendered = new Map<number, RenderedRichText>();
     if (dictionaryTracks?.length !== defaultSettings.dictionaryTracks.length) {
@@ -133,7 +137,12 @@ export const renderRichTextOntoSubtitles = (
         return rendered;
     }
 
-    const trackAnnotations = dictionaryTracks.map((dt) => getAnnotationsForRender(dt, tokenAnnotationTarget));
+    const trackAnnotations = dictionaryTracks.map((dt, track) => ({
+        ...getAnnotationsForRender(dt, tokenAnnotationTarget),
+        iPlusOneSource: iPlusOneActive(dt, track)
+            ? ankiVocabularySource(options.ankiConnectUrl ?? defaultSettings.ankiConnectUrl, dt, track)
+            : undefined,
+    }));
     const allowAsciiReading = false; // Allowing is only for preview purposes for status names to show reading
 
     for (const subtitle of subtitles) {
@@ -153,7 +162,7 @@ export const renderRichTextOntoSubtitles = (
         const { tokenization } = subtitle;
         const iPlusOne = iPlusOneActive(ta.dt, subtitle.track);
         const newWord =
-            iPlusOne && tokenization.iPlusOneReady && !tokenization.error
+            ta.iPlusOneSource !== undefined && tokenization.iPlusOneSource === ta.iPlusOneSource && !tokenization.error
                 ? tokenization.tokens[iPlusOneCandidate(subtitle.text, tokenization.tokens) ?? -1]
                 : undefined;
         const richText = computeRichText(subtitle.text, tokenization, {
@@ -189,7 +198,8 @@ export const renderRichTextWindow = (
     prev: RichTextWindow,
     windowSubtitles: RichTextRenderable[],
     tokenAnnotationTarget: TokenAnnotationConfigTarget,
-    dictionaryTracks: DictionaryTrack[] | undefined
+    dictionaryTracks: DictionaryTrack[] | undefined,
+    ankiConnectUrl = defaultSettings.ankiConnectUrl
 ): RichTextWindow => {
     if (!windowSubtitles.length) return emptyRichTextWindow();
     const windowSubtitleIndexes = windowSubtitles.map((s) => s.index);
@@ -200,7 +210,10 @@ export const renderRichTextWindow = (
     for (const subtitle of windowSubtitles) {
         if (prev.range && subtitle.index >= prev.range.min && subtitle.index <= prev.range.max) {
             const reused = prev.buffer.get(subtitle.index);
-            if (reused && cachedRichTextIsCurrent(reused, subtitle, tokenAnnotationTarget, dictionaryTracks)) {
+            if (
+                reused &&
+                cachedRichTextIsCurrent(reused, subtitle, tokenAnnotationTarget, dictionaryTracks, ankiConnectUrl)
+            ) {
                 buffer.set(subtitle.index, reused);
                 continue;
             }
@@ -210,6 +223,7 @@ export const renderRichTextWindow = (
     if (toRender.length) {
         const rendered = renderRichTextOntoSubtitles(toRender, tokenAnnotationTarget, dictionaryTracks, {
             adaptiveWordVisibilityEnabled: true,
+            ankiConnectUrl,
         });
         for (const subtitle of toRender) {
             const value = rendered.get(subtitle.index);
@@ -219,6 +233,7 @@ export const renderRichTextWindow = (
                 tokenization: subtitle.tokenization,
                 tokenAnnotationTarget,
                 dictionaryTracks,
+                ankiConnectUrl,
             });
         }
     }
@@ -230,13 +245,17 @@ export const renderRichTextForSubtitle = (
     window: RichTextWindow,
     subtitle: RichTextRenderable,
     tokenAnnotationTarget: TokenAnnotationConfigTarget,
-    dictionaryTracks: DictionaryTrack[] | undefined
+    dictionaryTracks: DictionaryTrack[] | undefined,
+    ankiConnectUrl = defaultSettings.ankiConnectUrl
 ): RenderedRichText | undefined => {
     const cached = window.buffer.get(subtitle.index);
-    if (cached && cachedRichTextIsCurrent(cached, subtitle, tokenAnnotationTarget, dictionaryTracks)) return cached;
+    if (cached && cachedRichTextIsCurrent(cached, subtitle, tokenAnnotationTarget, dictionaryTracks, ankiConnectUrl)) {
+        return cached;
+    }
 
     const rendered = renderRichTextOntoSubtitles([subtitle], tokenAnnotationTarget, dictionaryTracks, {
         adaptiveWordVisibilityEnabled: true,
+        ankiConnectUrl,
     }).get(subtitle.index);
     window.buffer.set(subtitle.index, {
         ...rendered,
@@ -244,6 +263,7 @@ export const renderRichTextForSubtitle = (
         tokenization: subtitle.tokenization,
         tokenAnnotationTarget,
         dictionaryTracks,
+        ankiConnectUrl,
     });
     return rendered;
 };

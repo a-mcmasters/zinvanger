@@ -17,8 +17,8 @@ export class TrackState {
     readonly tokenCollectionAny: TokenCollectionArray;
     readonly tokenStates: Map<string, TokenState[]>;
     readonly indexTokenOccurrences: Map<number, Map<string, number>>;
-    /** The Anki cache has completed a build for the track's current i+1 vocabulary source. */
-    iPlusOneReady = false;
+    /** The completed Anki cache source matching the track's current i+1 settings. */
+    iPlusOneSource?: string;
 
     constructor(track: number, dt: DictionaryTrack) {
         this.track = track;

@@ -142,6 +142,7 @@ export default class SubtitleController {
     refreshCurrentSubtitle: boolean;
     _preCacheDom;
     dictionaryTrackSettings?: DictionaryTrack[];
+    ankiConnectUrl?: string;
     private adaptiveWordVisibilityEnabled = true;
     private playbackPaused = false;
     onOffsetChange?: (offset: number, previousOffset: number) => Promise<void>;
@@ -720,6 +721,7 @@ export default class SubtitleController {
     private _buildSubtitlesHtml(subtitles: readonly IndexedSubtitleModel[]) {
         const buffer = renderRichTextOntoSubtitles(subtitles, 'video', this.dictionaryTrackSettings, {
             adaptiveWordVisibilityEnabled: this.adaptiveWordVisibilityEnabled,
+            ankiConnectUrl: this.ankiConnectUrl,
         });
 
         return subtitles.map((subtitle) => {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+    ankiVocabularySource,
+    defaultSettings,
     TokenFrequencyAnnotation,
     TokenReadingAnnotation,
     TokenStatus,
@@ -1070,12 +1072,16 @@ describe('i+1 cue', () => {
                 [14, 19],
             ] as [number, number][]
         ).map((pos, index) => makeToken({ pos, status: statuses[index] }));
-    const render = (subtitle: Record<string, unknown>, dt = iPlusOneTrack) => {
+    const render = (
+        subtitle: Record<string, unknown>,
+        dt = iPlusOneTrack,
+        ankiConnectUrl = defaultSettings.ankiConnectUrl
+    ) => {
         const richText = renderRichTextOntoSubtitles(
             [makeSubtitle({ text, ...subtitle })],
             'video',
-            makeDictionaryTracks(dt),
-            { adaptiveWordVisibilityEnabled: true }
+            makeDictionaryTracks(dt, iPlusOneTrack),
+            { adaptiveWordVisibilityEnabled: true, ankiConnectUrl }
         ).get(0)?.richText;
         const line = document.createElement('div');
         line.innerHTML = richText ?? text;
@@ -1083,7 +1089,8 @@ describe('i+1 cue', () => {
     };
     const cues = (line: HTMLElement) => [...line.querySelectorAll<HTMLElement>('[data-asb-i-plus-one]')];
     const known = TokenStatus.MATURE;
-    const qualifying = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]), iPlusOneReady: true };
+    const iPlusOneSource = ankiVocabularySource(defaultSettings.ankiConnectUrl, iPlusOneTrack, 0);
+    const qualifying = { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, known]), iPlusOneSource };
 
     it('marks the new word of a main-track line without changing its text', () => {
         const line = render({ tokenization: qualifying });
@@ -1105,10 +1112,35 @@ describe('i+1 cue', () => {
     it('leaves a line plain when Yomitan or a status lookup failed', () => {
         expect(render({ tokenization: { tokens: [], error: true } }).innerHTML).toBe(text);
         const line = render({
-            tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, null]), iPlusOneReady: true },
+            tokenization: { tokens: tokens([known, known, TokenStatus.UNCOLLECTED, null]), iPlusOneSource },
         });
         expect(line.innerHTML).not.toContain('line-through');
         expect(cues(line)).toEqual([]);
+    });
+
+    it('drops a cue when the selected source or the Anki endpoint changes', () => {
+        const subtitle = { tokenization: qualifying };
+        expect(cues(render(subtitle))).toHaveLength(1);
+        expect(cues(render(subtitle, { ...iPlusOneTrack, dictionaryAnkiDecks: ['Other'] }))).toHaveLength(0);
+        expect(cues(render(subtitle, iPlusOneTrack, 'http://other:8765'))).toHaveLength(0);
+    });
+
+    it('drops a cue after legacy status annotations stop supplying sentence fields', () => {
+        const legacy = makeDictionaryTrack({
+            ...iPlusOneTrack,
+            dictionaryColorizeSubtitles: true,
+            dictionaryAnkiSentenceFields: ['Sentence'],
+        });
+        const subtitle = {
+            tokenization: {
+                ...qualifying,
+                iPlusOneSource: ankiVocabularySource(defaultSettings.ankiConnectUrl, legacy, 0),
+            },
+        };
+        expect(cues(render(subtitle, legacy))).toHaveLength(1);
+        expect(
+            cues(render(subtitle, makeDictionaryTrack({ ...legacy, dictionaryColorizeSubtitles: false })))
+        ).toHaveLength(0);
     });
 
     it('keeps an underline colorize style off the cue, so the cue shows', () => {

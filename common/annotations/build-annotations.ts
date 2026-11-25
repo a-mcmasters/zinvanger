@@ -33,9 +33,11 @@ import type {
 } from '@project/common/settings';
 import {
     areDictionaryTracksEqual,
+    defaultSettings,
     areDictionaryTracksRenderOnly,
     dictionaryStatusCollectionActive,
     dictionaryTrackActive,
+    DictionaryTokenSource,
     dictionaryTrackEnabled,
     getEnabledAnnotations,
     getFullyKnownTokenStatus,
@@ -44,6 +46,7 @@ import {
     shouldUseAnnotation,
     TokenState,
 } from '@project/common/settings';
+import { effectiveSettings } from '@project/common/settings/settings-recipes';
 import type { DictionaryProvider, TokenResults } from '@project/common/dictionary-db';
 import { DictionaryStatistics } from '@project/common/dictionary-statistics';
 import type { SubtitleSlice } from '@project/common/subtitle-collection';
@@ -109,6 +112,7 @@ export class BuildAnnotations {
     private readonly ankiAnnotations: AnkiAnnotations;
     private readonly waniKaniAnnotations: WaniKaniAnnotations;
     private trackStates: TrackState[] = [];
+    private ankiConnectUrl = defaultSettings.ankiConnectUrl;
     private refreshCache = new Set<number>(); // Re-processes these indexes on next build
     private deferredRefreshCache = new Set<number>(); // Refresh after statistics and the current annotation window finish
     private erroredCache = new Set<number>(); // Re-processes these indexes if they are in the build threshold
@@ -329,8 +333,10 @@ export class BuildAnnotations {
         }
     }
 
-    updateSettings(settings: AsbplayerSettings, options: { readonly force: boolean } = { force: false }): void {
+    updateSettings(baseSettings: AsbplayerSettings, options: { readonly force: boolean } = { force: false }): void {
+        const settings = effectiveSettings(baseSettings);
         const ankiSettingsChanged = this.ankiAnnotations.updateSettings(settings);
+        this.ankiConnectUrl = settings.ankiConnectUrl;
         asbTrace('annotations/settings', 'Annotation settings update received', {
             ankiSettingsChanged,
             configuredTrackCount: settings.dictionaryTracks.length,
@@ -367,7 +373,17 @@ export class BuildAnnotations {
         }
 
         this.updateGenerateStatistics(this.dictionaryTracks, settings.dictionaryTracks);
-        const subtitlesToReset: InternalSubtitleModel[] = []; // Tracks that went from enabled to disabled need all subscribers to purge their richText
+        const subtitlesToReset = this.subtitles.filter((subtitle) => {
+            const publishedSource = subtitle.tokenization?.iPlusOneSource;
+            if (publishedSource === undefined) return false;
+            const dt = settings.dictionaryTracks[subtitle.track];
+            return (
+                options.force ||
+                !dt ||
+                !iPlusOneActive(dt, subtitle.track) ||
+                publishedSource !== ankiVocabularySource(settings.ankiConnectUrl, dt, subtitle.track)
+            );
+        });
         for (const index of this.pendingPublicationIndexes) {
             const subtitle = this.subtitles[index];
             const newDt = settings.dictionaryTracks[subtitle.track];
@@ -383,7 +399,7 @@ export class BuildAnnotations {
         this.reset();
         this.trackStates = settings.dictionaryTracks.map((dt, track) => new TrackState(track, dt));
         if (subtitlesToReset.length) {
-            asbTrace('annotations/settings', 'Clearing annotations for disabled tracks', {
+            asbTrace('annotations/settings', 'Clearing stale subtitle annotations', {
                 subtitleCount: subtitlesToReset.length,
             });
             this.queuePublication(subtitlesToReset);
@@ -442,6 +458,7 @@ export class BuildAnnotations {
     }
 
     tokensWereModified(modifiedTokens: string[]): void {
+        if (!this.trackStates.some(({ dt, track }) => dictionaryTrackActive(dt, track))) return;
         for (const token of modifiedTokens) this.tokensForRefresh.add(normalizeToken(token));
     }
 
@@ -670,9 +687,11 @@ export class BuildAnnotations {
             }
             const profile = this.profile;
             if (!this.trackStates.length) {
-                this.trackStates = (await this.options.settingsProvider.getSingle('dictionaryTracks')).map(
-                    (dt, track) => new TrackState(track, dt)
-                );
+                const settings = effectiveSettings(await this.options.settingsProvider.getAll());
+                if (!this.trackStates.length) {
+                    this.ankiConnectUrl = settings.ankiConnectUrl;
+                    this.trackStates = settings.dictionaryTracks.map((dt, track) => new TrackState(track, dt));
+                }
                 if (this.generateStatistics === undefined) {
                     this.generateStatistics = this.shouldAutoGenerateStatistics(this.dictionaryTracks);
                 }
@@ -729,9 +748,14 @@ export class BuildAnnotations {
                 const source = await this.options.dictionaryProvider
                     .getAnkiCacheSource(profile, ts.track)
                     .catch(() => undefined); // unknown: no cue
-                const ready = source === ankiVocabularySource(ts.dt);
-                if (ready === ts.iPlusOneReady) continue;
-                ts.iPlusOneReady = ready;
+                const currentSource = ankiVocabularySource(this.ankiConnectUrl, ts.dt, ts.track);
+                const completedSource = source === currentSource ? source : undefined;
+                if (completedSource === ts.iPlusOneSource) continue;
+                ts.iPlusOneSource = completedSource;
+                ts.tokenCollectionExact.clear();
+                ts.tokenCollectionLemma.clear();
+                ts.tokenCollectionAny.clear();
+                ts.tokenStates.clear();
                 for (const subtitle of this.subtitles) {
                     if (subtitle.track === ts.track && subtitle.__tokenized) this.refreshCache.add(subtitle.index);
                 }
@@ -856,7 +880,7 @@ export class BuildAnnotations {
                                       );
                                 if (this.shouldCancelBuild) return;
                                 if (tokenizationModel) {
-                                    tokenizationModel.tokenization.iPlusOneReady = ts.iPlusOneReady || undefined;
+                                    tokenizationModel.tokenization.iPlusOneSource = ts.iPlusOneSource;
                                 }
                                 if (
                                     areTokenizationsEqual(tokenizationModel?.tokenization, existingTokenization) &&
@@ -1096,7 +1120,9 @@ export class BuildAnnotations {
                         .map((p) => p.text)
                         .join('')
                         .trim();
-                    if (ts.tokenCollectionExact.enabled) ts.tokenCollectionExact.addQuery(forExactFormQuery, token);
+                    if (ts.tokenCollectionExact.enabled || ts.tokenCollectionAny.wordEnabled) {
+                        ts.tokenCollectionExact.addQuery(forExactFormQuery, token);
+                    }
                     if (ts.tokenCollectionLemma.enabled || ts.tokenCollectionAny.enabled) {
                         const lemmas = (await ts.lemmatizeForScript(token, false)) ?? [];
                         if (ts.tokenCollectionLemma.enabled) {
@@ -1242,8 +1268,11 @@ export class BuildAnnotations {
                         const states = ts.tokenStates.get(normalizedToken) ?? [];
                         const tokenStatusResult =
                             states.includes(TokenState.IGNORED) || !HAS_LETTER_REGEX.test(trimmedToken)
-                                ? { status: getFullyKnownTokenStatus() }
-                                : ((await resolveTokenStatus(trimmedToken, normalizedToken, ts)) ?? { status: null });
+                                ? { status: getFullyKnownTokenStatus(), source: undefined }
+                                : ((await resolveTokenStatus(trimmedToken, normalizedToken, ts)) ?? {
+                                      status: null,
+                                      source: undefined,
+                                  });
                         const token: Token = {
                             pos: [existingToken.pos[0], existingToken.pos[1]],
                             readings: existingToken.readings.map((r) => ({
@@ -1251,12 +1280,10 @@ export class BuildAnnotations {
                                 reading: r.reading,
                             })),
                             status: tokenStatusResult.status,
+                            statusFromAnkiSentence:
+                                tokenStatusResult.source === DictionaryTokenSource.ANKI_SENTENCE || undefined,
                             states,
-                            ...ts.groupingKeysForToken(
-                                trimmedToken,
-                                lemmas,
-                                'source' in tokenStatusResult ? tokenStatusResult.source : undefined
-                            ),
+                            ...ts.groupingKeysForToken(trimmedToken, lemmas, tokenStatusResult.source),
                         };
                         if ('externalCandidateStatuses' in tokenStatusResult) {
                             token.externalCandidateStatuses = tokenStatusResult.externalCandidateStatuses;
@@ -1351,13 +1378,18 @@ export class BuildAnnotations {
                 // Build token status
                 const tokenStatusResult =
                     token.states.includes(TokenState.IGNORED) || !HAS_LETTER_REGEX.test(trimmedToken)
-                        ? { status: getFullyKnownTokenStatus() }
-                        : ((await resolveTokenStatus(trimmedToken, normalizedToken, ts)) ?? { status: null });
+                        ? { status: getFullyKnownTokenStatus(), source: undefined }
+                        : ((await resolveTokenStatus(trimmedToken, normalizedToken, ts)) ?? {
+                              status: null,
+                              source: undefined,
+                          });
                 token.status = tokenStatusResult.status;
+                token.statusFromAnkiSentence =
+                    tokenStatusResult.source === DictionaryTokenSource.ANKI_SENTENCE || undefined;
                 const { groupingKey, lemmasGroupingKey } = ts.groupingKeysForToken(
                     trimmedToken,
                     lemmas,
-                    'source' in tokenStatusResult ? tokenStatusResult.source : undefined
+                    tokenStatusResult.source
                 );
                 token.groupingKey = groupingKey;
                 token.lemmasGroupingKey = lemmasGroupingKey;

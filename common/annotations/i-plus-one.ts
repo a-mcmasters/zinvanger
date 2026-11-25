@@ -13,9 +13,10 @@ export function iPlusOneCandidate(text: string, tokens: readonly Token[]): numbe
     for (const [index, token] of tokens.entries()) {
         const surface = text.substring(token.pos[0], token.pos[1]).trim();
         if (!HAS_LETTER_REGEX.test(surface) || token.states.includes(TokenState.IGNORED)) continue;
-        if (token.status == null || token.status === TokenStatus.UNKNOWN) return undefined;
+        const status = token.statusFromAnkiSentence ? TokenStatus.UNCOLLECTED : token.status;
+        if (status == null || status === TokenStatus.UNKNOWN) return undefined;
         const word = normalizeToken(surface);
-        if (isTokenStatusKnown(token.status)) known.add(word);
+        if (isTokenStatusKnown(status)) known.add(word);
         else if (!candidate) candidate = { word, index };
         else if (candidate.word !== word) return undefined;
     }

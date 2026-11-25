@@ -539,9 +539,23 @@ export function ankiStatusTrack(dt: DictionaryTrack, track: number): DictionaryT
     if (iPlusOneActive(dt, track)) return { ...dt, dictionaryAnkiSentenceFields: [] };
 }
 
-/** Identifies the i+1 vocabulary source a completed Anki cache build read. */
-export function ankiVocabularySource(dt: DictionaryTrack): string {
-    return JSON.stringify([dt.dictionaryAnkiDecks, dt.dictionaryAnkiWordFields]);
+/** Identifies the inputs that require clearing and rebuilding the Anki cache. */
+export function ankiVocabularySource(ankiConnectUrl: string, dt: DictionaryTrack, track: number): string | undefined {
+    const effective = ankiStatusTrack(dt, track);
+    if (!effective || (!effective.dictionaryAnkiWordFields.length && !effective.dictionaryAnkiSentenceFields.length)) {
+        return undefined;
+    }
+    // Keep these inputs aligned with the cache rebuild guidance in the dictionary settings tab.
+    return JSON.stringify({
+        ankiConnectUrl,
+        dictionaryYomitanUrl: effective.dictionaryYomitanUrl,
+        dictionaryYomitanParser: effective.dictionaryYomitanParser,
+        dictionaryYomitanScanLength: effective.dictionaryYomitanScanLength,
+        dictionaryAnkiDecks: effective.dictionaryAnkiDecks,
+        dictionaryAnkiWordFields: effective.dictionaryAnkiWordFields,
+        dictionaryAnkiSentenceFields: effective.dictionaryAnkiSentenceFields,
+        dictionaryAnkiMatureCutoff: effective.dictionaryAnkiMatureCutoff,
+    });
 }
 
 export function dictionaryStatusCollectionEnabled(dt: DictionaryTrack, options: { includeStates: boolean }): boolean {

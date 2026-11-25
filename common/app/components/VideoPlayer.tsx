@@ -223,6 +223,7 @@ const showingSubtitleHtml = (
     subtitleClasses: string,
     imageBasedSubtitleScaleFactor: number,
     dictionaryTracks: DictionaryTrack[],
+    ankiConnectUrl: string,
     adaptiveWordVisibilityEnabled: boolean
 ) => {
     if (subtitle.textImage) {
@@ -244,6 +245,7 @@ const showingSubtitleHtml = (
     const allSubtitleClasses = subtitleClasses ? `${subtitleClasses} asbplayer-subtitles` : 'asbplayer-subtitles';
     const rendered = renderRichTextOntoSubtitles([subtitle], 'video', dictionaryTracks, {
         adaptiveWordVisibilityEnabled,
+        ankiConnectUrl,
     })?.get(subtitle.index);
     return `<span class="${allSubtitleClasses}" style="${subtitleStyles}" data-track="${subtitle.track}" ${ASB_SUBTITLE_INDEX_ATTRIBUTE}="${subtitle.index}">${getAnnotationsHtml(
         subtitle.text,
@@ -2277,11 +2279,13 @@ export default function VideoPlayer({
                 trackStyles[subtitle.track]?.classes ?? trackStyles[0]?.classes ?? '',
                 subtitleSettings.imageBasedSubtitleScaleFactor,
                 renderDictionaryTracks,
+                settings.ankiConnectUrl,
                 playbackSettings.subtitleVisibility === SubtitleVisibility.whenDue
             ),
         [
             trackStyles,
             renderDictionaryTracks,
+            settings.ankiConnectUrl,
             subtitleSettings.imageBasedSubtitleScaleFactor,
             playbackSettings.subtitleVisibility,
         ]

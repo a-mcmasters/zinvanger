@@ -18,6 +18,7 @@ import {
     isWaniKaniSource,
     TokenStatus,
 } from '@project/common/settings';
+import { effectiveSettings } from '@project/common/settings/settings-recipes';
 import type { WaniKaniAssignment, WaniKaniSpacedRepetitionSystem, WaniKaniSubject } from '@project/common/wanikani';
 import type { Yomitan } from '@project/common/yomitan';
 import Dexie from 'dexie';
@@ -46,7 +47,7 @@ export interface AnkiMeta {
     lastBuildExpiresAt: number;
     buildId: string | null;
     settings: string | null;
-    /** The i+1 vocabulary source (`ankiVocabularySource`) of the last build that completed since a clear. */
+    /** The vocabulary source (`ankiVocabularySource`) of the last build that completed since a clear. */
     builtSource?: string | null;
 }
 
@@ -291,7 +292,7 @@ export class DictionaryDB {
         inputProfile: string | undefined,
         statusUpdates: (state: DictionaryBuildAnkiCacheState) => void
     ): Promise<void> {
-        const settings = await this.settingsProvider.getAll();
+        const settings = effectiveSettings(await this.settingsProvider.getAllForProfile(inputProfile));
         return buildAnkiCachePipeline(this.db, this._getProfile(inputProfile), settings, statusUpdates);
     }
 

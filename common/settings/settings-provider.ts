@@ -630,13 +630,20 @@ export class SettingsProvider {
         return this.get(Object.keys(defaultSettings) as SettingsKey[]);
     }
 
+    async getAllForProfile(profile: string | undefined): Promise<AsbplayerSettings> {
+        return this.get(Object.keys(defaultSettings) as SettingsKey[], { profile });
+    }
+
     async getSingle<K extends keyof AsbplayerSettings>(key: K): Promise<AsbplayerSettings[K]> {
         const vals = (await this.get([key])) as Partial<AsbplayerSettings>;
         const val = vals[key];
         return val as AsbplayerSettings[K];
     }
 
-    async get<K extends keyof AsbplayerSettings>(keys: K[]): Promise<Pick<AsbplayerSettings, K>> {
+    async get<K extends keyof AsbplayerSettings>(
+        keys: K[],
+        options?: { profile: string | undefined }
+    ): Promise<Pick<AsbplayerSettings, K>> {
         const includeRecipes = keys.includes('activeRecipeId' as K) && !keys.includes('recipes' as K);
         const parameters: Partial<AsbplayerSettings> = includeRecipes ? { recipes: defaultSettings.recipes } : {};
 
@@ -644,7 +651,10 @@ export class SettingsProvider {
             parameters[key] = defaultSettings[key];
         }
 
-        const data = await this._storage.get(parameters);
+        if (options && !this._storage.getForProfile) throw new Error('Profile-specific settings are unavailable');
+        const data = options
+            ? await this._storage.getForProfile!(parameters, options.profile)
+            : await this._storage.get(parameters);
         const result: any = {};
 
         for (const key in parameters) {
@@ -789,6 +799,10 @@ export interface Profile {
 
 export interface SettingsStorage {
     get: (keysAndDefaults: Partial<AsbplayerSettings>) => Promise<Partial<AsbplayerSettings>>;
+    getForProfile?: (
+        keysAndDefaults: Partial<AsbplayerSettings>,
+        profile: string | undefined
+    ) => Promise<Partial<AsbplayerSettings>>;
     set: (settings: Partial<AsbplayerSettings>) => Promise<void>;
 
     activeProfile: () => Promise<Profile | undefined>;

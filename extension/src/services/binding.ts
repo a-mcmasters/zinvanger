@@ -1630,6 +1630,7 @@ export default class Binding {
         this.subtitleController.surroundingSubtitlesTimeRadius = currentSettings.surroundingSubtitlesTimeRadius;
         this.subtitleController.autoCopyCurrentSubtitle = currentSettings.autoCopyCurrentSubtitle;
         this.subtitleController.dictionaryTrackSettings = currentSettings.dictionaryTracks;
+        this.subtitleController.ankiConnectUrl = currentSettings.ankiConnectUrl;
         this.subtitleController.setAdaptiveWordVisibilityEnabled(
             currentSettings.subtitleVisibility === SubtitleVisibility.whenDue
         );
@@ -1643,9 +1644,9 @@ export default class Binding {
         this.subtitleController.subtitleHtml = currentSettings.subtitleHtml;
 
         if (profileChanged) {
-            this.subtitleController.subtitleAnnotations.profileChanged(currentSettings);
+            this.subtitleController.subtitleAnnotations.profileChanged(underlyingSettings);
         } else {
-            this.subtitleController.subtitleAnnotations.settingsUpdated(currentSettings, { force: false });
+            this.subtitleController.subtitleAnnotations.settingsUpdated(underlyingSettings, { force: false });
         }
         this.subtitleController.setSubtitleSettings(currentSettings);
 

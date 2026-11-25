@@ -23,7 +23,9 @@ import {
 import { MockSettingsStorage } from '@project/common/settings/mock-settings-storage';
 import { Yomitan } from '@project/common/yomitan';
 import {
+    ankiVocabularySource,
     ApplyStrategy,
+    defaultSettings,
     DictionaryTokenSource,
     getFullyKnownTokenStatus,
     SettingsProvider,
@@ -1049,7 +1051,7 @@ describe('BuildAnnotations public boundary', () => {
             }
         );
 
-        it('a confirmed Known save makes its i+1 line stop qualifying', async () => {
+        it.each([true, false])('Known clears the cue with lookup lemmas: %s', async (hasLemmas) => {
             const vocabulary = makeDictionaryTrack({
                 dictionaryTokenMatchStrategy: TokenMatchStrategy.ANY_FORM_COLLECTED,
                 dictionaryAnkiDecks: ['Dutch'],
@@ -1094,7 +1096,7 @@ describe('BuildAnnotations public boundary', () => {
                 getBulk: dictionaryDB.getBulk.bind(dictionaryDB),
                 getByLemmaBulk: dictionaryDB.getByLemmaBulk.bind(dictionaryDB),
                 saveRecordLocalBulk: dictionaryDB.saveRecordLocalBulk.bind(dictionaryDB),
-                getAnkiCacheSource: async () => '[["Dutch"],["Word"]]',
+                getAnkiCacheSource: async () => ankiVocabularySource(defaultSettings.ankiConnectUrl, vocabulary, 0),
             } as any);
             const build = new BuildAnnotations({
                 dictionaryProvider: provider,
@@ -1117,12 +1119,11 @@ describe('BuildAnnotations public boundary', () => {
                 await build.buildInitial();
                 expect(cue()).toBe(true);
 
-                // The card's lookup gives the lemmas the status resolver queries.
                 await saveKnownWord(
                     provider,
                     async () => undefined,
                     'liep',
-                    ['lopen'],
+                    hasLemmas ? ['lopen'] : [],
                     (tokens) => build.tokensWereModified(tokens)
                 );
                 await build.buildInitial();
@@ -1354,25 +1355,151 @@ describe('BuildAnnotations public boundary', () => {
 
     it('marks i+1 statuses ready only once the Anki cache completed a build for the current source', async () => {
         const vocabulary = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
-        const { build, settings, storage, subtitles, updated } = makeBuild(makeDictionaryTracks(vocabulary));
+        const fetcher = makeFetcher();
+        const { build, settings, storage, subtitles, updated } = makeBuild(makeDictionaryTracks(vocabulary), fetcher);
         subtitles.push(makeSubtitle({ index: 0, track: 0, text: 'word' }));
         build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
+        storage.getByLemmaBulk.mockResolvedValue({
+            word: [
+                {
+                    token: 'word',
+                    source: DictionaryTokenSource.ANKI_WORD,
+                    statuses: [{ status: TokenStatus.MATURE }],
+                    states: [],
+                },
+            ],
+        });
         await settleBuild(build.buildInitial());
-        expect(subtitles[0].tokenization?.iPlusOneReady).toBeUndefined(); // never built for this profile
+        expect(subtitles[0].tokenization?.iPlusOneSource).toBeUndefined(); // never built for this profile
+        expect(subtitles[0].tokenization?.tokens[0].status).toBe(TokenStatus.MATURE);
 
-        storage.getAnkiCacheSource.mockResolvedValue('[["Dutch"],["Word"]]');
+        const stamp = ankiVocabularySource(settings.ankiConnectUrl, vocabulary, 0);
+        storage.getAnkiCacheSource.mockResolvedValue(stamp);
+        storage.getByLemmaBulk.mockResolvedValue({});
         updated.mockClear();
         await settleBuild(build.buildInitial());
         await waitForAsyncBuild();
-        expect(subtitles[0].tokenization?.iPlusOneReady).toBe(true);
+        expect(subtitles[0].tokenization?.iPlusOneSource).toBe(stamp);
+        expect(subtitles[0].tokenization?.tokens[0].status).toBe(TokenStatus.UNCOLLECTED);
         expect(updated).toHaveBeenCalledWith([expect.objectContaining({ index: 0 })], expect.any(Array));
 
+        updated.mockClear();
+        const replacementVersion = deferred<{ version: string }>();
+        jest.mocked(fetcher.fetch).mockImplementationOnce(() => replacementVersion.promise);
         build.updateSettings({
             ...settings,
             dictionaryTracks: makeDictionaryTracks({ ...vocabulary, dictionaryAnkiDecks: ['Dutch::B1'] }),
         });
+        await waitForAsyncBuild();
+        expect(updated).toHaveBeenCalledWith(
+            [expect.objectContaining({ index: 0, tokenization: undefined })],
+            expect.any(Array)
+        );
+        replacementVersion.resolve({ version: '0.0.0.0' });
+        await waitForAsyncBuild();
+        expect(subtitles[0].tokenization?.iPlusOneSource).toBeUndefined();
+    });
+
+    it('a Known save with default settings queues no annotation rebuild', async () => {
+        const { build, storage, subtitles } = makeBuild();
+        storage.saveRecordLocalBulk.mockResolvedValue({
+            savedTokens: [['word', DictionaryTokenSource.LOCAL, -1, 'Default']],
+            deletedTokens: [],
+        });
+        subtitles.push(makeSubtitle());
+        build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
         await settleBuild(build.buildInitial());
-        expect(subtitles[0].tokenization?.iPlusOneReady).toBeUndefined();
+        const builds = jest.spyOn(build as unknown as { build: () => Promise<boolean> }, 'build');
+
+        await saveKnownWord(
+            new DictionaryProvider(storage as any),
+            async () => undefined,
+            'word',
+            [],
+            (tokens) => build.tokensWereModified(tokens)
+        );
+        await build.refresh();
+
+        expect(builds).not.toHaveBeenCalled();
+    });
+
+    it('treats a sentence-only match as uncollected for i+1 while retaining its legacy annotation', async () => {
+        const vocabulary = makeDictionaryTrack({
+            dictionaryAnkiDecks: ['Dutch'],
+            dictionaryAnkiWordFields: ['Word'],
+            dictionaryAnkiSentenceFields: ['Sentence'],
+            dictionaryColorizeSubtitles: true,
+            dictionaryTokenMatchStrategy: TokenMatchStrategy.EXACT_FORM_COLLECTED,
+        });
+        const tracks = makeDictionaryTracks(vocabulary);
+        const text = 'een twee drie';
+        const fetcher: Fetcher = {
+            fetch: jest.fn(async (url: string, { text }: { text: string[] }) => {
+                if (url.endsWith('/yomitanVersion')) return { version: '0.0.0.0' };
+                if (url.endsWith('/termEntries')) return { dictionaryEntries: [] };
+                return text.map((line, index) => ({
+                    id: 'id',
+                    source: 'source',
+                    dictionary: 'dictionary',
+                    index,
+                    content: line.split(/( )/).map((word) => [{ text: word, reading: '' }]),
+                }));
+            }),
+        };
+        const { build, settings, storage, subtitles } = makeBuild(tracks, fetcher);
+        storage.getAnkiCacheSource.mockResolvedValue(ankiVocabularySource(settings.ankiConnectUrl, vocabulary, 0));
+        storage.getBulk.mockResolvedValue(
+            Object.fromEntries(
+                ['een', 'twee', 'drie'].map((word) => [
+                    word,
+                    {
+                        states: [],
+                        statuses: [{ status: TokenStatus.MATURE }],
+                        source: word === 'drie' ? DictionaryTokenSource.ANKI_SENTENCE : DictionaryTokenSource.ANKI_WORD,
+                    },
+                ])
+            )
+        );
+        subtitles.push(makeSubtitle({ text, originalText: text }));
+        build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
+
+        await settleBuild(build.buildInitial());
+
+        expect(subtitles[0].tokenization?.tokens.find((token) => token.pos[0] === 9)?.status).toBe(TokenStatus.MATURE);
+        const rendered = renderRichTextOntoSubtitles(subtitles, 'video', tracks, {
+            adaptiveWordVisibilityEnabled: false,
+            ankiConnectUrl: settings.ankiConnectUrl,
+        });
+        const element = document.createElement('div');
+        element.innerHTML = rendered.get(0)?.richText ?? '';
+        expect(element.querySelector('[data-asb-i-plus-one]')?.textContent).toBe('drie');
+    });
+
+    it('publishes a plain subtitle when Yomitan is unavailable even with a completed Anki cache', async () => {
+        const vocabulary = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
+        const tracks = makeDictionaryTracks(vocabulary);
+        const fetcher = {
+            fetch: jest.fn(async () => {
+                throw new Error('offline');
+            }),
+        };
+        const { build, settings, storage, subtitles, updated } = makeBuild(tracks, fetcher);
+        storage.getAnkiCacheSource.mockResolvedValue(ankiVocabularySource(settings.ankiConnectUrl, vocabulary, 0));
+        subtitles.push(makeSubtitle({ text: 'Hij liep naar huis', originalText: 'Hij liep naar huis' }));
+        build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
+
+        await settleBuild(build.buildInitial());
+        await waitForPublication();
+
+        const [published, renderedTracks] = updated.mock.calls[0];
+        expect(published[0].text).toBe('Hij liep naar huis');
+        expect(published[0].tokenization?.error).toBe(true);
+        expect(
+            renderRichTextOntoSubtitles(published, 'video', [...renderedTracks], {
+                adaptiveWordVisibilityEnabled: false,
+                ankiConnectUrl: settings.ankiConnectUrl,
+            }).get(0)?.richText
+        ).toBeUndefined();
     });
 
     it('stops refreshing modified tokens once turning i+1 off leaves no active track', async () => {

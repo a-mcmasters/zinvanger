@@ -1,6 +1,7 @@
 import type { Fetcher, IndexedSubtitleModel, Token } from '@project/common';
 import { jest } from '@jest/globals';
 import { DictionaryProvider } from '@project/common/dictionary-db';
+import type { DictionarySaveRecordLocalResult, DictionaryStorage } from '@project/common/dictionary-db';
 import {
     defaultSettings,
     SettingsProvider,
@@ -94,8 +95,11 @@ export const makeDictionaryTrack = (overrides?: Partial<DictionaryTrack>): Dicti
     return { ...track, dictionaryPlaybackConfig, dictionaryTokenAnnotationConfig };
 };
 
-export const makeDictionaryTracks = (track = makeDictionaryTrack()) =>
-    defaultSettings.dictionaryTracks.map((_, index) => (index === 0 ? track : makeDictionaryTrack()));
+export const makeDictionaryTracks = (main = makeDictionaryTrack(), secondary = makeDictionaryTrack()) => [
+    main,
+    secondary,
+    ...defaultSettings.dictionaryTracks.slice(2).map(() => makeDictionaryTrack()),
+];
 
 export const makeSettings = (dictionaryTracks = makeDictionaryTracks()): AsbplayerSettings => ({
     ...defaultSettings,
@@ -126,8 +130,10 @@ export const makeStorage = () => ({
     getBulk: jest.fn(async () => ({})),
     getAllTokens: jest.fn(async () => ({})),
     getByLemmaBulk: jest.fn(async () => ({})),
-    getAnkiCacheSource: jest.fn(async (): Promise<string | undefined> => undefined),
-    saveRecordLocalBulk: jest.fn(async () => ({ savedTokens: [] })),
+    getAnkiCacheSource: jest.fn<DictionaryStorage['getAnkiCacheSource']>().mockResolvedValue(undefined),
+    saveRecordLocalBulk: jest.fn(
+        async (): Promise<DictionarySaveRecordLocalResult> => ({ savedTokens: [], deletedTokens: [] })
+    ),
     deleteRecordLocalBulk: jest.fn(async () => ({ deletedTokens: [] })),
     deleteProfile: jest.fn(async () => ({})),
     exportRecordLocalBulk: jest.fn(async () => ({ exportedRecords: [] })),
