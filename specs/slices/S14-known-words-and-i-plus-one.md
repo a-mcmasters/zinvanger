@@ -66,7 +66,11 @@ The owner's desktop Anki sync succeeded with no changes. The phone's latest revi
 - Annotation polling retries incomplete builds even when the recent-card set is empty. A settings reset invalidates results from its previous polling generation. The builder republishes subtitles after a source change and reloads statuses when the replacement stamp arrives. Rendering compares the published source with the current source. The tests cover deck, endpoint and sentence-field changes and a plain subtitle during a Yomitan outage.
 - Legacy annotations still use sentence-field matches when configured. A token whose resolved status comes only from a sentence field counts as Uncollected for i+1. The integration test verifies both behaviors on the same subtitle.
 - The extension is 1.26.0. Compatibility tests cover the settings controls and cache-source request on versions 1.25.9 and 1.26.0.
-- Manual Chrome overlay checks on YouTube and Netflix, the web app local-file check and the one-episode evaluation remain pending.
+- 2026-11-25, automated browser checks at `3ae6f074`, using the owner's Anki `Dutch` deck with `Word` and Yomitan:
+    - **Web app:** selected the deck and field in Anki settings. In a local file, marked "Ik", "kom" and "terug" Known from the word card. Each save confirmed, and "straks" then got the dotted underline. Clicking it opened the card.
+    - **YouTube overlay:** used the unpacked extension in Playwright Chromium. The site's caption fetch returned empty files in the anonymous headless session, so the video's Dutch captions were loaded through Open Files. Clicking "wist" opened the card with "wist → wissen", and Known confirmed.
+    - **Not tested:** Netflix (needs login and DRM) and Mine on a cued word (writes to the collection).
+- One-episode check, Adventure Time S01E01 (Dutch dub subtitles, 213 lines): every line tokenized, the Anki cache completed for the source, and no line qualified (0%). Only 70 cards in the source have a `Word` value (43 cached tokens), so lines rarely hold two known words. Revisit after the collection preparation below.
 
 ### Deviations and limits
 
