@@ -209,6 +209,24 @@ describe('AnkiAnnotations', () => {
             );
         });
 
+        it('reads only the word fields of a main track active just for i+1', async () => {
+            const { source, requests } = makeSource({
+                dictionaryTracks: [
+                    makeDictionaryTrack({
+                        dictionaryAnkiWordFields: ['Word'],
+                        dictionaryAnkiSentenceFields: ['Sentence'],
+                        dictionaryAnkiDecks: ['Dutch'],
+                    }),
+                ],
+            });
+
+            await source.refresh();
+
+            expect(requests.find(isRecentCardsQuery)?.params?.query).toBe(
+                RECENT_QUERY_PREFIX + '(("deck:Dutch") ("Word:_*"))'
+            );
+        });
+
         it('queries all decks when any enabled track has an empty deck list', async () => {
             const { source, requests } = makeSource({
                 dictionaryTracks: [

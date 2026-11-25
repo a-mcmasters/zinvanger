@@ -12,13 +12,7 @@ import type {
 } from '@project/common';
 import { DictionaryBuildAnkiCacheStateErrorCode, DictionaryBuildAnkiCacheStateType } from '@project/common';
 import type { AsbplayerSettings, DictionaryTrack } from '@project/common/settings';
-import {
-    dictionaryStatusCollectionEnabled,
-    iPlusOneActive,
-    DictionaryTokenSource,
-    isAnkiSource,
-    TokenStatus,
-} from '@project/common/settings';
+import { ankiStatusTrack, DictionaryTokenSource, isAnkiSource, TokenStatus } from '@project/common/settings';
 import { Yomitan } from '@project/common/yomitan';
 import { v4 as uuidv4 } from 'uuid';
 import type {
@@ -109,7 +103,7 @@ export async function buildAnkiCachePipeline(
         const trackStates: AnkiTrackStatesForDB = new Map();
         const settingsToUpdate: { key: DictionaryMetaKey; settings: string }[] = [];
         const tracksToClear: number[] = [];
-        for (const [track, dt] of settings.dictionaryTracks.entries()) {
+        for (const [track, trackSettings] of settings.dictionaryTracks.entries()) {
             const key: DictionaryMetaKey = [profile, track];
             let prevSettings: string | null = null;
             const existingBuild = await db.transaction('rw', db.meta, async () => {
@@ -138,9 +132,8 @@ export async function buildAnkiCachePipeline(
             }
             activeTracks.push(key);
 
-            if (!dictionaryStatusCollectionEnabled(dt, { includeStates: false }) && !iPlusOneActive(dt, track)) {
-                continue; // Keep cache but don't update it TODO: Clear tracks that have been disabled for a while from db?
-            }
+            const dt = ankiStatusTrack(trackSettings, track);
+            if (!dt) continue; // Keep cache but don't update it TODO: Clear tracks that have been disabled for a while from db?
             if (!dt.dictionaryAnkiWordFields.length && !dt.dictionaryAnkiSentenceFields.length) {
                 tracksToClear.push(track); // Explicitly clear tracks with no Anki fields
                 continue;

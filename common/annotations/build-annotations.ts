@@ -34,11 +34,11 @@ import type {
 import {
     areDictionaryTracksEqual,
     areDictionaryTracksRenderOnly,
-    dictionaryStatusCollectionEnabled,
+    dictionaryStatusCollectionActive,
+    dictionaryTrackActive,
     dictionaryTrackEnabled,
     getEnabledAnnotations,
     getFullyKnownTokenStatus,
-    iPlusOneActive,
     shouldUseAnnotation,
     TokenState,
 } from '@project/common/settings';
@@ -79,10 +79,6 @@ export interface BuildAnnotationsOptions {
     getMediaTimeMs?: () => number;
     fetcher?: Fetcher;
 }
-
-/** The track is tokenized and its statuses resolved: for visual annotations or the main track's i+1 cue. */
-const trackActive = ({ dt, track }: { dt: DictionaryTrack; track: number }) =>
-    dictionaryTrackEnabled(dt) || iPlusOneActive(dt, track);
 
 function untokenize(s: InternalSubtitleModel) {
     s.__tokenized = undefined;
@@ -373,12 +369,12 @@ export class BuildAnnotations {
         for (const index of this.pendingPublicationIndexes) {
             const subtitle = this.subtitles[index];
             const newDt = settings.dictionaryTracks[subtitle.track];
-            if (!newDt || !trackActive({ dt: newDt, track: subtitle.track })) subtitlesToReset.push(subtitle);
+            if (!newDt || !dictionaryTrackActive(newDt, subtitle.track)) subtitlesToReset.push(subtitle);
         }
         for (const ts of this.trackStates) {
-            if (!trackActive(ts)) continue; // Already disabled
+            if (!dictionaryTrackActive(ts.dt, ts.track)) continue; // Already disabled
             const newDt = settings.dictionaryTracks[ts.track];
-            if (newDt && trackActive({ dt: newDt, track: ts.track })) continue; // We will be processing, keep current richText on screen until then
+            if (newDt && dictionaryTrackActive(newDt, ts.track)) continue; // We will be processing, keep current richText on screen until then
             subtitlesToReset.push(...this.subtitles.filter((s) => s.track === ts.track));
             ts.updateDictionaryTrack(newDt);
         }
@@ -444,7 +440,7 @@ export class BuildAnnotations {
     }
 
     tokensWereModified(modifiedTokens: string[]): void {
-        if (!this.trackStates.some(trackActive)) return; // no annotations to refresh
+        if (!this.trackStates.some((ts) => dictionaryTrackActive(ts.dt, ts.track))) return; // no annotations to refresh
         for (const token of modifiedTokens) this.tokensForRefresh.add(normalizeToken(token));
     }
 
@@ -477,7 +473,7 @@ export class BuildAnnotations {
         if (this.profile === null) return;
         const profile = this.profile;
         const ts = this.trackStates[track];
-        if (!ts || !trackActive(ts) || !ts.yt) return;
+        if (!ts || !dictionaryTrackActive(ts.dt, ts.track) || !ts.yt) return;
         const lemmas = await ts.yt.lemmatize(token);
         if (!lemmas) return;
         await this.options.dictionaryProvider.saveRecordLocalBulk(
@@ -688,7 +684,7 @@ export class BuildAnnotations {
                     })),
                 });
             }
-            if (!this.trackStates.some(trackActive)) {
+            if (!this.trackStates.some((ts) => dictionaryTrackActive(ts.dt, ts.track))) {
                 buildOutcome = 'skipped';
                 return true;
             }
@@ -697,7 +693,7 @@ export class BuildAnnotations {
                 return false;
             }
             for (const ts of this.trackStates) {
-                if (!trackActive(ts) || ts.yt) continue;
+                if (!dictionaryTrackActive(ts.dt, ts.track) || ts.yt) continue;
                 if (Date.now() - ts.ytLastResetAt < YOMITAN_RETRY_DELAY) {
                     skipTracks.push(ts.track);
                     continue;
@@ -775,7 +771,9 @@ export class BuildAnnotations {
                 this.initialized &&
                 !this.statisticsBatchRequested &&
                 subtitlesToBuild.every(
-                    (subtitle) => subtitle.__tokenized || !trackActive(this.trackStates[subtitle.track])
+                    (subtitle) =>
+                        subtitle.__tokenized ||
+                        !dictionaryTrackActive(this.trackStates[subtitle.track].dt, subtitle.track)
                 )
             ) {
                 asbTrace('annotations/build', 'Scheduling deferred annotation refresh', {
@@ -827,7 +825,7 @@ export class BuildAnnotations {
                             }
                             tokenizationAttemptCount++;
                             const ts = this.trackStates[track];
-                            if (!trackActive(ts)) return;
+                            if (!dictionaryTrackActive(ts.dt, ts.track)) return;
                             const deletedFromRefreshCache = this.refreshCache.delete(index);
                             const deletedFromErroredCache = this.erroredCache.delete(index);
                             try {
@@ -1055,10 +1053,7 @@ export class BuildAnnotations {
                     await ts.yt.termEntriesBulk(tokenTexts, { triggerTokensWereModified: true });
                     if (this.shouldCancelBuild) return;
                 }
-                if (
-                    !dictionaryStatusCollectionEnabled(ts.dt, { includeStates: true }) &&
-                    !iPlusOneActive(ts.dt, track)
-                ) {
+                if (!dictionaryStatusCollectionActive(ts.dt, track, { includeStates: true })) {
                     asbTrace(
                         'annotations/token-map',
                         'Skipping dictionary status queries because collection is disabled',

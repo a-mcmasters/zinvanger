@@ -239,6 +239,28 @@ describe('DictionaryDB Anki cache', () => {
         ]);
     });
 
+    it('caches only the word fields for a main track active just for i+1', async () => {
+        useSettings([
+            makeDictionaryTrack({
+                dictionaryAnkiDecks: ['Japanese'],
+                dictionaryAnkiWordFields: ['Word'],
+                dictionaryAnkiSentenceFields: ['Sentence'],
+            }),
+        ]);
+        stageAnkiNotes([
+            makeNoteInfo({ noteId: 10, cards: [1], fields: { Word: { value: 'alpha', order: 0 } } }),
+            makeNoteInfo({ noteId: 20, cards: [2], fields: { Sentence: { value: 'sentence', order: 0 } } }),
+        ]);
+
+        await buildUntilComplete();
+
+        expect(mockAnkiInstances[0].findNotes).toHaveBeenCalledWith('("deck:Japanese") ("Word:_*")');
+        const records = await dictionaryDB.getRecords(profile, track);
+        expect(records.tokenRecords).toEqual([
+            expect.objectContaining({ token: 'alpha', source: DictionaryTokenSource.ANKI_WORD }),
+        ]);
+    });
+
     it('replaces changed card tokens while retaining references from unchanged cards', async () => {
         useSettings([makeDictionaryTrack({ dictionaryColorizeSubtitles: true, dictionaryAnkiWordFields: ['Word'] })]);
         stageAnkiNotes([

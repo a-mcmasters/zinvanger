@@ -516,6 +516,34 @@ export function iPlusOneActive(dt: DictionaryTrack, track: number): boolean {
     return track === 0 && dt.dictionaryAnkiDecks.length > 0 && dt.dictionaryAnkiWordFields.length > 0;
 }
 
+/** The track is tokenized: for visual annotations or the main track's i+1 cue. */
+export function dictionaryTrackActive(dt: DictionaryTrack, track: number): boolean {
+    return dictionaryTrackEnabled(dt) || iPlusOneActive(dt, track);
+}
+
+/** The track's statuses are resolved: for visual annotations or the main track's i+1 cue. */
+export function dictionaryStatusCollectionActive(
+    dt: DictionaryTrack,
+    track: number,
+    options: { includeStates: boolean }
+): boolean {
+    return dictionaryStatusCollectionEnabled(dt, options) || iPlusOneActive(dt, track);
+}
+
+/**
+ * The track as the Anki cache reads it, or undefined when it collects no statuses. Sentence fields serve only the
+ * legacy annotations: a track active only for i+1 reads its word fields.
+ */
+export function ankiStatusTrack(dt: DictionaryTrack, track: number): DictionaryTrack | undefined {
+    if (dictionaryStatusCollectionEnabled(dt, { includeStates: false })) return dt;
+    if (iPlusOneActive(dt, track)) return { ...dt, dictionaryAnkiSentenceFields: [] };
+}
+
+/** Identifies the i+1 vocabulary source a completed Anki cache build read. */
+export function ankiVocabularySource(dt: DictionaryTrack): string {
+    return JSON.stringify([dt.dictionaryAnkiDecks, dt.dictionaryAnkiWordFields]);
+}
+
 export function dictionaryStatusCollectionEnabled(dt: DictionaryTrack, options: { includeStates: boolean }): boolean {
     const { includeStates } = options;
     if (dt.dictionaryPlaybackConfig.fastForward.rateByComprehension.enabled) return true;

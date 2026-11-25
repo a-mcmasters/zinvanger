@@ -3,7 +3,7 @@ import type { DictionaryBuildAnkiCacheState, DictionaryBuildAnkiCacheStateError,
 import { DictionaryBuildAnkiCacheStateErrorCode, DictionaryBuildAnkiCacheStateType } from '@project/common';
 import { Anki } from '@project/common/anki';
 import type { AsbplayerSettings, DictionaryTrack, SettingsProvider } from '@project/common/settings';
-import { dictionaryStatusCollectionEnabled, iPlusOneActive } from '@project/common/settings';
+import { ankiStatusTrack } from '@project/common/settings';
 import type { DictionaryProvider } from '@project/common/dictionary-db';
 import type {
     DictionaryStatisticsAnkiDueCardsSnapshot,
@@ -136,32 +136,21 @@ export class AnkiAnnotations {
                     this.anki = undefined;
                 }
             }
+            const ankiTracks = this.options.getTracks().flatMap(({ dt, track }) => ankiStatusTrack(dt, track) ?? []);
             const allFieldsSet = new Set<string>();
-            for (const ts of this.options.getTracks()) {
-                if (
-                    !dictionaryStatusCollectionEnabled(ts.dt, { includeStates: false }) &&
-                    !iPlusOneActive(ts.dt, ts.track)
-                ) {
-                    continue;
-                }
-                for (const field of ts.dt.dictionaryAnkiWordFields.concat(ts.dt.dictionaryAnkiSentenceFields)) {
+            for (const dt of ankiTracks) {
+                for (const field of dt.dictionaryAnkiWordFields.concat(dt.dictionaryAnkiSentenceFields)) {
                     allFieldsSet.add(field);
                 }
             }
             const fields = Array.from(allFieldsSet);
             const allDecksSet = new Set<string>();
-            for (const ts of this.options.getTracks()) {
-                if (
-                    !dictionaryStatusCollectionEnabled(ts.dt, { includeStates: false }) &&
-                    !iPlusOneActive(ts.dt, ts.track)
-                ) {
-                    continue;
-                }
-                if (!ts.dt.dictionaryAnkiDecks.length) {
+            for (const dt of ankiTracks) {
+                if (!dt.dictionaryAnkiDecks.length) {
                     allDecksSet.clear(); // Query all decks
                     break;
                 }
-                for (const deck of ts.dt.dictionaryAnkiDecks) allDecksSet.add(deck);
+                for (const deck of dt.dictionaryAnkiDecks) allDecksSet.add(deck);
             }
             const decks = Array.from(allDecksSet);
             if (this.anki && !this.refreshed) {
