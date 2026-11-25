@@ -75,8 +75,14 @@ beforeAll(async () => {
 describe('VideoPlayer', () => {
     let root: Root;
     let container: HTMLDivElement;
+    let settingsProvider: SettingsProvider;
 
-    beforeEach(() => {
+    beforeEach(async () => {
+        settingsProvider = new SettingsProvider(new MockSettingsStorage());
+        await settingsProvider.addProfile('Dutch');
+        await settingsProvider.addProfile('Other');
+        await settingsProvider.setActiveProfile('Dutch');
+        dictionaryProvider.saveRecordLocalBulk.mockClear();
         channels.length = 0;
         container = document.createElement('div');
         document.body.append(container);
@@ -97,7 +103,7 @@ describe('VideoPlayer', () => {
                 <ThemeProvider theme={createTheme('dark')}>
                     <VideoPlayer
                         settings={settings}
-                        settingsProvider={new SettingsProvider(new MockSettingsStorage())}
+                        settingsProvider={settingsProvider}
                         dictionaryProvider={dictionaryProvider as any}
                         profile="Dutch"
                         extension={{ supportsAppIntegration: false } as any}
@@ -170,6 +176,34 @@ describe('VideoPlayer', () => {
         expect(channel.tokensWereModified).toHaveBeenCalledWith(['zet', 'zetten']);
         expect(card.textContent).toContain('✓ Marked known');
         expect(card.textContent).toContain('Mine');
+    });
+
+    it('drops a pending Known confirmation after the profile changes in storage', async () => {
+        const { channel, subtitle } = await renderPlayer();
+        await clickAt(subtitle, subtitle.firstChild!, 5);
+        const card = container.querySelector<HTMLElement>('[role="dialog"][aria-label="zet"]')!;
+        const known = [...card.querySelectorAll('button')].find((button) => button.textContent === 'Known')!;
+        let complete!: (result: { savedTokens: string[][]; deletedTokens: never[] }) => void;
+        dictionaryProvider.saveRecordLocalBulk.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    complete = resolve;
+                })
+        );
+
+        await act(async () => known.click());
+        expect(dictionaryProvider.saveRecordLocalBulk).toHaveBeenCalledWith(
+            'Dutch',
+            expect.any(Array),
+            ApplyStrategy.ADD
+        );
+        await act(async () => {
+            await settingsProvider.setActiveProfile('Other');
+            complete({ savedTokens: [['zet']], deletedTokens: [] });
+        });
+
+        expect(container.contains(card)).toBe(false);
+        expect(channel.tokensWereModified).not.toHaveBeenCalled();
     });
 
     it('lets the app report the outcome of a direct export', async () => {

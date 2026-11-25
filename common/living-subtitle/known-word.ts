@@ -3,23 +3,24 @@ import { ApplyStrategy, getFullyKnownTokenStatus } from '@project/common/setting
 import { ensureStoragePersisted } from '@project/common/util';
 
 /**
- * Saves the word card's word as fully known for `profile`, then hands its forms to `tokensWereModified` so the
- * annotations refresh. Rejects unless storage confirms that exact token. Storage resolves empty `lemmas`: an existing
- * record keeps its own, a new record uses the word.
+ * Saves the word as fully known for the profile active at the click. Refreshes its forms after storage confirms
+ * the exact token and the profile is still active.
  */
 export async function saveKnownWord(
     dictionary: DictionaryProvider,
-    profile: string | undefined,
+    getActiveProfile: () => Promise<string | undefined>,
     word: string,
     lemmas: readonly string[],
     tokensWereModified: (tokens: string[]) => void
 ) {
+    const profile = await getActiveProfile();
     void ensureStoragePersisted();
     const { savedTokens } = await dictionary.saveRecordLocalBulk(
         profile,
         [{ token: word, status: getFullyKnownTokenStatus(), lemmas: [...lemmas], states: [] }],
         ApplyStrategy.ADD
     );
+    if ((await getActiveProfile()) !== profile) return 'stale' as const;
     if (!savedTokens.some(([token]) => token === word)) throw new Error('notSaved');
     tokensWereModified([word, ...lemmas]);
 }

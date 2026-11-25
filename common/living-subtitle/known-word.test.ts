@@ -18,7 +18,7 @@ describe('saveKnownWord', () => {
     it('saves the word as fully known with the lookup lemmas, then refreshes its forms', async () => {
         const dictionary = provider();
         const tokensWereModified = jest.fn();
-        await saveKnownWord(dictionary, 'Dutch', 'liep', ['lopen'], tokensWereModified);
+        await saveKnownWord(dictionary, async () => 'Dutch', 'liep', ['lopen'], tokensWereModified);
         expect(dictionary.saveRecordLocalBulk).toHaveBeenCalledWith(
             'Dutch',
             [{ token: 'liep', status: getFullyKnownTokenStatus(), lemmas: ['lopen'], states: [] }],
@@ -29,9 +29,9 @@ describe('saveKnownWord', () => {
 
     it('rejects, and refreshes nothing, when storage does not confirm the word', async () => {
         const tokensWereModified = jest.fn();
-        await expect(saveKnownWord(provider(false), undefined, 'liep', [], tokensWereModified)).rejects.toThrow(
-            'notSaved'
-        );
+        await expect(
+            saveKnownWord(provider(false), async () => undefined, 'liep', [], tokensWereModified)
+        ).rejects.toThrow('notSaved');
         expect(tokensWereModified).not.toHaveBeenCalled();
     });
 });

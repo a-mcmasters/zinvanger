@@ -279,6 +279,30 @@ describe('LivingSubtitleController', () => {
             expect(knowns[0]).toMatchObject({ word: 'zet', lemmas: [] });
         });
 
+        it('times out a stalled lookup, permits Known without lemmas and lets Retry replace the lookup', async () => {
+            jest.useFakeTimers();
+            try {
+                const { controller, lookups, knowns, state, actions } = setup();
+                controller.hover(target('Hij liep.'));
+                void controller.selectWord(1);
+                await jest.advanceTimersByTimeAsync(10_000);
+
+                expect(state().definition).toEqual({ status: 'error', message: 'dictionaryUnavailable' });
+                void controller.markKnown();
+                expect(knowns[0]).toMatchObject({ word: 'liep', lemmas: [] });
+
+                controller.retryDefinition();
+                expect(actions.define).toHaveBeenLastCalledWith('liep', true);
+                lookups[1].result.resolve('walked');
+                await jest.advanceTimersByTimeAsync(0);
+                lookups[0].result.resolve('stale');
+                await jest.advanceTimersByTimeAsync(0);
+                expect(state().definition).toMatchObject({ status: 'success', text: 'walked' });
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
         it('offers no Known for a word without letters', async () => {
             const { controller, knowns, state } = await opened('Om 2024 uur.', 1, '');
             void controller.markKnown();

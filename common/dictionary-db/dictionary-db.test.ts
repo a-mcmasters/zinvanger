@@ -496,6 +496,26 @@ describe('DictionaryDB', () => {
         ]);
     });
 
+    it('preserves a local record when a clipboard row requests uncollected without any lemmas', async () => {
+        jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        await dictionaryDB.saveRecordLocalBulk(
+            profile,
+            [{ token: 'liep', status: TokenStatus.LEARNING, lemmas: ['lopen'], states: [] }],
+            ApplyStrategy.ADD
+        );
+
+        await expect(
+            dictionaryDB.saveRecordLocalBulk(
+                profile,
+                [{ token: 'liep', status: TokenStatus.UNCOLLECTED, lemmas: [], states: [] }],
+                ApplyStrategy.REPLACE
+            )
+        ).resolves.toEqual({ savedTokens: [], deletedTokens: [] });
+        await expect(allTokenRecords()).resolves.toEqual([
+            expect.objectContaining({ token: 'liep', status: TokenStatus.LEARNING, lemmas: ['lopen'] }),
+        ]);
+    });
+
     it('keeps persisted local records trackless with no card IDs and sorted states', async () => {
         const customState = 2 as TokenState;
         const anotherState = 1 as TokenState;

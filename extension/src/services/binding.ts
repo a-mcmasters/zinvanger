@@ -1868,11 +1868,15 @@ export default class Binding {
                 this.pause();
             },
             mine: (state) => this.mineLivingSubtitle(state),
-            define: (word) => this._defineWithYomitan(word),
+            define: (word, retry) => this._defineWithYomitan(word, retry),
             // Read the profile at the click: _lastProfile lags a switch until _refreshSettings catches up.
-            markKnown: async (word, lemmas) =>
-                saveKnownWord(this.dictionary, (await this.settings.activeProfile())?.name, word, lemmas, (tokens) =>
-                    this.subtitleController.subtitleAnnotations.tokensWereModified(tokens)
+            markKnown: (word, lemmas) =>
+                saveKnownWord(
+                    this.dictionary,
+                    async () => (await this.settings.activeProfile())?.name,
+                    word,
+                    lemmas,
+                    (tokens) => this.subtitleController.subtitleAnnotations.tokensWereModified(tokens)
                 ),
         });
     }
@@ -1891,11 +1895,11 @@ export default class Binding {
     }
 
     /** The meaning of a main-track word from the Yomitan dictionaries set for subtitle track 1; no model tokens. */
-    private async _defineWithYomitan(word: string): Promise<LivingSubtitleDefinition> {
+    private async _defineWithYomitan(word: string, retry: boolean): Promise<LivingSubtitleDefinition> {
         const dt = (await this.settings.getSingle('dictionaryTracks'))[0];
         const url = dt?.dictionaryYomitanUrl?.trim();
         if (!dt || !url) throw new Error('noDictionary');
-        if (this._livingSubtitleYomitan?.url !== url) {
+        if (retry || this._livingSubtitleYomitan?.url !== url) {
             const fetcher = new VideoFetcher(() => this._registeredVideoSrc);
             this._livingSubtitleYomitan = { url, yomitan: new Yomitan(dt, fetcher) }; // keeps its gloss cache
         }

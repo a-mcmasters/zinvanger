@@ -811,8 +811,15 @@ export class DictionaryDB {
                 }
                 states = Array.from(new Set(states)).sort((lhs, rhs) => lhs - rhs);
                 let lemmas = localTokenInput.lemmas.filter((lemma) => HAS_LETTER_REGEX.test(lemma));
-                // A save without a lookup keeps the record's known forms; a new record falls back to its own form.
                 if (!lemmas.length) {
+                    if (localTokenInput.status !== getFullyKnownTokenStatus()) {
+                        asbError(
+                            'dictionary',
+                            `Cannot save local token without lemmas: ${JSON.stringify(localTokenInput)}`
+                        );
+                        continue;
+                    }
+                    // Known can be saved during a lookup outage.
                     lemmas = existingRecord?.lemmas.length ? [...existingRecord.lemmas] : [localTokenInput.token];
                 }
                 if (status === TokenStatus.UNCOLLECTED && !states.length) {

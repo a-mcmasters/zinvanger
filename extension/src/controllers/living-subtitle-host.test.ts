@@ -131,7 +131,7 @@ describe('LivingSubtitleHost', () => {
         click(span, span.firstChild!, 5); // inside "zet"
         await flush();
         expect(context.pause).toHaveBeenCalled();
-        expect(context.define).toHaveBeenCalledWith('zet');
+        expect(context.define).toHaveBeenCalledWith('zet', false);
         expect(lastModel()).toMatchObject({
             words: ['Hij', 'zet', 'koffie'],
             wordIndex: 1,

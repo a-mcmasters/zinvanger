@@ -2334,11 +2334,11 @@ export default function VideoPlayer({
     const [wordCard, setWordCard] = useState<LivingSubtitleState>();
     const wordCardYomitanRef = useRef<{ url: string; yomitan: Yomitan }>(undefined);
     const wordCardActions = {
-        define: (word: string) => {
+        define: (word: string, retry: boolean) => {
             const dt = playbackSettings.dictionaryTracks[0];
             const url = dt?.dictionaryYomitanUrl?.trim();
             if (!dt || !url) return Promise.reject(new Error('noDictionary'));
-            if (wordCardYomitanRef.current?.url !== url) {
+            if (retry || wordCardYomitanRef.current?.url !== url) {
                 wordCardYomitanRef.current = { url, yomitan: new Yomitan(dt) }; // keeps its gloss cache
             }
             return defineWithYomitan(wordCardYomitanRef.current.yomitan, word);
@@ -2354,8 +2354,12 @@ export default function VideoPlayer({
         },
         // The app window owns the annotations.
         markKnown: (word: string, lemmas: readonly string[]) =>
-            saveKnownWord(dictionaryProvider, profile, word, lemmas, (tokens) =>
-                playerChannel.tokensWereModified(tokens)
+            saveKnownWord(
+                dictionaryProvider,
+                async () => (await settingsProvider.activeProfile())?.name,
+                word,
+                lemmas,
+                (tokens) => playerChannel.tokensWereModified(tokens)
             ),
     };
     const wordCardActionsRef = useRef(wordCardActions);
@@ -2367,7 +2371,7 @@ export default function VideoPlayer({
                     isPausedDueToHoverRef.current = false; // leaving the subtitle must not resume a captured sentence
                     playerChannel.pause();
                 },
-                define: (word) => wordCardActionsRef.current.define(word),
+                define: (word, retry) => wordCardActionsRef.current.define(word, retry),
                 mine: (state) => wordCardActionsRef.current.mine(state),
                 markKnown: (word, lemmas) => wordCardActionsRef.current.markKnown(word, lemmas),
                 render: setWordCard,

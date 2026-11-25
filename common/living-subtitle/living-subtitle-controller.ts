@@ -60,7 +60,7 @@ export interface LivingSubtitleState {
     known?: LivingSubtitleResult;
 }
 
-const knownTimeoutMs = 10_000;
+const actionTimeoutMs = 10_000;
 
 /** A word's meaning from Yomitan, with no model tokens; rejects with a `livingSubtitle.error` key. */
 export const defineWithYomitan = async (yomitan: Yomitan, word: string): Promise<LivingSubtitleDefinition> => {
@@ -80,11 +80,11 @@ export type LivingSubtitleMineOutcome = 'saved' | 'dialog' | 'submitted';
 interface Actions {
     pause(): void;
     /** The word's meaning; rejects with a `livingSubtitle.error` key. */
-    define(word: string): Promise<LivingSubtitleDefinition>;
+    define(word: string, retry: boolean): Promise<LivingSubtitleDefinition>;
     /** Resolves when a card is saved or handed off to the UI responsible for reporting the result. */
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     /** Saves the word as known for the profile active at the call; rejects unless the save is confirmed. */
-    markKnown(word: string, lemmas: readonly string[]): Promise<void>;
+    markKnown(word: string, lemmas: readonly string[]): Promise<void | 'stale'>;
     render(state: Readonly<LivingSubtitleState>): void;
 }
 
@@ -170,10 +170,10 @@ export default class LivingSubtitleController {
     retryDefinition() {
         const words = this.state.target ? livingSubtitleCueWords(this.state.target.cue.text) : [];
         const index = words.findIndex((w) => w.start === this.state.word?.start);
-        if (index >= 0) void this.selectWord(index);
+        if (index >= 0) void this.selectWord(index, true);
     }
 
-    async selectWord(index: number) {
+    async selectWord(index: number, retry = false) {
         const target = this.state.target;
         const word = target && livingSubtitleCueWords(target.cue.text)[index];
         if (this.disposed || !target || !word) return;
@@ -189,17 +189,26 @@ export default class LivingSubtitleController {
         const generation = this.generation;
         this.state.definition = { status: 'pending' };
         this.emit();
-        const result = await this.define(word.text);
+        const result = await this.define(word.text, retry);
         if (generation !== this.generation || request !== this.definitionRequest) return;
         this.state.definition = result;
         this.emit();
     }
 
-    private async define(word: string): Promise<LivingSubtitleDefinitionResult> {
+    private async define(word: string, retry: boolean): Promise<LivingSubtitleDefinitionResult> {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
         try {
-            return { status: 'success', ...(await this.actions.define(word)) };
+            const definition = await Promise.race([
+                this.actions.define(word, retry),
+                new Promise<never>((_, reject) => {
+                    timeout = setTimeout(() => reject(new Error('dictionaryUnavailable')), actionTimeoutMs);
+                }),
+            ]);
+            return { status: 'success', ...definition };
         } catch (error) {
             return { status: 'error', message: error instanceof Error ? error.message : String(error) };
+        } finally {
+            clearTimeout(timeout);
         }
     }
 
@@ -236,10 +245,17 @@ export default class LivingSubtitleController {
         let timeout: ReturnType<typeof setTimeout> | undefined;
         let result: LivingSubtitleResult;
         try {
-            await Promise.race([
+            const outcome = await Promise.race([
                 this.actions.markKnown(word.text, definition.status === 'success' ? (definition.lemmas ?? []) : []),
-                new Promise((_, reject) => (timeout = setTimeout(() => reject(new Error('timeout')), knownTimeoutMs))),
+                new Promise<never>((_, reject) => {
+                    timeout = setTimeout(() => reject(new Error('timeout')), actionTimeoutMs);
+                }),
             ]);
+            if (generation !== this.generation || request !== this.knownRequest) return;
+            if (outcome === 'stale') {
+                this.clear();
+                return;
+            }
             result = { status: 'success', text: '' };
         } catch (error) {
             result = { status: 'error', message: error instanceof Error ? error.message : String(error) };

@@ -1118,8 +1118,12 @@ describe('BuildAnnotations public boundary', () => {
                 expect(cue()).toBe(true);
 
                 // The card's lookup gives the lemmas the status resolver queries.
-                await saveKnownWord(provider, undefined, 'liep', ['lopen'], (tokens) =>
-                    build.tokensWereModified(tokens)
+                await saveKnownWord(
+                    provider,
+                    async () => undefined,
+                    'liep',
+                    ['lopen'],
+                    (tokens) => build.tokensWereModified(tokens)
                 );
                 await build.buildInitial();
 

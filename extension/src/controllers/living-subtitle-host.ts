@@ -30,8 +30,8 @@ export interface LivingSubtitleHostContext {
     pause(): void;
     mine(state: Readonly<LivingSubtitleState>): Promise<LivingSubtitleMineOutcome>;
     /** The word's dictionary meaning ('' when the dictionary has none); rejects with a `livingSubtitle.error` key. */
-    define(word: string): Promise<LivingSubtitleDefinition>;
-    markKnown(word: string, lemmas: readonly string[]): Promise<void>;
+    define(word: string, retry: boolean): Promise<LivingSubtitleDefinition>;
+    markKnown(word: string, lemmas: readonly string[]): Promise<void | 'stale'>;
 }
 
 const gap = 4;
@@ -64,7 +64,7 @@ export default class LivingSubtitleHost {
         this.context = context;
         this.controller = new LivingSubtitleController({
             pause: () => context.pause(),
-            define: (word) => context.define(word),
+            define: (word, retry) => context.define(word, retry),
             mine: (state) => context.mine(state),
             markKnown: (word, lemmas) => context.markKnown(word, lemmas),
             render: (state) => {
