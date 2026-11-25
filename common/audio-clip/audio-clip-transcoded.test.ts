@@ -32,7 +32,7 @@ const cardFor = (file: FileModel): CardModel => ({
 
 const originalGlobals = Object.getOwnPropertyDescriptors(globalThis);
 afterAll(() => {
-    for (const name of ['Audio', 'HTMLMediaElement', 'MediaStream', 'MediaRecorder']) {
+    for (const name of ['Audio', 'AudioContext', 'HTMLMediaElement', 'MediaStream', 'MediaRecorder']) {
         const original = originalGlobals[name];
         if (original) Object.defineProperty(globalThis, name, original);
         else Reflect.deleteProperty(globalThis, name);
@@ -43,6 +43,7 @@ let createdAudio: Promise<TestAudio>;
 let audioCreated: (audio: TestAudio) => void;
 class TestAudio {
     src = '';
+    muted = false;
     currentTime = 0;
     playbackRate = 1;
     audioTracks = [
@@ -54,6 +55,8 @@ class TestAudio {
     duration = 10;
     seekable = { length: 1, end: () => this.duration };
     onended: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    error?: { message: string };
     play = jest.fn(async () => {});
     pause() {}
     load() {}
@@ -98,6 +101,15 @@ beforeEach(() => {
     createdAudio = new Promise((resolve) => (audioCreated = resolve));
     Object.assign(globalThis, {
         Audio: TestAudio,
+        AudioContext: class {
+            createMediaElementSource() {
+                return { connect() {} };
+            }
+            createMediaStreamDestination() {
+                return {};
+            }
+            async close() {}
+        },
         HTMLMediaElement: { HAVE_FUTURE_DATA: 3, HAVE_ENOUGH_DATA: 4 },
         MediaStream: TestStream,
         MediaRecorder: TestRecorder,
@@ -138,14 +150,19 @@ it('shares the frozen source duration across slices and encoders without startin
     expect(encoder).not.toHaveBeenCalled();
 });
 
-it('reads the completed snapshot boundary and returns no limit for ordinary file audio', async () => {
+it('reads the completed snapshot boundary and the native file duration', async () => {
     const audio = await finalizeWebmAudio([prefix()], 3.002);
     await expect(AudioClip.fromFile(fileFor(audio, true), 0, 500, 1, false).sourceDurationMs()).resolves.toBeCloseTo(
         3002
     );
-    await expect(
-        AudioClip.fromFile({ name: 'ordinary.mp4', blobUrl: 'blob:ordinary' }, 0, 500, 1, false).sourceDurationMs()
-    ).resolves.toBeUndefined();
+    const blobUrl = createBlobUrl(prefix());
+    sources.push(blobUrl);
+    const duration = AudioClip.fromFile({ name: 'ordinary.mp4', blobUrl }, 0, 500, 1, false).sourceDurationMs();
+    const audioElement = await createdAudio;
+    await jest.advanceTimersByTimeAsync(100);
+    await expect(duration).resolves.toBe(10000);
+    expect(audioElement.src).toBe('');
+    expect(audioElement.play).not.toHaveBeenCalled();
 });
 
 it('keeps mining without audio usable and never records from the original Dolby track', async () => {
@@ -287,6 +304,82 @@ it('stopping during lazy preparation prevents playback from starting later', asy
     await play;
     expect(clip.playing).toBe(false);
     expect(jest.getTimerCount()).toBe(0);
+});
+
+it.each([false, true])('stopping during clip preparation cancels recording (converted: %s)', async (converted) => {
+    const file = converted ? fileFor(prefix()) : { name: 'video.mp4', blobUrl: 'blob:local-video' };
+    const clip = AudioClip.fromFile(file, 0, 1000, 1, true);
+    const recording = clip.blob();
+    const cancellation = expect(recording).rejects.toThrow('Clipping cancelled');
+    clip.stop();
+    await cancellation;
+    if (!converted) {
+        const audio = await createdAudio;
+        expect(audio.play).not.toHaveBeenCalled();
+        expect(audio.src).toBe('');
+    }
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it.each([false, true])(
+    'keeps a capture needed by export while previewing or changing range (audible: %s)',
+    async (audible) => {
+        const clip = AudioClip.fromFile({ name: 'video.mp4', blobUrl: 'blob:local-video' }, 0, 1000, 1, audible);
+        const recording = clip.blob();
+        await clip.play();
+        clip.stop({ preserveCapture: true });
+        await jest.advanceTimersByTimeAsync(1200);
+        await expect(recording).resolves.toBeInstanceOf(Blob);
+        expect(jest.getTimerCount()).toBe(0);
+    }
+);
+
+it('silences the preview while an export finishes the same capture', async () => {
+    const clip = AudioClip.fromFile({ name: 'video.mp4', blobUrl: 'blob:local-video' }, 0, 1000, 1, true);
+    await clip.play();
+    const audio = await createdAudio;
+    await jest.advanceTimersByTimeAsync(100);
+    expect(audio.play).toHaveBeenCalled();
+    expect(clip.playing).toBe(true);
+    const recording = clip.blob();
+    await clip.play();
+    expect(clip.playing).toBe(false);
+    expect(audio.muted).toBe(true);
+    await jest.advanceTimersByTimeAsync(1200);
+    await expect(recording).resolves.toBeInstanceOf(Blob);
+});
+
+it('fails promptly on a preload error and releases the media element', async () => {
+    const clip = AudioClip.fromFile({ name: 'video.mp4', blobUrl: 'blob:local-video' }, 0, 1000, 1, true);
+    const recorded = expect(clip.blob()).rejects.toThrow('Decode failed');
+    const audio = await createdAudio;
+    audio.error = { message: 'Decode failed' };
+    audio.onerror?.();
+    await recorded;
+    expect(audio.src).toBe('');
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it('times out if audio never becomes playable after seeking', async () => {
+    const clip = AudioClip.fromFile({ name: 'video.mp4', blobUrl: 'blob:local-video' }, 0, 1000, 1, true);
+    const recorded = expect(clip.blob()).rejects.toThrow('Timed out preparing audio');
+    const audio = await createdAudio;
+    audio.seeking = true;
+    await jest.advanceTimersByTimeAsync(5000);
+    await recorded;
+    expect(audio.src).toBe('');
+    expect(jest.getTimerCount()).toBe(0);
+});
+
+it('rejects a range at or beyond EOF before play can wrap to the beginning', async () => {
+    const clip = AudioClip.fromFile({ name: 'video.mp4', blobUrl: 'blob:local-video' }, 2000, 3000, 1, true);
+    const recorded = expect(clip.blob()).rejects.toThrow('outside the file');
+    const audio = await createdAudio;
+    audio.duration = 2;
+    await jest.advanceTimersByTimeAsync(100);
+    await recorded;
+    expect(audio.play).not.toHaveBeenCalled();
+    expect(audio.src).toBe('');
 });
 
 it('freezes the same source across documents while later conversion advances independently', async () => {

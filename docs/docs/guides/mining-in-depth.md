@@ -35,7 +35,7 @@ Prior to being exported, cards can be adjusted from the dialog.
 A **slider** at the bottom of the dialog can be used to change the selected time range.
 
 - The **Sentence Field** will be automatically updated to match the selected time range, if it has not been manually edited already.
-- For local files, the audio clip will also be automatically updated.
+- For local files, the audio clip will also be automatically updated. Use **Zoom Out** beside the slider if the range you need extends past its current bounds.
 - For streaming video, the audio clip can be re-recorded with the selected time range.
 
 ### Audio field {#audio-field}
@@ -43,7 +43,7 @@ A **slider** at the bottom of the dialog can be used to change the selected time
 The **Audio Field** displays the recorded audio clip and provides three action buttons:
 
 - **Play/Pause** — preview the audio clip directly in the dialog.
-- **Re-record** — re-record the audio using the currently selected time range (streaming video only; shown when a re-record callback is available).
+- **Re-record** — capture a fresh clip from the selected time range for a local file or a supported streaming video. If the clip cuts off part of the sentence, extend the range with the slider before re-recording.
 - **Download** — download the audio clip as a file to your device.
 
 ### Text fields {#text-fields}

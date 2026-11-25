@@ -8,15 +8,14 @@ import {
     extractText,
 } from '@project/common/util';
 import type { RefObject } from 'react';
-import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import makeStyles from '@mui/styles/makeStyles';
 import type { SubtitleModel, CardModel, AnkiExportMode } from '@project/common';
-import { useClampTimestampInterval } from '@project/common/hooks/use-clamp-timestamp-interval';
+import { useAnkiDialogAudio } from '@project/common/hooks/use-anki-dialog-audio';
 import { MediaFragment } from '@project/common';
 import type { AnkiSettings, Profile } from '@project/common/settings';
 import { sortedAnkiFieldModels } from '@project/common/settings';
-import { AudioClip } from '@project/common/audio-clip';
 import Badge from '@mui/material/Badge';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
@@ -125,7 +124,6 @@ const sliderMarksFromCard = (
     surroundingSubtitles: SubtitleModel[],
     boundary: number[] | undefined
 ): Mark[] | undefined => {
-    // A card whose surrounding subtitles collapse to a single subtitle has no boundary, and so no slider.
     if (boundary === undefined) {
         return undefined;
     }
@@ -276,9 +274,7 @@ const AnkiDialog = ({
     const [timestampBoundaryInterval, setTimestampBoundaryInterval] = useState<number[]>();
     const [timestampMarks, setTimestampMarks] = useState<Mark[]>();
     const [lastAppliedTimestampIntervalToText, setLastAppliedTimestampIntervalToText] = useState<number[]>();
-    const [lastAppliedTimestampIntervalToAudio, setLastAppliedTimestampIntervalToAudio] = useState<number[]>();
     const [width, setWidth] = useState<number>(0);
-    const [audioClip, setAudioClip] = useState<AudioClip>();
     const [ankiIsAvailable, setAnkiIsAvailable] = useState<boolean>(true);
     const [imageDialogOpen, setImageDialogOpen] = useState<boolean>(false);
     const [cardSelectDialogOpen, setCardSelectDialogOpen] = useState<boolean>(initialCardSelectDialogOpen ?? false);
@@ -292,25 +288,16 @@ const AnkiDialog = ({
     }, []);
     const { t } = useTranslation();
 
-    const buildExportParams = useCallback(
-        (mode: AnkiExportMode, noteId?: number): ExportParams => ({
-            text,
-            track1,
-            track2,
-            track3,
-            definition,
-            audioClip,
-            image,
-            word,
-            source,
-            url,
-            customFieldValues,
-            tags,
-            mode,
-            noteId,
-        }),
-        [text, track1, track2, track3, definition, audioClip, image, word, source, url, customFieldValues, tags]
-    );
+    const {
+        audioClip,
+        audioInterval: lastAppliedTimestampIntervalToAudio,
+        applyAudioInterval,
+        rerecord,
+        recording,
+        failed: recordingFailed,
+        clampTimestampInterval,
+    } = useAnkiDialogAudio(card, open, settings, mp3Encoder);
+    const exportDisabled = disabled || recording;
 
     if (stateRef) {
         stateRef.current = {
@@ -432,7 +419,13 @@ const AnkiDialog = ({
     useEffect(() => {
         const timestampInterval = initialSelectedTimestampInterval || [card.subtitle.start, card.subtitle.end];
         const timestampBoundaryInterval =
-            boundaryIntervalFromCard(card.subtitle, card.surroundingSubtitles) || undefined;
+            boundaryIntervalFromCard(card.subtitle, card.surroundingSubtitles) ||
+            (card.file && !card.audio
+                ? [
+                      Math.max(0, card.subtitle.start - boundaryIntervalSubtitleTimeRadius),
+                      card.subtitle.end + boundaryIntervalSubtitleTimeRadius,
+                  ]
+                : undefined);
         const timestampMarks = sliderMarksFromCard(card.surroundingSubtitles, timestampBoundaryInterval);
         const selectedSubtitles =
             timestampInterval === undefined
@@ -447,13 +440,16 @@ const AnkiDialog = ({
         setSelectedSubtitles(selectedSubtitles);
         setInitialTimestampInterval(forceInitialTimestampInterval || timestampInterval);
         setLastAppliedTimestampIntervalToText(initialLastAppliedTimestampIntervalToText || timestampInterval);
-        setLastAppliedTimestampIntervalToAudio(initialLastAppliedTimestampIntervalToAudio || timestampInterval);
+        applyAudioInterval(initialLastAppliedTimestampIntervalToAudio || timestampInterval);
         setTimestampBoundaryInterval(forceTimestampBoundaryInterval || timestampBoundaryInterval);
         setInitialTimestampBoundaryInterval(timestampBoundaryInterval);
         setTimestampMarks(timestampMarks);
     }, [
         card.subtitle,
         card.surroundingSubtitles,
+        card.file,
+        card.audio,
+        applyAudioInterval,
         openingSentence,
         forceInitialTimestampInterval,
         initialSelectedTimestampInterval,
@@ -462,55 +458,36 @@ const AnkiDialog = ({
         initialLastAppliedTimestampIntervalToAudio,
     ]);
 
-    const initialAudioClip = useMemo(
-        () =>
-            AudioClip.fromCard(
-                card,
-                settings.audioPaddingStart,
-                settings.audioPaddingEnd,
-                settings.recordWithAudioPlayback
-            ),
-        [card, settings.audioPaddingStart, settings.audioPaddingEnd, settings.recordWithAudioPlayback]
-    );
-
-    const clampTimestampInterval = useClampTimestampInterval({
-        open,
-        audioClip: initialAudioClip,
-        source: card.audio ? undefined : card.file?.transcodedAudio,
-    });
     const boundedInterval = timestampBoundaryInterval && clampTimestampInterval(timestampBoundaryInterval);
     const sliderBoundaryInterval =
         boundedInterval && boundedInterval[0] < boundedInterval[1] ? boundedInterval : undefined;
     const sliderInterval = timestampInterval && clampTimestampInterval(timestampInterval);
+    const appliedAudioInterval =
+        lastAppliedTimestampIntervalToAudio && clampTimestampInterval(lastAppliedTimestampIntervalToAudio);
 
-    useEffect(() => {
-        if (!initialAudioClip) {
-            setAudioClip(undefined);
-            return;
-        }
+    const handleLocalRerecord = useCallback(() => {
+        if (!exportDisabled && timestampInterval) rerecord(timestampInterval);
+    }, [exportDisabled, timestampInterval, rerecord]);
 
-        let newAudioClip = initialAudioClip;
-
-        if (settings.preferMp3) {
-            newAudioClip = newAudioClip.toEncoded(mp3Encoder, 'mp3');
-        }
-
-        if (lastAppliedTimestampIntervalToAudio) {
-            newAudioClip = newAudioClip.slice(
-                Math.max(0, Math.round(lastAppliedTimestampIntervalToAudio[0]) - settings.audioPaddingStart),
-                Math.round(lastAppliedTimestampIntervalToAudio[1]) + settings.audioPaddingEnd
-            );
-        }
-
-        setAudioClip(newAudioClip);
-    }, [
-        mp3Encoder,
-        initialAudioClip,
-        settings.preferMp3,
-        lastAppliedTimestampIntervalToAudio,
-        settings.audioPaddingStart,
-        settings.audioPaddingEnd,
-    ]);
+    const buildExportParams = useCallback(
+        (mode: AnkiExportMode, noteId?: number): ExportParams => ({
+            text,
+            track1,
+            track2,
+            track3,
+            definition,
+            audioClip,
+            image,
+            word,
+            source,
+            url,
+            customFieldValues,
+            tags,
+            mode,
+            noteId,
+        }),
+        [text, track1, track2, track3, definition, audioClip, image, word, source, url, customFieldValues, tags]
+    );
 
     const handlePlayAudio = useCallback(
         async (e: React.MouseEvent<HTMLDivElement>) => {
@@ -681,10 +658,17 @@ const AnkiDialog = ({
             setLastAppliedTimestampIntervalToText(newTimestampInterval);
 
             if (onRerecord === undefined && audioClip?.isSliceable() === true) {
-                setLastAppliedTimestampIntervalToAudio(newTimestampInterval);
+                applyAudioInterval(newTimestampInterval);
             }
         },
-        [card.surroundingSubtitles, audioClip, onRerecord, applyTimestampIntervalToAllTracks, clampTimestampInterval]
+        [
+            card.surroundingSubtitles,
+            audioClip,
+            onRerecord,
+            applyTimestampIntervalToAllTracks,
+            applyAudioInterval,
+            clampTimestampInterval,
+        ]
     );
 
     const handleResetTimestampInterval = useCallback(() => {
@@ -705,6 +689,9 @@ const AnkiDialog = ({
         if (resetInterval !== undefined) {
             applyTimestampIntervalToAllTracks(resetInterval, true);
             setLastAppliedTimestampIntervalToText(resetInterval);
+            if (onRerecord === undefined && audioClip?.isSliceable()) {
+                applyAudioInterval(resetInterval);
+            }
         }
     }, [
         initialTimestampInterval,
@@ -712,6 +699,9 @@ const AnkiDialog = ({
         card.surroundingSubtitles,
         applyTimestampIntervalToAllTracks,
         clampTimestampInterval,
+        onRerecord,
+        audioClip,
+        applyAudioInterval,
     ]);
 
     const handleZoomInTimestampInterval = useCallback(() => {
@@ -763,13 +753,6 @@ const AnkiDialog = ({
 
     const disableApplyTextSelection = card.surroundingSubtitles.filter((s) => s.text.trim() !== '').length === 0;
     const ankiFieldModels = sortedAnkiFieldModels(settings);
-
-    useEffect(() => {
-        if (!open) {
-            audioClip?.stop();
-        }
-        return () => audioClip?.stop();
-    }, [open, audioClip]);
 
     const handleSentenceTextChange = useCallback((text: string) => {
         setText(text);
@@ -828,13 +811,16 @@ const AnkiDialog = ({
     const handleActionBlur = useCallback(() => setFocusedAction(undefined), []);
 
     useEffect(() => {
-        if (open && !disabled) {
+        if (open && !exportDisabled) {
             focusOnPreferredAction();
         }
-    }, [open, disabled, focusOnPreferredAction]);
+    }, [open, exportDisabled, focusOnPreferredAction]);
 
     const handleProceed = useCallback(
         async (mode: AnkiExportMode, noteIds?: number[]) => {
+            if (exportDisabled) {
+                return;
+            }
             if (mode === 'updateSpecific') {
                 for (const noteId of noteIds ?? []) {
                     await onProceed(buildExportParams(mode, noteId));
@@ -843,7 +829,7 @@ const AnkiDialog = ({
                 void onProceed(buildExportParams(mode));
             }
         },
-        [buildExportParams, onProceed]
+        [buildExportParams, onProceed, exportDisabled]
     );
 
     const handleOpenInAnki = useCallback(() => handleProceed('gui'), [handleProceed]);
@@ -1000,10 +986,15 @@ const AnkiDialog = ({
                                         <AudioField
                                             audioClip={audioClip}
                                             timestampIntervalSelectionNotApplied={
-                                                timestampInterval?.[0] !== lastAppliedTimestampIntervalToAudio?.[0] ||
-                                                timestampInterval?.[1] !== lastAppliedTimestampIntervalToAudio?.[1]
+                                                sliderInterval?.[0] !== appliedAudioInterval?.[0] ||
+                                                sliderInterval?.[1] !== appliedAudioInterval?.[1]
                                             }
-                                            onRerecord={onRerecord}
+                                            onRerecord={
+                                                onRerecord ??
+                                                (audioClip.isSliceable() ? handleLocalRerecord : undefined)
+                                            }
+                                            recording={recording}
+                                            recordingFailed={recordingFailed}
                                             onPlayAudio={handlePlayAudio}
                                         />
                                     )}
@@ -1175,7 +1166,7 @@ const AnkiDialog = ({
                     <Tooltip title={t('cardSelectUi.title')}>
                         <AnkiDialogButton
                             ref={updateSpecificButtonRef}
-                            disabled={disabled}
+                            disabled={exportDisabled}
                             focusVisible={focusedAction === 'updateSpecific'}
                             onBlurVisible={handleActionBlur}
                             onClick={() => setCardSelectDialogOpen(true)}
@@ -1188,7 +1179,7 @@ const AnkiDialog = ({
                     </Tooltip>
                     <AnkiDialogButton
                         ref={openInAnkiButtonRef}
-                        disabled={disabled}
+                        disabled={exportDisabled}
                         focusVisible={focusedAction === 'gui'}
                         onBlurVisible={handleActionBlur}
                         onClick={handleOpenInAnki}
@@ -1197,7 +1188,7 @@ const AnkiDialog = ({
                     </AnkiDialogButton>
                     <AnkiDialogButton
                         ref={updateLastButtonRef}
-                        disabled={disabled}
+                        disabled={exportDisabled}
                         focusVisible={focusedAction === 'updateLast'}
                         onBlurVisible={handleActionBlur}
                         onClick={handleUpdateLastCard}
@@ -1206,7 +1197,7 @@ const AnkiDialog = ({
                     </AnkiDialogButton>
                     <AnkiDialogButton
                         ref={exportButtonRef}
-                        disabled={disabled}
+                        disabled={exportDisabled}
                         focusVisible={focusedAction === 'default'}
                         onBlurVisible={handleActionBlur}
                         onClick={handleExport}
