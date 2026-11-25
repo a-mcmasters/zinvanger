@@ -71,6 +71,12 @@ The owner's desktop Anki sync succeeded with no changes. The phone's latest revi
     - **YouTube overlay:** used the unpacked extension in Playwright Chromium. The site's caption fetch returned empty files in the anonymous headless session, so the video's Dutch captions were loaded through Open Files. Clicking "wist" opened the card with "wist → wissen", and Known confirmed.
     - **Not tested:** Netflix (needs login and DRM) and Mine on a cued word (writes to the collection).
 - One-episode check, Adventure Time S01E01 (Dutch dub subtitles, 213 lines): every line tokenized, the Anki cache completed for the source, and no line qualified (0%). Only 70 cards in the source have a `Word` value (43 cached tokens), so lines rarely hold two known words. Revisit after the collection preparation below.
+- Collection preparation, 2026-11-25: a scheduled backup of `Dutch` was exported first. A `Word` field was added to seven note types and filled on 1,829 notes, so 1,864 of 1,916 notes have one (2,091 cards). The 52 English-to-Dutch production notes were left empty, and existing mined `Word` values were kept.
+- One-episode check rerun on the same episode after preparation: 39 of 213 lines qualified (18.3%).
+    - About 25 cues are useful targets, for example `huisarrest`, `schatje`, `paniek`, `hoogheid`, `waarheid`, `beiden`, `vanuit` and `definitieve`.
+    - Yomitan multi-word expressions cue as one target, for example `kom op`, `of zo`, `dol op` and `Wat is er`.
+    - About 9 cues are interjections or particles: `Oh` three times, `hoor` three times, `Wow`, `Oké` and `Hé`. Two are fragments of split names: `Bubbeli` from Bubbelien and `Blok` from Blokkado.
+    - Marking a noise word Known removes it for later lines. Consider an interjection exclusion if that proves tedious.
 
 ### Deviations and limits
 
