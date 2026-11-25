@@ -138,3 +138,50 @@ it('edits the known-word decks on the main track only, keeping its other setting
         settings.dictionaryTracks[2],
     ]);
 });
+
+it('keeps Anki connected when fetching the word-field choices fails', async () => {
+    jest.useFakeTimers();
+    const settings = await new SettingsProvider(new MockSettingsStorage()).getAll();
+    const fetcher = {
+        fetch: jest.fn(async (_url: string, { action }: { action: string }) =>
+            action === 'modelFieldNames'
+                ? { result: null, error: 'note type unavailable' }
+                : { result: { version: 6, deckNames: ['Dutch'], modelNames: ['Basic'] }[action] ?? null, error: null }
+        ),
+    };
+    const i18n = createInstance();
+    await i18n.init({ lng: 'en', resources: { en: { translation: en } } });
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    try {
+        await act(async () =>
+            root.render(
+                <I18nextProvider i18n={i18n}>
+                    <ThemeProvider theme={createTheme('dark')}>
+                        <AnkiSettingsTab
+                            settings={settings}
+                            anki={new Anki(settings, fetcher)}
+                            onSettingChanged={jest.fn(async () => {})}
+                            tutorialStep={TutorialStep.done}
+                            onTutorialStepChanged={() => {}}
+                        />
+                    </ThemeProvider>
+                </I18nextProvider>
+            )
+        );
+        await act(async () => {
+            await jest.advanceTimersByTimeAsync(1000);
+        });
+
+        expect(fetcher.fetch).toHaveBeenCalledWith(
+            settings.ankiConnectUrl,
+            expect.objectContaining({ action: 'modelFieldNames' })
+        );
+        expect(container.textContent).not.toContain('note type unavailable');
+    } finally {
+        act(() => root.unmount());
+        container.remove();
+        jest.useRealTimers();
+    }
+});

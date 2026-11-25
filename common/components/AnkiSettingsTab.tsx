@@ -152,17 +152,13 @@ const AnkiSettingsTab: React.FC<Props> = ({
 
             setAnkiConnectApiKeyRequired(apiKeyRequired);
             setDeckNames(await anki.deckNames(ankiConnectUrl));
-            const models = await anki.modelNames(ankiConnectUrl);
-            setModelNames(models);
-            const fields = await Promise.all(models.map((model) => anki.modelFieldNames(model, ankiConnectUrl)));
-            setAllFieldNames([...new Set(fields.flat())].sort((a, b) => a.localeCompare(b)));
+            setModelNames(await anki.modelNames(ankiConnectUrl));
             setAnkiConnectUrlError(undefined);
         } catch (e) {
             setAnkiConnectApiKeyRequired(apiKeyRequired || Anki.requiresApiKey(e));
             asbError('anki/connect', e);
             setDeckNames(undefined);
             setModelNames(undefined);
-            setAllFieldNames(undefined);
             setAnkiConnectUrlError(errorMessage(e));
         }
     }, [anki, ankiConnectUrl, insideApp]);
@@ -183,6 +179,20 @@ const AnkiSettingsTab: React.FC<Props> = ({
             clearTimeout(timeout);
         };
     }, [anki, ankiConnectUrl, ankiConnectApiKey, requestAnkiConnect]);
+
+    // Its own request, so a failing note type empties only the word-field choices, not the connection.
+    useEffect(() => {
+        setAllFieldNames(undefined);
+        if (!modelNames) return;
+        let canceled = false;
+        void anki.allFieldNames(ankiConnectUrl).then(
+            (names) => !canceled && setAllFieldNames(names),
+            (e) => asbError('anki/connect', e)
+        );
+        return () => {
+            canceled = true;
+        };
+    }, [anki, ankiConnectUrl, modelNames]);
 
     useEffect(() => {
         if (!noteType || ankiConnectUrlError) {

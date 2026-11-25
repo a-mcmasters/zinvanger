@@ -874,15 +874,7 @@ const DictionarySettingsTab: React.FC<Props> = ({
         void (async () => {
             try {
                 setDeckNames((await anki.deckNames(ankiConnectUrl)).sort((a, b) => a.localeCompare(b)));
-                const modelNames = await anki.modelNames(ankiConnectUrl);
-                const allFieldNamesSet = new Set<string>();
-                for (const modelName of modelNames) {
-                    const fieldNames = await anki.modelFieldNames(modelName, ankiConnectUrl);
-                    for (const fieldName of fieldNames) {
-                        allFieldNamesSet.add(fieldName);
-                    }
-                }
-                setAllFieldNames(Array.from(allFieldNamesSet).sort((a, b) => a.localeCompare(b)));
+                setAllFieldNames(await anki.allFieldNames(ankiConnectUrl));
             } catch (e) {
                 setDeckNames(undefined);
                 setAllFieldNames(undefined);

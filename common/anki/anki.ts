@@ -314,6 +314,15 @@ export class Anki {
         return response.result;
     }
 
+    /** Every field name across all note types, sorted. */
+    async allFieldNames(ankiConnectUrl?: string): Promise<string[]> {
+        const allFieldNames = new Set<string>();
+        for (const modelName of await this.modelNames(ankiConnectUrl)) {
+            for (const fieldName of await this.modelFieldNames(modelName, ankiConnectUrl)) allFieldNames.add(fieldName);
+        }
+        return Array.from(allFieldNames).sort((a, b) => a.localeCompare(b));
+    }
+
     async findCards(query: string, ankiConnectUrl?: string): Promise<number[]> {
         const response = await this._executeAction('findCards', { query: query }, ankiConnectUrl);
         return response.result;
