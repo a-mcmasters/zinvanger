@@ -8,8 +8,10 @@ import {
     getEnabledAnnotations,
     getEnabledAnnotationsForHover,
     defaultSettings,
+    iPlusOneActive,
     shouldUseAnnotation,
 } from '@project/common/settings';
+import { ASB_I_PLUS_ONE_ATTRIBUTE, iPlusOneCandidate } from '@project/common/annotations/i-plus-one';
 import type { PitchAccentContext } from '@project/common/util';
 import { asbTrace } from '@project/common/util/log';
 import {
@@ -147,8 +149,10 @@ export const renderRichTextOntoSubtitles = (
             const visibility = subtitleWordVisibility(subtitle, playbackConfig);
             if (!visibility.hideWholeSubtitle) hiddenTokens = visibility.hiddenTokens;
         }
+        const iPlusOne = iPlusOneActive(ta.dt, subtitle.track);
         const richText = computeRichText(subtitle.text, subtitle.tokenization, {
             hiddenTokens,
+            iPlusOne,
             dt: ta.dt,
             enabledAnnotations: ta.richTextEnabledAnnotations,
             allowAsciiReading,
@@ -158,6 +162,7 @@ export const renderRichTextOntoSubtitles = (
             ? computeRichText(subtitle.text, subtitle.tokenization, {
                   dt: ta.dt,
                   hiddenTokens,
+                  iPlusOne,
                   enabledAnnotations: ta.richTextOnHoverEnabledAnnotations,
                   allowAsciiReading,
                   glossSize: ta.glossSize,
@@ -241,11 +246,20 @@ interface TokenStyleState {
     allowAsciiReading: boolean;
     glossSize: number;
     hiddenTokens?: ReadonlySet<Token>;
+    /** Underline the line's one new word; failures stay undecorated unless visual annotations are on. */
+    iPlusOne?: boolean;
 }
 
 export const computeRichText = (fullText: string, tokenization: Tokenization, ss: TokenStyleState) => {
-    if (tokenization.error) return `<span ${ERROR_STYLE}>${fullText}</span>`;
+    const showFailures = !ss.iPlusOne || dictionaryTrackEnabled(ss.dt);
+    if (tokenization.error && showFailures) return `<span ${ERROR_STYLE}>${fullText}</span>`;
     if (!tokenization.tokens.length) return;
+    // shortcut: before the Anki cache's first load, local Known words alone can qualify a line; expose the track's Anki
+    // build state through DictionaryStorage if that shows false cues.
+    const newWord =
+        ss.iPlusOne && !tokenization.error
+            ? tokenization.tokens[iPlusOneCandidate(fullText, tokenization.tokens) ?? -1]
+            : undefined;
 
     const parts: string[] = [];
     const prevPitch: PitchAccentContext = {}; // Context from the previous token to correctly determine pitch for attached particle
@@ -257,7 +271,8 @@ export const computeRichText = (fullText: string, tokenization: Tokenization, ss
                 clearPitchAccentContext(prevPitch);
                 parts.push(fullText.substring(left, right));
             } else {
-                parts.push(applyTokenStyle(fullText, token, prevPitch, ss));
+                const html = applyTokenStyle(fullText, token, prevPitch, ss, showFailures);
+                parts.push(token === newWord ? html.replace(/^<span /, `<span ${ASB_I_PLUS_ONE_ATTRIBUTE} `) : html);
             }
         }
     );
@@ -292,7 +307,13 @@ const collectibleTokenWrapper = (
 const hasExternalReadings = (token: InternalToken) =>
     token.readings.length > 0 && (!token.__internal || token.__usingExternalReadings === true);
 
-const applyTokenStyle = (fullText: string, token: Token, prevPitch: PitchAccentContext, ss: TokenStyleState) => {
+const applyTokenStyle = (
+    fullText: string,
+    token: Token,
+    prevPitch: PitchAccentContext,
+    ss: TokenStyleState,
+    showFailures: boolean
+) => {
     const hidden = ss.hiddenTokens?.has(token) ?? false;
     const rawTokenText = fullText.substring(token.pos[0], token.pos[1]);
     if (!HAS_LETTER_REGEX.test(rawTokenText)) {
@@ -307,7 +328,9 @@ const applyTokenStyle = (fullText: string, token: Token, prevPitch: PitchAccentC
         ss,
         rawTokenText
     );
-    if (token.status === null) return addressableTokenWrapper(tokenText, token, { style: ERROR_STYLE, hidden });
+    if (token.status === null && showFailures) {
+        return addressableTokenWrapper(tokenText, token, { style: ERROR_STYLE, hidden });
+    }
     if (token.status === undefined && dictionaryTrackEnabled(ss.dt)) {
         return addressableTokenWrapper(tokenText, token, { style: LOGIC_ERROR_STYLE, hidden }); // External tokens may flash this on initial load
     }
