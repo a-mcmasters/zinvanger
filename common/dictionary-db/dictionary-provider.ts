@@ -21,6 +21,7 @@ import type { ApplyStrategy, AsbplayerSettings } from '@project/common/settings'
 import { download, getCurrentTimeString } from '@project/common/util';
 
 export interface DictionaryStorage {
+    readonly supportsAnkiCacheSource?: boolean;
     getBulk: (profile: string | undefined, track: number, tokens: string[]) => Promise<TokenResults>;
     getAllTokens: (profile: string | undefined, track: number) => Promise<TokenResults>;
     getByLemmaBulk: (profile: string | undefined, track: number, lemmas: string[]) => Promise<LemmaResults>;
@@ -89,6 +90,10 @@ export class DictionaryProvider {
 
     getByLemmaBulk(profile: string | undefined, track: number, lemmas: string[]) {
         return this._storage.getByLemmaBulk(profile, track, lemmas);
+    }
+
+    get supportsAnkiCacheSource() {
+        return this._storage.supportsAnkiCacheSource !== false;
     }
 
     getAnkiCacheSource(profile: string | undefined, track: number) {

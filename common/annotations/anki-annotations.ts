@@ -3,7 +3,8 @@ import type { DictionaryBuildAnkiCacheState, DictionaryBuildAnkiCacheStateError,
 import { DictionaryBuildAnkiCacheStateErrorCode, DictionaryBuildAnkiCacheStateType } from '@project/common';
 import { Anki } from '@project/common/anki';
 import type { AsbplayerSettings, DictionaryTrack, SettingsProvider } from '@project/common/settings';
-import { ankiStatusTrack } from '@project/common/settings';
+import { ankiStatusTrack, ankiVocabularySource } from '@project/common/settings';
+import { effectiveSettings } from '@project/common/settings/settings-recipes';
 import type { DictionaryProvider } from '@project/common/dictionary-db';
 import type {
     DictionaryStatisticsAnkiDueCardsSnapshot,
@@ -31,7 +32,8 @@ export class AnkiAnnotations {
     private connectionError = false;
     private recentlyModifiedCardIds = new Set<number>();
     private recentlyModifiedFirstCheck = true;
-    private refreshing = false;
+    private generation = 0;
+    private refreshingGeneration?: number;
     private refreshed = false;
     private lastRefresh = Date.now();
     private triggerRefresh = false;
@@ -42,6 +44,7 @@ export class AnkiAnnotations {
     }
 
     reset(): void {
+        this.generation++;
         this.anki = undefined;
         this.recentlyModifiedCardIds.clear();
         this.recentlyModifiedFirstCheck = true;
@@ -102,6 +105,10 @@ export class AnkiAnnotations {
         this.statisticsRefreshed = false;
     }
 
+    private get refreshing(): boolean {
+        return this.refreshingGeneration === this.generation;
+    }
+
     refreshIfDue(): void {
         if ((this.triggerRefresh || Date.now() - this.lastRefresh >= ANKI_REFRESH_INTERVAL) && !this.refreshing) {
             void this.refresh();
@@ -113,22 +120,27 @@ export class AnkiAnnotations {
     async refresh(): Promise<void> {
         const profile = this.options.getProfile();
         if (profile === null || !this.options.getTracks().length || this.refreshing) return;
+        const generation = this.generation;
         const startedAt = Date.now();
         asbTrace('annotations/anki', 'Starting Anki refresh', {
             generateStatistics: this.options.generateStatistics() === true,
             trackCount: this.options.getTracks().length,
         });
         try {
-            this.refreshing = true;
+            this.refreshingGeneration = generation;
+            const settings = effectiveSettings(await this.options.settingsProvider.getAll());
+            if (generation !== this.generation) return;
             if (!this.anki) {
                 try {
-                    const settings = await this.options.settingsProvider.getAll();
                     if (this.lastSettings === undefined) this.updateSettings(settings);
-                    this.anki = new Anki(settings, this.options.fetcher);
-                    const permission = (await this.anki.requestPermission()).permission;
+                    const anki = new Anki(settings, this.options.fetcher);
+                    const permission = (await anki.requestPermission()).permission;
+                    if (generation !== this.generation) return;
                     if (permission !== 'granted') throw new Error(`permission ${permission}`);
+                    this.anki = anki;
                     this.connectionError = false;
                 } catch (e) {
+                    if (generation !== this.generation) return;
                     if (!this.connectionError) {
                         asbWarn('annotations/anki', 'Anki permission request failed:', e);
                         this.connectionError = true;
@@ -136,7 +148,8 @@ export class AnkiAnnotations {
                     this.anki = undefined;
                 }
             }
-            const ankiTracks = this.options.getTracks().flatMap(({ dt, track }) => ankiStatusTrack(dt, track) ?? []);
+            const tracks = this.options.getTracks();
+            const ankiTracks = tracks.flatMap(({ dt, track }) => ankiStatusTrack(dt, track) ?? []);
             const allFieldsSet = new Set<string>();
             for (const dt of ankiTracks) {
                 for (const field of dt.dictionaryAnkiWordFields.concat(dt.dictionaryAnkiSentenceFields)) {
@@ -155,22 +168,35 @@ export class AnkiAnnotations {
             const decks = Array.from(allDecksSet);
             if (this.anki && !this.refreshed) {
                 // Keep cache updated without user action
-                await this.options.dictionaryProvider.buildAnkiCache(
-                    profile,
-                    await this.options.settingsProvider.getAll()
-                );
-                this.refreshed = true;
+                await this.options.dictionaryProvider.buildAnkiCache(profile, settings);
+                if (generation !== this.generation) return;
+                const dictionary = this.options.dictionaryProvider;
+                // A build request can return while the build is running, or if it couldn't start.
+                const stamps = dictionary.supportsAnkiCacheSource
+                    ? await Promise.all(
+                          tracks.flatMap(({ dt, track }) => {
+                              const source = ankiVocabularySource(settings.ankiConnectUrl, dt, track);
+                              return source === undefined
+                                  ? []
+                                  : [dictionary.getAnkiCacheSource(profile, track).then((stamp) => stamp === source)];
+                          })
+                      )
+                    : [];
+                if (generation !== this.generation) return;
+                this.refreshed = stamps.every(Boolean);
             }
-            await this.checkRecentlyModifiedCards(profile, fields, decks);
-            await this.refreshStatistics(profile, fields, decks);
+            await this.checkRecentlyModifiedCards(profile, fields, decks, settings, generation);
+            if (generation !== this.generation) return;
+            await this.refreshStatistics(profile, fields, decks, generation);
         } catch (e) {
+            if (generation !== this.generation) return;
             if (!this.connectionError) {
                 asbWarn('annotations/anki', 'Anki refresh failed:', e);
                 this.connectionError = true;
             }
             this.refreshed = false;
         } finally {
-            this.refreshing = false;
+            if (this.refreshingGeneration === generation) this.refreshingGeneration = undefined;
             asbTrace('annotations/anki', 'Finished Anki refresh', {
                 durationMs: Date.now() - startedAt,
                 refreshed: this.refreshed,
@@ -179,10 +205,17 @@ export class AnkiAnnotations {
         }
     }
 
-    private async checkRecentlyModifiedCards(profile: string | undefined, fields: string[], decks: string[]) {
+    private async checkRecentlyModifiedCards(
+        profile: string | undefined,
+        fields: string[],
+        decks: string[],
+        settings: AsbplayerSettings,
+        generation: number
+    ) {
         try {
             if (!this.anki) throw new Error('Anki not initialized');
             const cardIds = await this.anki.findRecentlyEditedOrReviewedCards(1, fields, decks); // Can't efficiently poll suspended status
+            if (generation !== this.generation) return;
             this.connectionError = false;
             if (
                 cardIds.length === this.recentlyModifiedCardIds.size &&
@@ -196,10 +229,14 @@ export class AnkiAnnotations {
                 this.recentlyModifiedFirstCheck = false;
                 return;
             }
-            await this.options.dictionaryProvider.buildAnkiCache(profile, await this.options.settingsProvider.getAll());
-            this.triggerRefresh = true;
+            if (this.refreshed) {
+                await this.options.dictionaryProvider.buildAnkiCache(profile, settings);
+                if (generation !== this.generation) return;
+                this.triggerRefresh = true;
+            }
             this.statisticsRefreshed = false;
         } catch (e) {
+            if (generation !== this.generation) return;
             if (!this.connectionError) {
                 asbError('annotations/anki', 'Error checking Anki recently modified cards:', e);
                 this.connectionError = true;
@@ -210,11 +247,17 @@ export class AnkiAnnotations {
         }
     }
 
-    private async refreshStatistics(profile: string | undefined, fields: string[], decks: string[]) {
+    private async refreshStatistics(
+        profile: string | undefined,
+        fields: string[],
+        decks: string[],
+        generation: number
+    ) {
         if (!this.options.generateStatistics() || this.statisticsRefreshed) return;
         const startedAt = Date.now();
         try {
-            if (!this.anki) throw new Error('Anki not initialized');
+            const anki = this.anki;
+            if (!anki) throw new Error('Anki not initialized');
             const ankiCardRecords = (await this.options.dictionaryProvider.getRecords(profile, undefined))
                 .ankiCardRecords;
             const cardsInfo: DictionaryStatisticsAnkiSnapshot['cardsInfo'] = {};
@@ -228,7 +271,7 @@ export class AnkiAnnotations {
 
             // Fallback to requesting from Anki if extension and therefore the db hasn't been updated
             if (Object.keys(cardsInfo).length && !Object.values(cardsInfo)[0]) {
-                for (const cardInfo of await this.anki.cardsInfo(Object.keys(cardsInfo).map((id) => parseInt(id)))) {
+                for (const cardInfo of await anki.cardsInfo(Object.keys(cardsInfo).map((id) => parseInt(id)))) {
                     cardsInfo[cardInfo.cardId] = {
                         deckName: cardInfo.deckName,
                         modelName: cardInfo.modelName,
@@ -237,7 +280,8 @@ export class AnkiAnnotations {
                 }
             }
             const dueCards: DictionaryStatisticsAnkiDueCardsSnapshot = {};
-            for (const due of REVIEW_DUES) dueCards[due] = await this.anki.findCardsDueBy(due, fields, decks);
+            for (const due of REVIEW_DUES) dueCards[due] = await anki.findCardsDueBy(due, fields, decks);
+            if (generation !== this.generation) return;
             const totalCards = Object.keys(cardsStatus).length;
             this.options.replaceStatisticsSnapshot({
                 available: true,
@@ -249,6 +293,7 @@ export class AnkiAnnotations {
             this.statisticsRefreshed = true;
             this.connectionError = false;
         } catch (e) {
+            if (generation !== this.generation) return;
             if (!this.connectionError) {
                 asbError('annotations/anki', 'Error refreshing Anki for statistics:', e);
                 this.connectionError = true;

@@ -84,9 +84,12 @@ export class AppExtensionDictionaryStorage implements DictionaryStorage {
         return this._extension.dictionaryGetByLemmaBulk(profile, track, lemmas);
     }
 
+    get supportsAnkiCacheSource() {
+        return this._extension.supportsIPlusOne;
+    }
+
     async getAnkiCacheSource(profile: string | undefined, track: number) {
-        // An older extension never marks a completed build: no i+1 cue.
-        if (!this._extension.supportsIPlusOne) return undefined;
+        if (!this.supportsAnkiCacheSource) return undefined;
         return this._extension.dictionaryGetAnkiCacheSource(profile, track);
     }
 
