@@ -1598,6 +1598,7 @@ export default class Binding {
         const activeProfile = (await this.settings.activeProfile())?.name;
         const profileChanged = this._lastProfile !== activeProfile;
         this._lastProfile = activeProfile;
+        if (profileChanged) this.livingSubtitleHost?.controller.clear(); // a pending Known belongs to the previous profile
         this.playbackEngine.profileChanged(activeProfile);
         const underlyingSettings = await this.settings.getAll();
         const currentSettings = effectiveSettings(underlyingSettings);
@@ -1642,7 +1643,6 @@ export default class Binding {
         this.subtitleController.subtitleHtml = currentSettings.subtitleHtml;
 
         if (profileChanged) {
-            this.livingSubtitleHost?.controller.clear(); // a pending Known belongs to the previous profile
             this.subtitleController.subtitleAnnotations.profileChanged(currentSettings);
         } else {
             this.subtitleController.subtitleAnnotations.settingsUpdated(currentSettings, { force: false });
@@ -1869,8 +1869,9 @@ export default class Binding {
             },
             mine: (state) => this.mineLivingSubtitle(state),
             define: (word) => this._defineWithYomitan(word),
-            markKnown: (word, lemmas) =>
-                saveKnownWord(this.dictionary, this._lastProfile, word, lemmas, (tokens) =>
+            // Read the profile at the click: _lastProfile lags a switch until _refreshSettings catches up.
+            markKnown: async (word, lemmas) =>
+                saveKnownWord(this.dictionary, (await this.settings.activeProfile())?.name, word, lemmas, (tokens) =>
                     this.subtitleController.subtitleAnnotations.tokensWereModified(tokens)
                 ),
         });
