@@ -440,7 +440,6 @@ export class BuildAnnotations {
     }
 
     tokensWereModified(modifiedTokens: string[]): void {
-        if (!this.trackStates.some((ts) => dictionaryTrackActive(ts.dt, ts.track))) return; // no annotations to refresh
         for (const token of modifiedTokens) this.tokensForRefresh.add(normalizeToken(token));
     }
 
@@ -685,6 +684,7 @@ export class BuildAnnotations {
                 });
             }
             if (!this.trackStates.some((ts) => dictionaryTrackActive(ts.dt, ts.track))) {
+                this.tokensForRefresh.clear(); // nothing to refresh, or the 100 ms loop rebuilds forever
                 buildOutcome = 'skipped';
                 return true;
             }
@@ -858,7 +858,7 @@ export class BuildAnnotations {
                                     updatedSubtitles.push(subtitle);
                                     this.recordTokenOccurrences(index, reconstructedText, tokenization, ts);
                                     tokenizationUpdateCount++;
-                                    if (generatingStatistics) {
+                                    if (generatingStatistics && dictionaryTrackEnabled(ts.dt)) {
                                         const sentence = { ...subtitle };
                                         this.dictionaryStatistics.ingest(sentence); // Treat the entire source entry as a single sentence
                                         if (

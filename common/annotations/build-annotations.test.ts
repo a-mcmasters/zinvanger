@@ -1266,6 +1266,51 @@ describe('BuildAnnotations public boundary', () => {
         expect(storage.getByLemmaBulk.mock.calls.map((call: unknown[]) => call[1])).toEqual([0]);
     });
 
+    it('stops refreshing modified tokens once turning i+1 off leaves no active track', async () => {
+        const vocabulary = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
+        const { build, settings, subtitles } = makeBuild(makeDictionaryTracks(vocabulary));
+        subtitles.push(makeSubtitle({ index: 0, track: 0, text: 'word' }));
+        build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
+        await settleBuild(build.buildInitial());
+        build.tokensWereModified(['word']);
+
+        build.updateSettings({ ...settings, dictionaryTracks: makeDictionaryTracks() });
+        await waitForAsyncBuild();
+        const builds = jest.spyOn(build as unknown as { build: () => Promise<boolean> }, 'build');
+        await build.refresh();
+        await build.refresh();
+
+        expect(builds).not.toHaveBeenCalled();
+    });
+
+    it('keeps an i+1-only main track out of statistics another track generates', async () => {
+        let now = Date.now();
+        jest.spyOn(Date, 'now').mockImplementation(() => ++now);
+        const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const vocabulary = makeDictionaryTrack({ dictionaryAnkiDecks: ['Dutch'], dictionaryAnkiWordFields: ['Word'] });
+        const statistics = makeDictionaryTrack({
+            dictionaryAutoGenerateStatistics: true,
+            dictionaryColorizeSubtitles: true,
+        });
+        const { build, subtitles } = makeBuild(
+            makeDictionaryTracks(vocabulary).map((dt, track) => (track === 1 ? statistics : dt))
+        );
+        subtitles.push(makeSubtitle({ index: 0, track: 0, text: 'word' }), makeSubtitle({ index: 1, track: 1 }));
+        build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
+        await settleBuild(build.buildInitial());
+
+        build.tokensWereModified(['word']);
+        await build.refresh();
+        await waitForAsyncBuild();
+
+        expect(errors).not.toHaveBeenCalledWith(
+            expect.anything(),
+            expect.stringContaining('Error building annotations for subtitle index 0'),
+            expect.anything()
+        );
+        expect(subtitles[0].tokenization?.tokens[0].status).toBe(TokenStatus.UNCOLLECTED);
+    });
+
     it('merges generated tokens around externally supplied readings', async () => {
         const fetcher: Fetcher = {
             fetch: jest.fn(async (url: string, request: { text?: string | string[] }) => {
