@@ -1869,10 +1869,10 @@ export default class Binding {
             },
             mine: (state) => this.mineLivingSubtitle(state),
             define: (word) => this._defineWithYomitan(word),
-            markKnown: async (word, lemmas) => {
-                await saveKnownWord(this.dictionary, this._lastProfile, word, lemmas);
-                this.subtitleController.subtitleAnnotations.tokensWereModified([word, ...lemmas]);
-            },
+            markKnown: (word, lemmas) =>
+                saveKnownWord(this.dictionary, this._lastProfile, word, lemmas, (tokens) =>
+                    this.subtitleController.subtitleAnnotations.tokensWereModified(tokens)
+                ),
         });
     }
 

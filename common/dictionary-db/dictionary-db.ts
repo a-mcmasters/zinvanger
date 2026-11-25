@@ -800,7 +800,7 @@ export class DictionaryDB {
                     );
                     continue;
                 }
-                const existingRecord = tokenRecordMap.get(localTokenInput.token); // Ignore existing lemmas as they should be re-calculated
+                const existingRecord = tokenRecordMap.get(localTokenInput.token);
                 let status = localTokenInput.status;
                 let states = localTokenInput.states;
                 if (existingRecord) {
@@ -810,13 +810,10 @@ export class DictionaryDB {
                     status = TokenStatus.UNCOLLECTED;
                 }
                 states = Array.from(new Set(states)).sort((lhs, rhs) => lhs - rhs);
-                const lemmas = localTokenInput.lemmas.filter((lemma) => HAS_LETTER_REGEX.test(lemma));
+                let lemmas = localTokenInput.lemmas.filter((lemma) => HAS_LETTER_REGEX.test(lemma));
+                // A save without a lookup keeps the record's known forms; a new record falls back to its own form.
                 if (!lemmas.length) {
-                    asbError(
-                        'dictionary',
-                        `Cannot save local token with no lemmas: ${JSON.stringify(localTokenInput)}`
-                    );
-                    continue;
+                    lemmas = existingRecord?.lemmas.length ? [...existingRecord.lemmas] : [localTokenInput.token];
                 }
                 if (status === TokenStatus.UNCOLLECTED && !states.length) {
                     if (existingRecord) {

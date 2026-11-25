@@ -248,12 +248,25 @@ describe('LivingSubtitleController', () => {
             void controller.markKnown();
             void controller.markKnown(); // a double click while saving
             expect(knowns).toEqual([expect.objectContaining({ word: 'zet', lemmas: ['zet-lemma'] })]);
-            expect(state().known.status).toBe('pending');
+            expect(state().known?.status).toBe('pending');
 
             knowns[0].result.resolve('');
             await flush();
-            expect(state().known.status).toBe('success');
+            expect(state().known?.status).toBe('success');
             expect(state().word?.text).toBe('zet'); // the card stays open
+        });
+
+        it('waits for the lookup, so the save stores the forms the status resolver queries', async () => {
+            const { controller, lookups, knowns } = setup();
+            controller.hover(target('Hij liep.'));
+            void controller.selectWord(1);
+            void controller.markKnown();
+            expect(knowns).toHaveLength(0);
+
+            lookups[0].result.resolve('walked');
+            await flush();
+            void controller.markKnown();
+            expect(knowns).toEqual([expect.objectContaining({ word: 'liep', lemmas: ['liep-lemma'] })]);
         });
 
         it('saves the surface form alone when the lookup failed', async () => {
@@ -267,9 +280,10 @@ describe('LivingSubtitleController', () => {
         });
 
         it('offers no Known for a word without letters', async () => {
-            const { controller, knowns } = await opened('Om 2024 uur.', 1, '');
+            const { controller, knowns, state } = await opened('Om 2024 uur.', 1, '');
             void controller.markKnown();
             expect(knowns).toHaveLength(0);
+            expect(state().known).toBeUndefined();
         });
 
         it('reports a rejected write, and a retry confirms once', async () => {
@@ -282,8 +296,8 @@ describe('LivingSubtitleController', () => {
             void controller.markKnown();
             knowns[1].result.resolve('');
             await flush();
-            expect(state().known.status).toBe('success');
-            const confirmations = actions.render.mock.calls.filter(([s]) => s.known.status === 'success');
+            expect(state().known?.status).toBe('success');
+            const confirmations = actions.render.mock.calls.filter(([s]) => s.known?.status === 'success');
             expect(confirmations).toHaveLength(1);
         });
 
@@ -294,8 +308,7 @@ describe('LivingSubtitleController', () => {
                 controller.hover(target('Hij zet.'));
                 void controller.selectWord(1);
                 lookups[0].result.resolve('puts');
-                await Promise.resolve();
-                await Promise.resolve();
+                await jest.advanceTimersByTimeAsync(0);
                 void controller.markKnown();
                 await jest.advanceTimersByTimeAsync(10_000);
                 expect(state().known).toEqual({ status: 'error', message: 'timeout' });
@@ -315,7 +328,7 @@ describe('LivingSubtitleController', () => {
                 leave(controller);
                 knowns[0].result.resolve('');
                 await flush();
-                expect(state().known).toEqual({ status: 'idle' });
+                expect(state().known ?? { status: 'idle' }).toEqual({ status: 'idle' });
             }
         });
 
@@ -326,7 +339,7 @@ describe('LivingSubtitleController', () => {
             await flush();
             controller.retryDefinition();
             expect(lookups).toHaveLength(2);
-            expect(state().known.status).toBe('success');
+            expect(state().known?.status).toBe('success');
         });
     });
 });

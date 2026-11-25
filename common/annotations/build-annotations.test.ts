@@ -9,6 +9,8 @@ import { DictionaryProvider } from '@project/common/dictionary-db';
 import { DictionaryDB } from '@project/common/dictionary-db/dictionary-db';
 import { makeAnkiCardRecord, makeTokenRecord, privateDb } from '@project/common/dictionary-db/dictionary-db-test-utils';
 import { BuildAnnotations } from '@project/common/annotations/build-annotations';
+import { renderRichTextOntoSubtitles } from '@project/common/annotations/render-annotations';
+import { saveKnownWord } from '@project/common/living-subtitle/known-word';
 import type { BuildAnnotationsOptions, InternalSubtitleModel } from '@project/common/annotations/build-annotations';
 import {
     makeDictionaryTrack,
@@ -23,6 +25,7 @@ import { Yomitan } from '@project/common/yomitan';
 import {
     ApplyStrategy,
     DictionaryTokenSource,
+    getFullyKnownTokenStatus,
     SettingsProvider,
     TokenMatchStrategy,
     TokenState,
@@ -1045,6 +1048,86 @@ describe('BuildAnnotations public boundary', () => {
                 }
             }
         );
+
+        it('a confirmed Known save makes its i+1 line stop qualifying', async () => {
+            const vocabulary = makeDictionaryTrack({
+                dictionaryTokenMatchStrategy: TokenMatchStrategy.ANY_FORM_COLLECTED,
+                dictionaryAnkiDecks: ['Dutch'],
+                dictionaryAnkiWordFields: ['Word'],
+            });
+            const dictionaryTracks = makeDictionaryTracks(vocabulary);
+            await settingsProvider.set({ dictionaryTracks });
+            const known = getFullyKnownTokenStatus();
+            await dictionaryDB.saveRecordLocalBulk(
+                undefined,
+                ['hij', 'naar', 'huis'].map((token) => ({ token, status: known, lemmas: [token], states: [] })),
+                ApplyStrategy.ADD
+            );
+            const fetcher: Fetcher = {
+                fetch: jest.fn(async (url: string, request: { text?: string | string[]; term?: string }) => {
+                    if (url.endsWith('/yomitanVersion')) return { version: '0.0.0.0' };
+                    if (url.endsWith('/tokenize')) {
+                        const texts = Array.isArray(request.text) ? request.text : [request.text!];
+                        return texts.map((text, index) => ({
+                            id: 'id',
+                            source: 'source',
+                            dictionary: 'dictionary',
+                            index,
+                            content: text.split(/( )/).map((part) => [{ text: part, reading: '' }]),
+                        }));
+                    }
+                    if (url.endsWith('/termEntries')) {
+                        if (request.term !== 'liep') return { dictionaryEntries: [] };
+                        const sources = [
+                            { originalText: 'liep', deinflectedText: 'lopen', isPrimary: true, matchType: 'exact' },
+                        ];
+                        const headwords = [{ term: 'lopen', reading: 'lopen', sources }];
+                        return {
+                            dictionaryEntries: [{ headwords, definitions: [], frequencies: [], pronunciations: [] }],
+                        };
+                    }
+                    throw new Error(`unexpected request: ${url}`);
+                }),
+            };
+            const provider = new DictionaryProvider({
+                ...makeStorage(),
+                getBulk: dictionaryDB.getBulk.bind(dictionaryDB),
+                getByLemmaBulk: dictionaryDB.getByLemmaBulk.bind(dictionaryDB),
+                saveRecordLocalBulk: dictionaryDB.saveRecordLocalBulk.bind(dictionaryDB),
+                getAnkiCacheSource: async () => '[["Dutch"],["Word"]]',
+            } as any);
+            const build = new BuildAnnotations({
+                dictionaryProvider: provider,
+                settingsProvider,
+                mediaId: 'media-id',
+                subtitlesAt: () => ({ showing: [] }),
+                subtitleAnnotationsUpdated: jest.fn(),
+                fetcher,
+            });
+            const text = 'Hij liep naar huis';
+            const subtitles = [makeSubtitle({ text, originalText: text })];
+            const cue = () =>
+                renderRichTextOntoSubtitles(subtitles, 'video', dictionaryTracks, {
+                    adaptiveWordVisibilityEnabled: false,
+                })
+                    .get(0)
+                    ?.richText?.includes('data-asb-i-plus-one');
+            try {
+                build.setSubtitles(subtitles, { shouldReset: true, sources: [] });
+                await build.buildInitial();
+                expect(cue()).toBe(true);
+
+                // The card's lookup gives the lemmas the status resolver queries.
+                await saveKnownWord(provider, undefined, 'liep', ['lopen'], (tokens) =>
+                    build.tokensWereModified(tokens)
+                );
+                await build.buildInitial();
+
+                expect(cue()).toBe(false);
+            } finally {
+                build.setSubtitles([], { shouldReset: true, sources: [] });
+            }
+        });
     });
 
     it('cancels an overlapping build and can recover with a later build', async () => {

@@ -16,7 +16,7 @@ export interface LivingSubtitleViewModel {
     readonly wordIndex: number;
     readonly definition: LivingSubtitleResult;
     readonly mining: LivingSubtitleResult;
-    readonly known: LivingSubtitleResult;
+    readonly known?: LivingSubtitleResult;
     /** Widest the card may be (visible video width). */
     readonly maxWidth: number;
     /** Tallest the card may be (visible video height); content beyond it scrolls. */

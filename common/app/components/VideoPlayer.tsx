@@ -2352,10 +2352,11 @@ export default function VideoPlayer({
             if (notMined) throw new Error(notMined);
             return 'submitted' as const;
         },
-        markKnown: async (word: string, lemmas: readonly string[]) => {
-            await saveKnownWord(dictionaryProvider, profile, word, lemmas);
-            playerChannel.tokensWereModified([word, ...lemmas]); // the app window owns the annotations
-        },
+        // The app window owns the annotations.
+        markKnown: (word: string, lemmas: readonly string[]) =>
+            saveKnownWord(dictionaryProvider, profile, word, lemmas, (tokens) =>
+                playerChannel.tokensWereModified(tokens)
+            ),
     };
     const wordCardActionsRef = useRef(wordCardActions);
     wordCardActionsRef.current = wordCardActions;
