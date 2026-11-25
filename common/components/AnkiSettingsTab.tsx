@@ -83,6 +83,8 @@ interface Props {
     onTutorialStepChanged: (step: TutorialStep) => void;
     anki: Anki;
     testCard?: () => Promise<CardModel>;
+    /** False when the known-word source would be ignored: the web app's dictionary lives in an older extension. */
+    knownWordsSupported?: boolean;
 }
 
 /** Padding below 0 would cut into the subtitle; blank or invalid input keeps the last value. */
@@ -100,6 +102,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
     onTutorialStepChanged,
     anki,
     testCard,
+    knownWordsSupported = true,
 }) => {
     const { t } = useTranslation();
 
@@ -287,6 +290,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
         <Autocomplete
             multiple
             disableCloseOnSelect
+            disabled={!knownWordsSupported}
             options={options ?? []}
             value={dictionaryTracks[0][key]}
             onChange={(_, value) =>
@@ -295,7 +299,13 @@ const AnkiSettingsTab: React.FC<Props> = ({
                     dictionaryTracks.map((dt, track): DictionaryTrack => (track === 0 ? { ...dt, [key]: value } : dt))
                 )
             }
-            renderInput={(params) => <SettingsTextField {...params} label={label} helperText={helperText} />}
+            renderInput={(params) => (
+                <SettingsTextField
+                    {...params}
+                    label={label}
+                    helperText={knownWordsSupported ? helperText : t('settings.knownWordsNeedExtensionUpdate')}
+                />
+            )}
         />
     );
 

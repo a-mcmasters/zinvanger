@@ -638,6 +638,7 @@
         "knownWordDecksHelperText": "Notes in these decks and their subdecks count as words you know or are learning.",
         "knownWordFields": "Word fields",
         "knownWordFieldsHelperText": "Fields that hold just the word. With both set, subtitles underline the one new word of a line.",
+        "knownWordsNeedExtensionUpdate": "Update the extension to use known words.",
         "dictionaryAnkiDecks": "指定扫描的 Anki 牌组",
         "dictionaryAnkiSelectDecks": "选择需搜索的牌组...",
         "dictionaryAnkiWordFields": "Anki 单词字段",
