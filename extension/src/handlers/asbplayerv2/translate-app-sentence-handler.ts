@@ -1,6 +1,6 @@
 import type { Command, Message, TranslateAppSentenceMessage } from '@project/common';
 import project from '@project/common/project';
-import { isFirefoxBuild } from '@/services/build-flags';
+import { isFirefoxBuild, isPersonalHostedTranslationBuild } from '@/services/build-flags';
 import { localLookup } from '@/services/local-lookup-client';
 import { webSentenceTranslationKey } from '@/services/local-lookup-token';
 
@@ -23,6 +23,7 @@ export default class TranslateAppSentenceHandler {
     ) {
         // The relay accepts window messages. Check browser-supplied sender metadata and the extension-only opt-in.
         if (
+            !isPersonalHostedTranslationBuild ||
             isFirefoxBuild ||
             sender.id !== browser.runtime.id ||
             sender.origin !== appUrl.origin ||

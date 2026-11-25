@@ -5,6 +5,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import { useTranslation } from 'react-i18next';
+import { isPersonalHostedTranslationBuild } from '@/services/build-flags';
 import {
     getLocalLookupToken,
     localLookupTokenKey,
@@ -23,7 +24,12 @@ export default function LocalLookupSettings() {
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        void Promise.all([getLocalLookupToken(), browser.storage.local.get({ [webSentenceTranslationKey]: false })])
+        void Promise.all([
+            getLocalLookupToken(),
+            isPersonalHostedTranslationBuild
+                ? browser.storage.local.get({ [webSentenceTranslationKey]: false })
+                : { [webSentenceTranslationKey]: false },
+        ])
             .then(([value, settings]) => {
                 const enabled = settings[webSentenceTranslationKey] === true;
                 setSavedToken(value);
@@ -35,7 +41,7 @@ export default function LocalLookupSettings() {
         // Another open settings view may save; follow it so a later save here can't write back stale values.
         const listener = (changes: Record<string, Browser.storage.StorageChange>, area: string) => {
             if (area !== 'local') return;
-            if (webSentenceTranslationKey in changes) {
+            if (isPersonalHostedTranslationBuild && webSentenceTranslationKey in changes) {
                 const enabled = changes[webSentenceTranslationKey].newValue === true;
                 setSavedWebTranslation(enabled);
                 setWebTranslation(enabled);
@@ -60,7 +66,10 @@ export default function LocalLookupSettings() {
             const update: Record<string, string | boolean> = {};
             if (value !== savedToken) update[localLookupTokenKey] = value;
             // A token too short to use always revokes consent, even if another view just granted it.
-            if (enabled !== savedWebTranslation || value.length < minimumLocalLookupTokenLength) {
+            if (
+                (isPersonalHostedTranslationBuild && enabled !== savedWebTranslation) ||
+                value.length < minimumLocalLookupTokenLength
+            ) {
                 update[webSentenceTranslationKey] = enabled;
             }
             await browser.storage.local.set(update);
@@ -103,13 +112,18 @@ export default function LocalLookupSettings() {
                     {t('settings.localLookupTokenSave')}
                 </Button>
             </Stack>
-            <FormControlLabel
-                control={
-                    <Checkbox checked={webTranslation} onChange={(event) => setWebTranslation(event.target.checked)} />
-                }
-                disabled={savedToken === undefined || saving || tokenLength < minimumLocalLookupTokenLength}
-                label={t('settings.webSentenceTranslation')}
-            />
+            {isPersonalHostedTranslationBuild && (
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={webTranslation}
+                            onChange={(event) => setWebTranslation(event.target.checked)}
+                        />
+                    }
+                    disabled={savedToken === undefined || saving || tokenLength < minimumLocalLookupTokenLength}
+                    label={t('settings.webSentenceTranslation')}
+                />
+            )}
         </Stack>
     );
 }

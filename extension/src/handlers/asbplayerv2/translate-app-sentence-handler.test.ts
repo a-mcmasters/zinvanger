@@ -3,9 +3,13 @@ import TranslateAppSentenceHandler from '@/handlers/asbplayerv2/translate-app-se
 import { localLookup } from '@/services/local-lookup-client';
 
 let mockFirefoxBuild = false;
+let mockPersonalHostedTranslationBuild = true;
 jest.mock('@/services/build-flags', () => ({
     get isFirefoxBuild() {
         return mockFirefoxBuild;
+    },
+    get isPersonalHostedTranslationBuild() {
+        return mockPersonalHostedTranslationBuild;
     },
 }));
 jest.mock('@/services/local-lookup-client', () => ({ localLookup: jest.fn() }));
@@ -30,6 +34,7 @@ describe('TranslateAppSentenceHandler', () => {
     beforeEach(() => {
         optedIn = false;
         mockFirefoxBuild = false;
+        mockPersonalHostedTranslationBuild = true;
         lookup.mockReset().mockResolvedValue({ text: 'This is a test.' });
         Object.defineProperty(globalThis, 'browser', {
             configurable: true,
@@ -54,6 +59,13 @@ describe('TranslateAppSentenceHandler', () => {
 
     it('skips the local service without opt-in', async () => {
         await expect(new Promise((resolve) => handler.handle(request, appSender, resolve))).resolves.toBeUndefined();
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it('rejects hosted requests from a standard build even with saved opt-in', () => {
+        optedIn = true;
+        mockPersonalHostedTranslationBuild = false;
+        expect(handler.handle(request, appSender, jest.fn())).toBe(false);
         expect(lookup).not.toHaveBeenCalled();
     });
 
