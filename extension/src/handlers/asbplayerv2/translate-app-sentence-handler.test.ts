@@ -1,6 +1,6 @@
 import project from '@project/common/project';
 import TranslateAppSentenceHandler from '@/handlers/asbplayerv2/translate-app-sentence-handler';
-import { localLookup } from '@/services/local-lookup-client';
+import { translateSentence } from '@/services/translate-sentence';
 
 let mockFirefoxBuild = false;
 let mockPersonalHostedTranslationBuild = true;
@@ -12,9 +12,9 @@ jest.mock('@/services/build-flags', () => ({
         return mockPersonalHostedTranslationBuild;
     },
 }));
-jest.mock('@/services/local-lookup-client', () => ({ localLookup: jest.fn() }));
+jest.mock('@/services/translate-sentence', () => ({ translateSentence: jest.fn() }));
 
-const lookup = jest.mocked(localLookup);
+const lookup = jest.mocked(translateSentence);
 const appUrl = project.urls.app;
 const appSender = {
     id: 'test-extension',
@@ -30,17 +30,23 @@ const request = {
 describe('TranslateAppSentenceHandler', () => {
     const handler = new TranslateAppSentenceHandler();
     let optedIn: boolean;
+    let legacyOptedIn: boolean;
 
     beforeEach(() => {
         optedIn = false;
+        legacyOptedIn = false;
         mockFirefoxBuild = false;
         mockPersonalHostedTranslationBuild = true;
-        lookup.mockReset().mockResolvedValue({ text: 'This is a test.' });
+        lookup.mockReset().mockResolvedValue('This is a test.');
         Object.defineProperty(globalThis, 'browser', {
             configurable: true,
             value: {
                 runtime: { id: 'test-extension' },
-                storage: { local: { get: async () => ({ webSentenceTranslation: optedIn }) } },
+                storage: {
+                    local: {
+                        get: async () => ({ webAppDeeplTranslation: optedIn, webSentenceTranslation: legacyOptedIn }),
+                    },
+                },
             },
         });
     });
@@ -57,7 +63,13 @@ describe('TranslateAppSentenceHandler', () => {
         expect(lookup).toHaveBeenCalledWith(request.message.sentence);
     });
 
-    it('skips the local service without opt-in', async () => {
+    it('skips translation without opt-in', async () => {
+        await expect(new Promise((resolve) => handler.handle(request, appSender, resolve))).resolves.toBeUndefined();
+        expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it('ignores the opt-in given for the retired local translation service', async () => {
+        legacyOptedIn = true;
         await expect(new Promise((resolve) => handler.handle(request, appSender, resolve))).resolves.toBeUndefined();
         expect(lookup).not.toHaveBeenCalled();
     });

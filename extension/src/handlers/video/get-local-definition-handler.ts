@@ -1,7 +1,7 @@
 import type { Command, GetLocalDefinitionMessage, Message } from '@project/common';
-import { localLookup } from '@/services/local-lookup-client';
+import { translateSentence } from '@/services/translate-sentence';
 
-// Only the extension-owned Anki dialog can spend local lookup quota.
+// Only the extension-owned Anki dialog can spend DeepL quota.
 export default class GetLocalDefinitionHandler {
     get sender() {
         return 'asbplayer-video-tab';
@@ -21,8 +21,8 @@ export default class GetLocalDefinitionHandler {
 
         const { sentence } = command.message as GetLocalDefinitionMessage;
 
-        localLookup(sentence)
-            .then((response) => sendResponse('text' in response ? { translation: response.text } : undefined))
+        translateSentence(sentence)
+            .then((translation) => sendResponse(translation === undefined ? undefined : { translation }))
             .catch(() => sendResponse(undefined));
 
         return true;

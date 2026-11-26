@@ -116,43 +116,11 @@ export interface HttpPostMessage extends MessageWithId {
     readonly body: any;
 }
 
-/** Asks the background for a locally transcribed subtitle file (SRT text) for a video, by its name. */
-export interface GetLocalTranscriptMessage extends Message {
-    readonly command: 'get-local-transcript';
-    readonly key: string;
-}
-
-export type EpisodeTranscriptionAction =
-    | { action: 'start'; key: string }
-    | { action: 'resume'; offset: number }
-    | { action: 'pause' | 'finish' | 'cancel' }
-    | { action: 'status'; key: string };
-
-export interface EpisodeTranscriptionMessage extends Message {
-    command: 'episode-transcription';
-    id: string;
-    operation: EpisodeTranscriptionAction;
-}
-
-export interface CaptureEpisodeAudioMessage extends Message {
-    command: 'capture-episode-audio';
-    id: string;
-    tabId: number;
-    operation: Exclude<EpisodeTranscriptionAction, { action: 'status' }>;
-    streamId?: string;
-    /** The local lookup token, sent on start: offscreen documents can't read extension storage. */
-    token?: string;
-}
-
-/** Asks the local transcriber for a sentence's translation, for the Anki sentence translation field. */
+/** Asks the background for a sentence's translation (DeepL), for the Anki sentence translation field. */
 export interface GetLocalDefinitionMessage extends Message {
     readonly command: 'get-local-definition';
     readonly sentence: string;
 }
-
-export type LocalLookupError = 'unavailable' | 'unauthorized' | 'busy' | 'timeout' | 'invalid' | 'malformed';
-
-export type LocalLookupResponse = { readonly text: string } | { readonly error: LocalLookupError };
 
 export interface EncodeMp3Message extends MessageWithId {
     readonly command: 'encode-mp3';

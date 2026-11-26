@@ -1,8 +1,8 @@
 import type { Command, Message, TranslateAppSentenceMessage } from '@project/common';
 import project from '@project/common/project';
 import { isFirefoxBuild, isPersonalHostedTranslationBuild } from '@/services/build-flags';
-import { localLookup } from '@/services/local-lookup-client';
-import { webSentenceTranslationKey } from '@/services/local-lookup-token';
+import { translateSentence } from '@/services/translate-sentence';
+import { webSentenceTranslationKey } from '@/services/translation-api-key';
 
 const appUrl = new URL(project.urls.app);
 
@@ -38,10 +38,9 @@ export default class TranslateAppSentenceHandler {
 
         browser.storage.local
             .get({ [webSentenceTranslationKey]: false })
-            .then(async (settings) => {
+            .then((settings) => {
                 if (settings[webSentenceTranslationKey] !== true) return undefined;
-                const result = await localLookup(sentence);
-                return 'text' in result ? result.text : undefined;
+                return translateSentence(sentence);
             })
             .then(sendResponse, () => sendResponse(undefined));
         return true;

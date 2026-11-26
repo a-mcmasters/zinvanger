@@ -8,7 +8,6 @@ import { asbError, asbTrace } from '@project/common/util/log';
 import type {
     ActiveProfileMessage,
     ConfirmedVideoDataSubtitleTrack,
-    GetLocalTranscriptMessage,
     OpenAsbplayerSettingsMessage,
     LoadableSubtitleTrack,
     SerializedSubtitleFile,
@@ -32,11 +31,10 @@ import { fetchLocalization } from '@project/extension/src/services/localization-
 import i18n from 'i18next';
 import { ExtensionGlobalStateProvider } from '@/services/extension-global-state-provider';
 import { isOnTutorialPage } from '@/services/tutorial';
-import { isLocalTranscriptTrack, localTranscriptTrack, subtitleFileExtensionForUrl } from '@/pages/util';
+import { subtitleFileExtensionForUrl } from '@/pages/util';
 import { frameColorScheme, frameColorSchemeStyleBlock } from '@/services/frame-color-scheme';
 import { setGenericSubtitleParserOptionsForHost } from '@/services/generic-subtitle-parser';
 import { isFirefoxBuild } from '@/services/build-flags';
-import { EpisodeTranscription } from '@/controllers/episode-transcription';
 
 declare global {
     function cloneInto(obj: any, targetScope: any, options?: any): any;
@@ -123,11 +121,9 @@ export default class VideoDataSyncController {
     private _refreshingOpenPicker: boolean = false;
     private _dataReceivedListener?: (event: Event) => void;
     private _dataReceivedEventTarget?: EventTarget;
-    private _syncedDataSequence = 0;
     private _isTutorial: boolean;
     private _subtitleLoad?: SubtitleLoad;
     private _subtitleParsingSettings?: SubtitleParsingSettings;
-    private readonly _transcription: EpisodeTranscription;
 
     constructor(context: Binding, settings: SettingsProvider) {
         this._context = context;
@@ -153,12 +149,6 @@ export default class VideoDataSyncController {
                   browser.runtime.getURL('/').slice(0, -1)
               );
         this._isTutorial = isOnTutorialPage();
-        this._transcription = new EpisodeTranscription(
-            context.video,
-            () => context.registeredVideoSrc,
-            (state) =>
-                this._frame.clientIfLoaded?.updateState({ episodeTranscription: this._canTranscribe() ? state : null })
-        );
     }
 
     private get lastLanguagesSynced(): string[] {
@@ -174,7 +164,6 @@ export default class VideoDataSyncController {
     }
 
     unbind() {
-        this._transcription.stop();
         this.cancelSubtitleLoad({ clearSubtitles: false });
         if (this._dataReceivedListener) {
             this._dataReceivedEventTarget?.removeEventListener(
@@ -241,10 +230,6 @@ export default class VideoDataSyncController {
         ) {
             this.cancelSubtitleLoad({ clearSubtitles: false });
         }
-        if (request.kind === 'reload') {
-            if (request.videoChanged) this._transcription.stop();
-            else this._transcription.stopIfLocationChanged();
-        }
         if (!this._context.hasPageScript) {
             return;
         }
@@ -293,20 +278,7 @@ export default class VideoDataSyncController {
             }
             this._dataReceivedListener = (event: Event) => {
                 const data = (event as CustomEvent).detail as VideoData;
-                const sequence = ++this._syncedDataSequence;
-
-                if (data.subtitles === undefined || !data.basename) {
-                    void this._setSyncedData(data);
-                    return;
-                }
-
-                void this._withLocalTranscript(data)
-                    // The transcript is optional: any failure must still deliver the site's own tracks.
-                    .catch(() => data)
-                    .then((withTranscript) => {
-                        // Drop it if newer data arrived while the transcriber was being asked.
-                        if (sequence === this._syncedDataSequence) void this._setSyncedData(withTranscript);
-                    });
+                void this._setSyncedData(data);
             };
             this._dataReceivedEventTarget = eventTarget;
             eventTarget.addEventListener('asbplayer-synced-data', this._dataReceivedListener, false);
@@ -390,7 +362,6 @@ export default class VideoDataSyncController {
         const showGenericPageOption =
             !this._isTutorial && (isGenericPage || pageDelegate.config.pageScript === undefined);
         const genericSubtitleParser = globalState.genericSubtitleParser.pages[window.location.host]?.parse ?? 'off';
-        const episodeTranscription = this._canTranscribe() ? this._transcription.state : null;
         return this._syncedData
             ? {
                   isLoading: this._syncedData.subtitles === undefined,
@@ -411,7 +382,6 @@ export default class VideoDataSyncController {
                   showGenericPageOption,
                   genericSubtitleParser,
                   onlineSubtitleSourceConfig,
-                  episodeTranscription,
                   ...additionalFields,
               }
             : {
@@ -433,7 +403,6 @@ export default class VideoDataSyncController {
                   showGenericPageOption,
                   genericSubtitleParser,
                   onlineSubtitleSourceConfig,
-                  episodeTranscription,
                   ...additionalFields,
               };
     }
@@ -444,14 +413,6 @@ export default class VideoDataSyncController {
             autoSelectedTracks: [this._emptySubtitle, this._emptySubtitle, this._emptySubtitle],
             completeMatch: false,
         };
-
-        // A Whisper transcript was made for this video on purpose: load it whatever language was used last.
-        const localTranscript = subtitleTrackChoices.find(isLocalTranscriptTrack);
-        if (localTranscript !== undefined) {
-            tracks.autoSelectedTracks[0] = localTranscript;
-            tracks.completeMatch = true;
-            return tracks;
-        }
 
         let matches: number = 0;
         for (let i = 0; i < this.lastLanguagesSynced.length; i++) {
@@ -486,77 +447,9 @@ export default class VideoDataSyncController {
         return subtitleTrack.label;
     }
 
-    // Lists a transcript from the local Whisper transcriber first, so auto-load picks it over the site's own track.
-    private async _withLocalTranscript(data: VideoData): Promise<VideoData> {
-        const command: VideoToExtensionCommand<GetLocalTranscriptMessage> = {
-            sender: 'asbplayer-video',
-            message: { command: 'get-local-transcript', key: data.basename },
-            src: this._context.registeredVideoSrc,
-        };
-        // Don't hold up the subtitle picker if the background never answers.
-        const srt: string | undefined = await Promise.race([
-            browser.runtime.sendMessage(command),
-            new Promise<undefined>((resolve) => setTimeout(resolve, 3000)),
-        ]);
-
-        if (!srt) {
-            return data;
-        }
-
-        const track = localTranscriptTrack(srt, this.lastLanguagesSynced[0]);
-        return {
-            ...data,
-            subtitles: [track, ...(data.subtitles ?? []).filter((subtitle) => !isLocalTranscriptTrack(subtitle))],
-        };
-    }
-
-    private _canTranscribe() {
-        return !isFirefoxBuild && !this._isTutorial && !!this._syncedData?.basename.trim();
-    }
-
-    private _continueTranscription(data: VideoData) {
-        // An episode with a Whisper transcript already loaded is done; continuing would overwrite it.
-        if (data.subtitles === undefined || data.subtitles.some(isLocalTranscriptTrack)) return;
-        this._startTranscription(true);
-    }
-
-    private _startTranscription(continuing = false) {
-        const key = this._syncedData?.basename;
-        if (!this._canTranscribe() || !key) return;
-
-        void this._transcription[continuing ? 'continueOnto' : 'start'](
-            key,
-            async () => {
-                this._frame.clientIfLoaded?.updateState({ open: false });
-                this._wasPaused = true;
-                this._hideAndResume();
-                const enablePauseOnHover = this._context.disablePauseOnHover();
-                await this._context.play().finally(enablePauseOnHover);
-            },
-            async (key, signal) => {
-                const currentData = this._syncedData;
-                if (currentData?.basename !== key) throw new Error('The episode changed during transcription.');
-                const data = await this._withLocalTranscript(currentData);
-                signal.throwIfAborted();
-                if (data === currentData || this._syncedData?.basename !== key) {
-                    throw new Error('Could not load the Whisper subtitles for this episode.');
-                }
-                ++this._syncedDataSequence;
-                this._syncedData = data;
-                const track = data.subtitles![0];
-                this._frame.clientIfLoaded?.updateState({
-                    subtitles: data.subtitles,
-                    selectedSubtitle: [track.id, '-', '-'],
-                });
-                if (!(await this._syncData([track]))) throw new Error('Could not load the Whisper subtitles.');
-            }
-        );
-    }
-
     private async _setSyncedData(data: VideoData) {
         const previousData = this._syncedData;
         this._syncedData = data;
-        this._continueTranscription(data);
 
         if (this._updateOpenPickerFromRefresh(previousData, data)) return;
 
@@ -623,7 +516,6 @@ export default class VideoDataSyncController {
                 suggestedName: data.basename,
                 error: data.error ?? '',
                 isLoading: false,
-                episodeTranscription: this._canTranscribe() ? this._transcription.state : null,
             });
         }
 
@@ -680,21 +572,6 @@ export default class VideoDataSyncController {
         if (isNewClient) {
             client.onMessage((message) => {
                 void (async () => {
-                    if ('startEpisodeTranscription' === message.command) {
-                        this._startTranscription();
-                        return;
-                    }
-
-                    if ('finishEpisodeTranscription' === message.command) {
-                        this._transcription.finish();
-                        return;
-                    }
-
-                    if ('cancelEpisodeTranscription' === message.command) {
-                        this._transcription.reset();
-                        return;
-                    }
-
                     if ('openSettings' === message.command) {
                         const openSettingsCommand: VideoToExtensionCommand<OpenAsbplayerSettingsMessage> = {
                             sender: 'asbplayer-video',

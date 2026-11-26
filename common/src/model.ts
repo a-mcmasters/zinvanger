@@ -284,13 +284,7 @@ export interface VideoDataUiSettings {
     activeProfile?: string;
 }
 
-export type EpisodeTranscriptionState =
-    | { phase: 'ready' | 'starting' | 'recording' | 'uploading' | 'done' }
-    | { phase: 'transcribing'; progress: number }
-    | { phase: 'error'; error: string };
-
 export interface VideoDataUiModel {
-    episodeTranscription?: EpisodeTranscriptionState | null;
     open?: boolean;
     isLoading?: boolean;
     suggestedName?: string;

@@ -7,14 +7,13 @@ import TextField from '@mui/material/TextField';
 import { useTranslation } from 'react-i18next';
 import { isPersonalHostedTranslationBuild } from '@/services/build-flags';
 import {
-    getLocalLookupToken,
-    localLookupTokenKey,
-    localLookupTokenSettingsId,
-    minimumLocalLookupTokenLength,
+    getTranslationApiKey,
+    translationApiKeyKey,
+    minimumTranslationApiKeyLength,
     webSentenceTranslationKey,
-} from '@/services/local-lookup-token';
+} from '@/services/translation-api-key';
 
-export default function LocalLookupSettings() {
+export default function TranslationApiKeySettings() {
     const { t } = useTranslation();
     const [savedToken, setSavedToken] = useState<string>();
     const [token, setToken] = useState('');
@@ -25,7 +24,7 @@ export default function LocalLookupSettings() {
 
     useEffect(() => {
         void Promise.all([
-            getLocalLookupToken(),
+            getTranslationApiKey(),
             isPersonalHostedTranslationBuild
                 ? browser.storage.local.get({ [webSentenceTranslationKey]: false })
                 : { [webSentenceTranslationKey]: false },
@@ -46,8 +45,8 @@ export default function LocalLookupSettings() {
                 setSavedWebTranslation(enabled);
                 setWebTranslation(enabled);
             }
-            if (localLookupTokenKey in changes) {
-                const value = (changes[localLookupTokenKey].newValue as string | undefined) ?? '';
+            if (translationApiKeyKey in changes) {
+                const value = (changes[translationApiKeyKey].newValue as string | undefined) ?? '';
                 setSavedToken(value);
                 setToken(value);
             }
@@ -58,17 +57,17 @@ export default function LocalLookupSettings() {
 
     const save = async () => {
         const value = token.trim();
-        const enabled = value.length >= minimumLocalLookupTokenLength && webTranslation;
+        const enabled = value.length >= minimumTranslationApiKeyLength && webTranslation;
         setSaving(true);
         setError(false);
         try {
             // Write only what this view changed (consent also turns off when the token can no longer support it).
             const update: Record<string, string | boolean> = {};
-            if (value !== savedToken) update[localLookupTokenKey] = value;
+            if (value !== savedToken) update[translationApiKeyKey] = value;
             // A token too short to use always revokes consent, even if another view just granted it.
             if (
                 (isPersonalHostedTranslationBuild && enabled !== savedWebTranslation) ||
-                value.length < minimumLocalLookupTokenLength
+                value.length < minimumTranslationApiKeyLength
             ) {
                 update[webSentenceTranslationKey] = enabled;
             }
@@ -85,16 +84,16 @@ export default function LocalLookupSettings() {
     };
 
     const tokenLength = token.trim().length;
-    const tooShort = tokenLength > 0 && tokenLength < minimumLocalLookupTokenLength;
+    const tooShort = tokenLength > 0 && tokenLength < minimumTranslationApiKeyLength;
     return (
-        <Stack id={localLookupTokenSettingsId} spacing={1} sx={{ mt: 2 }}>
+        <Stack spacing={1} sx={{ mt: 2 }}>
             <Stack direction="row" spacing={2} alignItems="flex-start">
                 <TextField
                     fullWidth
                     type="password"
                     autoComplete="off"
-                    label={t('settings.localLookupToken')}
-                    helperText={t(error ? 'settings.localLookupTokenStorageError' : 'settings.localLookupTokenHint')}
+                    label={t('settings.translationApiKey')}
+                    helperText={t(error ? 'settings.translationApiKeyStorageError' : 'settings.translationApiKeyHint')}
                     value={token}
                     disabled={savedToken === undefined || saving}
                     error={error || tooShort}
@@ -109,7 +108,7 @@ export default function LocalLookupSettings() {
                     }
                     onClick={() => void save()}
                 >
-                    {t('settings.localLookupTokenSave')}
+                    {t('settings.translationApiKeySave')}
                 </Button>
             </Stack>
             {isPersonalHostedTranslationBuild && (
@@ -120,8 +119,8 @@ export default function LocalLookupSettings() {
                             onChange={(event) => setWebTranslation(event.target.checked)}
                         />
                     }
-                    disabled={savedToken === undefined || saving || tokenLength < minimumLocalLookupTokenLength}
-                    label={t('settings.webSentenceTranslation')}
+                    disabled={savedToken === undefined || saving || tokenLength < minimumTranslationApiKeyLength}
+                    label={t('settings.webAppSentenceTranslation')}
                 />
             )}
         </Stack>

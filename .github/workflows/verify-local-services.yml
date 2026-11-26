@@ -1,5 +1,5 @@
-# Builds and tests the local services that `pnpm run verify` skips: the Go
-# WebSocket broker and the Whisper transcriber server.
+# Builds and tests the local service that `pnpm run verify` skips: the Go
+# WebSocket broker.
 #
 # Skips pull requests that touch none of these paths, so it does not gate
 # merging.
@@ -11,13 +11,11 @@ on:
         branches: [main]
         paths:
             - 'scripts/web-socket-server/**'
-            - 'transcriber/**'
             - '.github/workflows/verify-local-services.yml'
     pull_request:
         branches: [main]
         paths:
             - 'scripts/web-socket-server/**'
-            - 'transcriber/**'
             - '.github/workflows/verify-local-services.yml'
 
 permissions:
@@ -40,14 +38,3 @@ jobs:
 
             - run: go vet ./...
             - run: go test ./...
-
-    transcriber:
-        name: Test transcriber
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v7
-
-            # The tests mock Whisper and the lookup CLIs, so the standard library is enough.
-            - name: Test transcriber server
-              working-directory: transcriber
-              run: python3 -m unittest test_server -v
