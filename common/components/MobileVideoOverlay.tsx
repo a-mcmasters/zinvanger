@@ -8,7 +8,6 @@ import IconButton from '@mui/material/IconButton';
 import NoteAddIcon from '@mui/icons-material/NoteAdd';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
-import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { ControlType, PostMineAction } from '@project/common';
 import type { MobileOverlayModel, PlayMode } from '@project/common';
 
@@ -31,9 +30,6 @@ const useStyles = makeStyles(({ anchor }: { anchor: Anchor }) => ({
     },
     inactiveButton: {
         color: 'rgba(120, 120, 120, 0.7)',
-    },
-    recordingButton: {
-        color: 'red',
     },
     container: {
         display: 'inline-flex',
@@ -359,10 +355,6 @@ const MobileVideoOverlay = React.forwardRef<HTMLDivElement, Props>(function Mobi
         }
 
         if (model.emptySubtitleTrack) {
-            if (model.recordingEnabled) {
-                return model.recording ? t('action.stopRecording') : t('action.startRecording');
-            }
-
             return t('action.mine');
         }
 
@@ -399,18 +391,11 @@ const MobileVideoOverlay = React.forwardRef<HTMLDivElement, Props>(function Mobi
                         </Tooltip>
                     </Grid>
                 )}
-                <Grid item>
-                    <Tooltip {...defaultTooltipProps} title={miningButtonTooltip(model)}>
-                        {model.emptySubtitleTrack && model.recordingEnabled ? (
-                            // Wrap in span so that Tooltip doesn't complain about disabled child. Spacing also looks better.
-                            <span>
-                                <IconButton onClick={onMineSubtitle}>
-                                    <FiberManualRecordIcon
-                                        className={model.recording ? classes.recordingButton : classes.button}
-                                    />
-                                </IconButton>
-                            </span>
-                        ) : (
+                {/* Without subtitles this button would start a recording, which this workflow never uses. */}
+                {!(model.emptySubtitleTrack && model.recordingEnabled) && (
+                    <Grid item>
+                        <Tooltip {...defaultTooltipProps} title={miningButtonTooltip(model)}>
+                            {/* Wrap in span so that Tooltip doesn't complain about disabled child. */}
                             <span>
                                 <IconButton disabled={miningButtonDisabled} onClick={onMineSubtitle}>
                                     <NoteAddIcon
@@ -418,9 +403,9 @@ const MobileVideoOverlay = React.forwardRef<HTMLDivElement, Props>(function Mobi
                                     />
                                 </IconButton>
                             </span>
-                        )}
-                    </Tooltip>
-                </Grid>
+                        </Tooltip>
+                    </Grid>
+                )}
                 {!model.emptySubtitleTrack && (
                     <Grid item>
                         <Tooltip {...defaultTooltipProps} title={t('binds.toggleSubtitles')}>
