@@ -26,8 +26,9 @@ This fork is a personal hard fork of asbplayer. It is reshaped in small vertical
 
 | # | Slice | Status |
 |---|---|---|
-| S13 | UI redesign (top priority) | In progress (U0 and U1 complete) |
+| S13 | [UI redesign](slices/S13-ui-redesign.md) (top priority) | In progress (U0–U2 complete; U3 implemented, manual acceptance pending; U4–U5 not started) |
 | S14 | [Known words and i+1 subtitles](slices/S14-known-words-and-i-plus-one.md) | In progress (code done, manual check pending) |
+| S03 | [Whisper subtitles](slices/S03-whisper-subtitles.md) (not the roadmap's S3) | Abandoned and removed (transcription happens outside zinvanger) |
 | S0 | Baseline and fork conventions | Specced |
 | S1 | Land NPO Start (branch `feat/npo-start-subtitles`) | Done |
 | S2 | Lean Anki dialog | Planned |

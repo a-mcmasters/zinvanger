@@ -33,7 +33,7 @@ import { ExtensionGlobalStateProvider } from '@project/extension/src/services/ex
 import { isOnTutorialPage } from '@/services/tutorial';
 import { frameColorScheme, frameColorSchemeStyleBlock } from '@/services/frame-color-scheme';
 import { isFirefoxBuild } from '@/services/build-flags';
-import { getLocalLookupToken, minimumLocalLookupTokenLength } from '@/services/local-lookup-token';
+import { getTranslationApiKey, minimumTranslationApiKeyLength } from '@/services/translation-api-key';
 
 // We need to write the HTML into the iframe manually so that the iframe keeps it's about:blank URL.
 // Otherwise, Chrome won't insert content scripts into the iframe (e.g. Yomichan won't work).
@@ -334,7 +334,7 @@ export default class AnkiUiController {
         const useLocalLookup =
             !this._inTutorial &&
             !isFirefoxBuild &&
-            (await getLocalLookupToken()).length >= minimumLocalLookupTokenLength;
+            (await getTranslationApiKey()).length >= minimumTranslationApiKeyLength;
         // The video can be unbound (e.g. YouTube swapped it) while we waited; don't build a frame for a dead binding.
         if (!context.subscribed) throw new Error('Anki dialog not opened: its video was unbound.');
         if (useLocalLookup !== this.useLocalLookup) {

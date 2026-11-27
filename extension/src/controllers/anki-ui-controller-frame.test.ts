@@ -5,9 +5,9 @@ import FrameBridgeClient from '@/services/frame-bridge-client';
 // Opens the dialog through the real UiFrame and FrameBridgeClient; only the frame's ready handshake is faked.
 
 const mockToken = jest.fn<Promise<string>, []>();
-jest.mock('@/services/local-lookup-token', () => ({
-    getLocalLookupToken: () => mockToken(),
-    minimumLocalLookupTokenLength: 32,
+jest.mock('@/services/translation-api-key', () => ({
+    getTranslationApiKey: () => mockToken(),
+    minimumTranslationApiKeyLength: 32,
 }));
 jest.mock('@/services/build-flags', () => ({ isFirefoxBuild: false }));
 jest.mock('@/services/tutorial', () => ({ isOnTutorialPage: () => false }));

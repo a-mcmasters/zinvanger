@@ -13,8 +13,6 @@ import StopRecordingMediaHandler from '@/handlers/video/stop-recording-media-han
 import ToggleSubtitlesHandler from '@/handlers/video/toggle-subtitles-handler';
 import SyncHandler from '@/handlers/video/sync-handler';
 import HttpPostHandler from '@/handlers/video/http-post-handler';
-import GetLocalTranscriptHandler from '@/handlers/video/get-local-transcript-handler';
-import EpisodeTranscriptionHandler from '@/handlers/video/episode-transcription-handler';
 import GetLocalDefinitionHandler from '@/handlers/video/get-local-definition-handler';
 import TranslateAppSentenceHandler from '@/handlers/asbplayerv2/translate-app-sentence-handler';
 import VideoToAsbplayerCommandForwardingHandler from '@/handlers/video/video-to-asbplayer-command-forwarding-handler';
@@ -206,8 +204,6 @@ export default defineBackground(() => {
         new ToggleSubtitlesHandler(settings, tabRegistry),
         new SyncHandler(tabRegistry),
         new HttpPostHandler(),
-        new GetLocalTranscriptHandler(),
-        new EpisodeTranscriptionHandler(),
         new GetLocalDefinitionHandler(),
         new TranslateAppSentenceHandler(),
         new ToggleSidePanelHandler(tabRegistry),

@@ -341,9 +341,7 @@ const AnkiSettingsTab: React.FC<Props> = ({
                         }}
                     />
                 ) : (
-                    <SettingsStatus state="ok" action={refreshButton}>
-                        {t('settings.ankiConnected')}
-                    </SettingsStatus>
+                    <SettingsStatus action={refreshButton}>{t('settings.ankiConnected')}</SettingsStatus>
                 )}
             </AnkiConnectTutorialBubble>
             {(ankiConnectApiKey || ankiConnectApiKeyRequired) && (

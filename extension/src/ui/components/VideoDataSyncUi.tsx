@@ -1,7 +1,4 @@
 import CssBaseline from '@mui/material/CssBaseline';
-import Alert from '@mui/material/Alert';
-import Button from '@mui/material/Button';
-import Stack from '@mui/material/Stack';
 import ThemeProvider from '@mui/material/styles/ThemeProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,7 +10,6 @@ import VideoDataSyncDialog, {
 import type Bridge from '@project/extension/src/ui/bridge';
 import type {
     ConfirmedVideoDataSubtitleTrack,
-    EpisodeTranscriptionState,
     Message,
     SerializedSubtitleFile,
     UpdateStateMessage,
@@ -43,7 +39,6 @@ export default function VideoDataSyncUi({ bridge }: Props) {
     const { t } = useTranslation();
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [suggestedName, setSuggestedName] = useState<string>('');
-    const [episodeTranscription, setEpisodeTranscription] = useState<EpisodeTranscriptionState | null>(null);
     const [defaultCheckboxState, setDefaultCheckboxState] = useState<boolean>(false);
     const [openReason, setOpenReason] = useState<VideoDataUiOpenReason>(VideoDataUiOpenReason.userRequested);
     const [openedFromAsbplayerId, setOpenedFromAsbplayerId] = useState<string>('');
@@ -128,10 +123,6 @@ export default function VideoDataSyncUi({ bridge }: Props) {
 
             if (model.isLoading !== undefined) {
                 setIsLoading(model.isLoading);
-            }
-
-            if (model.episodeTranscription !== undefined) {
-                setEpisodeTranscription(model.episodeTranscription);
             }
 
             if (model.suggestedName !== undefined) {
@@ -277,47 +268,6 @@ export default function VideoDataSyncUi({ bridge }: Props) {
         [bridge]
     );
 
-    const phase = episodeTranscription?.phase;
-    const transcriptionKey = 'extension.videoDataSync.transcription';
-    const transcriptionControls = episodeTranscription && (
-        <Stack spacing={1}>
-            {phase === 'error' && <Alert severity="error">{episodeTranscription.error}</Alert>}
-            {phase === 'done' && <Alert severity="success">{t(`${transcriptionKey}.done`)}</Alert>}
-            {(phase === 'ready' || phase === 'error' || phase === 'done') && (
-                <Stack alignItems="flex-start">
-                    <Button onClick={() => bridge.sendMessageFromServer({ command: 'startEpisodeTranscription' })}>
-                        {t(`${transcriptionKey}.start`)}
-                    </Button>
-                    {phase !== 'done' && <small>{t(`${transcriptionKey}.hint`)}</small>}
-                </Stack>
-            )}
-            {(phase === 'starting' || phase === 'uploading' || phase === 'transcribing') && (
-                <Alert severity="info" role="status">
-                    {t(`${transcriptionKey}.${phase}`, {
-                        progress: phase === 'transcribing' ? Math.round(episodeTranscription.progress * 100) : 0,
-                    })}
-                </Alert>
-            )}
-            {phase === 'recording' && (
-                <Alert severity="info" role="status">
-                    {t(`${transcriptionKey}.recording`)}
-                </Alert>
-            )}
-            {(phase === 'starting' || phase === 'recording') && (
-                <Stack direction="row" spacing={1}>
-                    {phase === 'recording' && (
-                        <Button onClick={() => bridge.sendMessageFromServer({ command: 'finishEpisodeTranscription' })}>
-                            {t(`${transcriptionKey}.finish`)}
-                        </Button>
-                    )}
-                    <Button onClick={() => bridge.sendMessageFromServer({ command: 'cancelEpisodeTranscription' })}>
-                        {t(`${transcriptionKey}.cancel`)}
-                    </Button>
-                </Stack>
-            )}
-        </Stack>
-    );
-
     return (
         <StyledEngineProvider injectFirst>
             <ThemeProvider theme={theme}>
@@ -343,7 +293,6 @@ export default function VideoDataSyncUi({ bridge }: Props) {
                     isGenericPage={isGenericPage}
                     showGenericPageOption={showGenericPageOption}
                     genericSubtitleParser={genericSubtitleParser}
-                    episodeTranscriptionControls={transcriptionControls}
                     fileSelector={fileSelector}
                     onCancel={handleCancel}
                     onOpenFiles={handleOpenFiles}

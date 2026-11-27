@@ -3,22 +3,15 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 
-export type SettingsStatusState = 'ok' | 'error' | 'pending';
-
 interface Props {
-    state: SettingsStatusState;
     children: React.ReactNode;
     action?: React.ReactNode;
 }
 
 // A one-line "● Connected" row, used where the settings screen shows a connection instead of its config.
-export default function SettingsStatus({ state, children, action }: Props) {
+export default function SettingsStatus({ children, action }: Props) {
     const theme = useTheme();
-    const color = {
-        ok: theme.palette.success.main,
-        error: theme.palette.error.main,
-        pending: theme.palette.text.disabled,
-    }[state];
+    const color = theme.palette.success.main;
 
     return (
         <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minHeight: 40 }} role="status">

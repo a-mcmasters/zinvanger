@@ -26,7 +26,7 @@ import { openExtensionShortcuts } from '@/services/extension-shortcuts';
 import type { DictionaryProvider } from '@project/common/dictionary-db';
 import type { LogProvider } from '@project/common/util/log';
 import { useLocationHash } from '@project/common/hooks/use-location-hash';
-import LocalLookupSettings from '@/ui/components/LocalLookupSettings';
+import TranslationApiKeySettings from '@/ui/components/TranslationApiKeySettings';
 
 const useStyles = makeStyles<Theme>((theme) => ({
     root: {
@@ -113,7 +113,7 @@ const SettingsPage = ({
                 <DialogContent className={classes.content}>
                     <SettingsForm
                         anki={anki}
-                        ankiSettingsExtra={!isFirefoxBuild && !inTutorial && <LocalLookupSettings />}
+                        ankiSettingsExtra={!isFirefoxBuild && !inTutorial && <TranslationApiKeySettings />}
                         extensionInstalled
                         extensionVersion={browser.runtime.getManifest().version}
                         extensionSupportsAppIntegration

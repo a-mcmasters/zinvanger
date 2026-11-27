@@ -247,6 +247,8 @@ export default defineConfig({
                 ...manifest,
                 ...key,
                 minimum_chrome_version: project.extension.chrome.minimumVersion,
+                // DeepL sends no CORS headers, so the background's sentence translation needs host access.
+                host_permissions: ['https://api-free.deepl.com/*', 'https://api.deepl.com/*'],
                 commands,
             };
         }

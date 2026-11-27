@@ -4,8 +4,6 @@ import { createTheme, ThemeProvider, useTheme } from '@mui/material/styles';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import type { CardModel } from '@project/common';
 import type { AsbplayerSettings, KeyBindName, PageConfig, PageSettings, Profile } from '@project/common/settings';
 import { changeForTextSubtitleSetting, textSubtitleSettingsForTrack } from '@project/common/settings';
@@ -16,12 +14,9 @@ import AnkiSettingsTab from '@project/common/components/AnkiSettingsTab';
 import { KeyBindField } from '@project/common/components/KeyboardShortcutsSettingsTab';
 import NumericSettingInput from '@project/common/components/NumericSettingInput';
 import SettingsSection from '@project/common/components/SettingsSection';
-import SettingsStatus from '@project/common/components/SettingsStatus';
-import type { SettingsStatusState } from '@project/common/components/SettingsStatus';
 import SwitchLabelWithHoverEffect from '@project/common/components/SwitchLabelWithHoverEffect';
 import type { DictionaryProvider } from '@project/common/dictionary-db';
 import type { LogProvider } from '@project/common/util/log';
-import project from '@project/common/project';
 
 interface SettingsFormPageConfig extends PageConfig {
     faviconUrl: string;
@@ -106,42 +101,6 @@ const shortcuts: { name: KeyBindName; label: string; boundViaBrowser: boolean }[
 
 // Background opacity used when the "background" switch is turned on
 const subtitleBackgroundOnOpacity = 0.6;
-
-const { host: transcriberHost, port: transcriberPort } = project.services.transcriber;
-const transcriberAddress = `${transcriberHost}:${transcriberPort}`;
-
-function TranscriberStatus() {
-    const { t } = useTranslation();
-    const [state, setState] = useState<SettingsStatusState>('pending');
-    const check = useCallback(() => {
-        setState('pending');
-        // no-cors: any HTTP answer (even a 404) means the server is up; only a network failure rejects
-        fetch(`http://${transcriberAddress}/`, { mode: 'no-cors', cache: 'no-store' })
-            .then(() => setState('ok'))
-            .catch(() => setState('error'));
-    }, []);
-    useEffect(check, [check]);
-
-    return (
-        <SettingsStatus
-            state={state}
-            action={
-                <IconButton onClick={check} aria-label={t('action.refresh')}>
-                    <RefreshIcon />
-                </IconButton>
-            }
-        >
-            {t(
-                {
-                    ok: 'settings.transcriberOnline',
-                    error: 'settings.transcriberOffline',
-                    pending: 'settings.transcriberChecking',
-                }[state],
-                { address: transcriberAddress }
-            )}
-        </SettingsStatus>
-    );
-}
 
 export default function SettingsForm({
     anki,
@@ -296,12 +255,6 @@ export default function SettingsForm({
                         );
                     })}
                 </section>
-                {extensionInstalled && (
-                    <section id="transcriber">
-                        <SettingsSection>{t('settings.transcriber')}</SettingsSection>
-                        <TranscriberStatus />
-                    </section>
-                )}
                 {extensionVersion && (
                     <Typography variant="caption" color="textSecondary" sx={{ pt: 2 }}>
                         Zinvanger {extensionVersion}

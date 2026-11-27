@@ -1,6 +1,6 @@
 # S03: Your own Dutch subtitles, transcribed by Whisper
 
-Status: In progress (W1)
+Status: Abandoned and removed (2026-11-26). Transcription happens in a separate workflow outside zinvanger. The `transcriber/` server, episode capture and the Whisper track are deleted; the Anki dialog's sentence translation now calls DeepL from the extension.
 Branch: `slice/03-whisper-subtitles` (stacked on `slice/02a-sentence-mining`)
 
 ## Problem

@@ -1,6 +1,6 @@
 # S13: Redesign the UI around watch, replay, look up, mine
 
-Status: In progress (U0 and U1 complete)
+Status: In progress (U0–U2 complete; U3 implemented, manual acceptance pending; U4–U5 not started)
 Branch: `slice/13-ui-redesign` (one branch per sub-slice: `slice/13a-…`, `slice/13b-…`)
 
 ## Problem
@@ -33,7 +33,6 @@ Everything not listed here loses its UI and is fixed to a default. Deleting the 
 | Anki | Connection status (URL editable only when the connection fails), deck, note type, field mapping for sentence / word / audio / definition / translation |
 | Subtitles | Size, position, background on/off, show translation line on/off |
 | Shortcuts | Mine, replay line, previous / next line, toggle subtitles, open command bar. About 6 instead of 77 |
-| Transcriber | Whisper server URL and a status dot |
 | Sites | Per-site on/off, only for the sites kept in S7 |
 
 Target: **one screen, 20 or fewer controls, no tabs.**
@@ -57,7 +56,7 @@ U2 and U3 are independent after U1, so they can run in either order.
 - [x] U1: popup, settings, the Anki dialog and the subtitle picker all render with the new tokens in light and dark mode, with no leftover `#ff3f78` pink.
 - [x] U2: the settings screen has no tabs and 20 or fewer controls, and an existing install keeps its Anki deck, fields and shortcuts after upgrading.
 - [ ] U3: on NPO Start you can replay a line, look up a word, show the translation and mine the sentence without opening any menu.
-- [ ] U4: loading a subtitle file, starting a Whisper transcription and shifting the offset each take one entry point, reachable by the keyboard.
+- [ ] U4: loading a subtitle file and shifting the offset each take one entry point, reachable by the keyboard.
 - [ ] Every interactive element is keyboard reachable and meets WCAG AA contrast in both modes.
 - [ ] `pnpm run verify` passes (see the S1 note on Windows), and the manual smoke test passes on NPO Start and YouTube.
 
@@ -72,17 +71,16 @@ U2 and U3 are independent after U1, so they can run in either order.
 
 U1 uses the shared MUI theme for the violet palette, typography, focus rings, and translucent dialog surfaces. The popup and legacy brand accents use the same palette. The iframe background stays transparent so the video remains visible around the dialogs.
 
-U2 rewrites `SettingsForm` as one scrolling screen with no tabs, keeping its props so the popup, the settings page and the app dialog need no changes. There are three sections: Anki (a connection row, with the URL field only while Anki isn't connected; deck; note type; sentence, word, definition, translation and audio fields; test card), Subtitles (size, bottom offset, background on/off), and Shortcuts (mine, mine with dialog, replay, previous, next, toggle subtitles). In the extension there's also a Transcriber status row. Section ids reuse the old tab ids, so deep links still land. The old `*SettingsTab` files stay but are unrouted; deleting them is left to S6–S11. Three deviations from the table above:
+U2 rewrites `SettingsForm` as one scrolling screen with no tabs, keeping its props so the popup, the settings page and the app dialog need no changes. There are three sections: Anki (a connection row, with the URL field only while Anki isn't connected; deck; note type; sentence, word, definition, translation and audio fields; test card), Subtitles (size, bottom offset, background on/off), and Shortcuts (mine, mine with dialog, replay, previous, next, toggle subtitles). U2 also had a Transcriber status row in the extension; it was removed with the Whisper transcriber on 2026-11-26. Section ids reuse the old tab ids, so deep links still land. The old `*SettingsTab` files stay but are unrouted; deleting them is left to S6–S11. Two deviations from the table above:
 
 - The **translation line on/off** toggle isn't needed, because the English line is on demand (answered question 2). U3 adds the on-demand control.
-- The **Whisper URL** isn't a setting (it's fixed in `project.json`), so the Transcriber row is just a status dot.
 - **Sites** waits for S7: no per-site on/off setting exists yet, and S7 decides which sites stay.
 
 Filled in per sub-slice before building. Known entry points: `common/theme/theme.ts` (all MUI theming), `common/components/SettingsForm.tsx` + `*SettingsTab.tsx`, `extension/src/ui/components/Popup.tsx`, `common/components/VideoDataSyncDialog.tsx`, `extension/src/entrypoints/video.content/` (overlay and controls).
 
 ## Chosen direction
 
-Use the **living subtitle** for replay, word lookup, translation, and mining. Use the **command bar** for loading subtitles, transcribing an episode, shifting timing, and opening settings. This keeps the actions for the current sentence beside the line and the occasional actions within keyboard reach.
+Use the **living subtitle** for replay, word lookup, translation, and mining. Use the **command bar** for loading subtitles, shifting timing, and opening settings. This keeps the actions for the current sentence beside the line and the occasional actions within keyboard reach.
 
 The initial extension icon is [Dutch A, Sentence to Flashcard](S13-u0-prototype/icons/codex-dutch/icon-a.svg). [Glass B, Folded Prism](S13-u0-prototype/icons/codex-glass/icon-b.svg) is saved as an alternate.
 

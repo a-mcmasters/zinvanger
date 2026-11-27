@@ -23,7 +23,7 @@ jest.mock('@project/extension/src/services/ui-frame', () => ({
 }));
 jest.mock('@/services/build-flags', () => ({ isFirefoxBuild: false }));
 jest.mock('@/services/tutorial', () => ({ isOnTutorialPage: () => false }));
-jest.mock('@/services/local-lookup-token', () => ({ getLocalLookupToken: async () => '' }));
+jest.mock('@/services/translation-api-key', () => ({ getTranslationApiKey: async () => '' }));
 jest.mock('@project/extension/src/services/localization-fetcher', () => ({ fetchLocalization: async () => ({}) }));
 jest.mock('@project/extension/src/services/extension-global-state-provider', () => ({
     ExtensionGlobalStateProvider: class {

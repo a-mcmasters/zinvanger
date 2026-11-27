@@ -10,7 +10,7 @@ import Button from '@mui/material/Button';
 import type { ButtonProps } from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import { useTranslation } from 'react-i18next';
-import LocalLookupSettings from '@/ui/components/LocalLookupSettings';
+import TranslationApiKeySettings from '@/ui/components/TranslationApiKeySettings';
 import type { Fetcher } from '@project/common/src/fetcher';
 import { useLocalFontFamilies } from '@project/common/hooks';
 import { Anki } from '@project/common/anki';
@@ -299,7 +299,7 @@ const Popup = ({
                 >
                     {subView === 'settings' && (
                         <SettingsForm
-                            ankiSettingsExtra={!isFirefoxBuild && <LocalLookupSettings />}
+                            ankiSettingsExtra={!isFirefoxBuild && <TranslationApiKeySettings />}
                             onImportSettings={isFirefoxBuild ? handleFirefoxImportSettings : undefined}
                             heightConstrained
                             extensionInstalled
